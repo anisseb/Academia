@@ -1,44 +1,622 @@
-import { Tabs } from 'expo-router';
-import { Camera, Chrome as Home, History } from 'lucide-react-native';
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
+import { Stack } from 'expo-router';
+import { useRef, useState, useEffect } from 'react';
+import { Animated, Alert, Keyboard } from 'react-native';
+import { StyleSheet, Pressable, View, Text, TouchableOpacity, TextInput } from 'react-native';
+import { auth, db } from '../../firebaseConfig';
+import { Tabs, router, useLocalSearchParams } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, deleteField } from 'firebase/firestore';
+import React from 'react';
+import { useTheme } from '../context/ThemeContext';
+
+type Thread = {
+  id: string;
+  title: string;
+  timestamp: Date;
+};
+
+const ThreadItem = ({ thread, isActive, onPress, onTitleChange }: {
+  thread: Thread;
+  isActive: boolean;
+  onPress: () => void;
+  onTitleChange: (newTitle: string) => void;
+}) => {
+  const { isDarkMode } = useTheme();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(thread.title);
+
+  const themeColors = {
+    background: isDarkMode ? '#1a1a1a' : '#ffffff',
+    text: isDarkMode ? '#ffffff' : '#000000',
+    activeBackground: isDarkMode ? '#2d2d2d' : '#e5e7eb',
+    icon: isDarkMode ? '#666666' : '#666666',
+    inputBackground: isDarkMode ? '#2a2a2a' : '#ffffff',
+    inputBorder: isDarkMode ? '#60a5fa' : '#60a5fa',
+    deleteIcon: '#ef4444',
+  };
+
+  const handleCancelEdit = () => {
+    setEditedTitle(thread.title);
+    setIsEditing(false);
+  };
+
+  const handleSaveTitle = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        [`threads.${thread.id}.title`]: editedTitle,
+        [`threads.${thread.id}.lastUpdated`]: new Date()
+      });
+      setIsEditing(false);
+      onTitleChange(editedTitle);
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du titre:', error);
+      Alert.alert('Erreur', 'Impossible de mettre à jour le titre');
+    }
+  };
+
+  const handleDeleteThread = async () => {
+    Alert.alert(
+      "Supprimer la conversation",
+      "Êtes-vous sûr de vouloir supprimer cette conversation ?",
+      [
+        {
+          text: "Annuler",
+          style: "cancel"
+        },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const user = auth.currentUser;
+              if (!user) return;
+
+              const userRef = doc(db, 'users', user.uid);
+              await updateDoc(userRef, {
+                [`threads.${thread.id}`]: deleteField()
+              });
+              router.replace('/(tabs)');
+            } catch (error) {
+              console.error('Erreur lors de la suppression:', error);
+              Alert.alert(
+                "Erreur",
+                "Une erreur est survenue lors de la suppression de la conversation."
+              );
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  return (
+    <View style={[
+      styles.threadItem,
+      isActive && [styles.activeThreadItem, { backgroundColor: themeColors.activeBackground }]
+    ]}>
+      <TouchableOpacity 
+        style={styles.threadItemContent} 
+        onPress={onPress}
+      >
+        <Feather name="message-circle" size={16} color={themeColors.icon} />
+        {isEditing ? (
+          <View style={styles.titleEditContainer}>
+            <TextInput
+              style={[
+                styles.titleInput,
+                {
+                  color: themeColors.text,
+                  backgroundColor: themeColors.inputBackground,
+                  borderBottomColor: themeColors.inputBorder,
+                }
+              ]}
+              value={editedTitle}
+              onChangeText={setEditedTitle}
+              autoFocus
+              placeholder="Nom de la conversation"
+              placeholderTextColor={themeColors.icon}
+            />
+            <View style={styles.editActions}>
+              <TouchableOpacity onPress={handleCancelEdit} style={styles.cancelButton}>
+                <Feather name="x" size={16} color={themeColors.deleteIcon} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSaveTitle} style={styles.saveButton}>
+                <Feather name="check" size={16} color={themeColors.inputBorder} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.titleContainer}>
+            <Text style={[styles.threadTitle, { color: themeColors.text }]} numberOfLines={1}>
+              {thread.title || 'Nouvelle conversation'}
+            </Text>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity 
+                onPress={() => {
+                  setEditedTitle(thread.title);
+                  setIsEditing(true);
+                }}
+                style={styles.editButton}
+              >
+                <Feather name="edit-2" size={14} color={themeColors.icon} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={handleDeleteThread}
+                style={styles.deleteButton}
+              >
+                <Feather name="trash-2" size={14} color={themeColors.deleteIcon} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 export default function TabLayout() {
+  const { isDarkMode } = useTheme();
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const slideAnim = useRef(new Animated.Value(-320)).current;
+  const { threadId } = useLocalSearchParams();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const themeColors = {
+    background: isDarkMode ? '#1a1a1a' : '#ffffff',
+    text: isDarkMode ? '#ffffff' : '#000000',
+    border: isDarkMode ? '#333333' : '#e0e0e0',
+    icon: isDarkMode ? '#ffffff' : '#000000',
+    sidebarBackground: isDarkMode ? '#1a1a1a' : '#f5f5f5',
+    threadBackground: isDarkMode ? '#2d2d2d' : '#e5e7eb',
+    inputBackground: isDarkMode ? '#2a2a2a' : '#ffffff',
+    placeholder: isDarkMode ? '#666666' : '#999999',
+  };
+
+  // Mettre à jour activeThreadId quand threadId change
+  useEffect(() => {
+    if (threadId) {
+      setActiveThreadId(threadId as string);
+    } else {
+      setActiveThreadId(null);
+    }
+  }, [threadId]);
+
+  // Charger les threads depuis Firestore
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const userRef = doc(db, 'users', user.uid);
+    const unsubscribe = onSnapshot(userRef, (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        const isAdmin = data.profile.is_admin;
+        setIsAdmin(isAdmin);
+        const threads = data.threads || {};
+        const threadsList = Object.entries(threads).map(([id, thread]: [string, any]) => ({
+          id,
+          title: thread.title || 'Nouvelle conversation',
+          timestamp: thread.timestamp?.toDate(),
+        })) as Thread[];
+        setThreads(threadsList);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const toggleSidebar = () => {
+    Keyboard.dismiss(); // Ferme le clavier
+    const toValue = showSidebar ? -320 : 0;
+    setShowSidebar(!showSidebar);
+    Animated.spring(slideAnim, {
+      toValue,
+      useNativeDriver: true,
+      friction: 20,
+      tension: 70,
+    }).start();
+  };
+
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+      router.replace('/auth');
+    } catch (error) {
+      console.error('Erreur de déconnexion:', error);
+    }
+  };
+
+  const createNewThread = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
+      
+      const threadId = Date.now().toString();
+      const newThread = {
+        title: 'Nouvelle conversation',
+        timestamp: new Date(),
+        lastUpdated: new Date(),
+        messages: []
+      };
+
+      if (userDoc.exists()) {
+        await updateDoc(userRef, {
+          [`threads.${threadId}`]: newThread
+        });
+      }
+
+      setActiveThreadId(threadId);
+      router.replace({
+        pathname: '/(tabs)/history',
+        params: { threadId }
+      });
+      toggleSidebar();
+    } catch (error) {
+      console.error('Erreur lors de la création de la conversation:', error);
+      Alert.alert('Erreur', 'Impossible de créer une nouvelle conversation');
+    }
+  };
+
+  const handleSaveTitle = async (threadId: string, newTitle: string) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        [`threads.${threadId}.title`]: newTitle,
+        [`threads.${threadId}.lastUpdated`]: new Date()
+      });
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du titre:', error);
+      Alert.alert('Erreur', 'Impossible de mettre à jour le titre');
+    }
+  };
+
+  const handleDeleteThread = async (threadId: string) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        [`threads.${threadId}`]: deleteField()
+      });
+      
+      router.replace('/(tabs)');
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      Alert.alert('Erreur', 'Une erreur est survenue lors de la suppression de la conversation');
+    }
+  };
+
   return (
-    <Tabs
-      screenOptions={{
-        tabBarStyle: {
-          backgroundColor: '#1a1a1a',
-        },
-        tabBarActiveTintColor: '#60a5fa',
-        tabBarInactiveTintColor: '#6b7280',
-        headerStyle: {
-          backgroundColor: '#1a1a1a',
-        },
-        headerTintColor: '#fff',
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ size, color }) => <Home size={size} color={color} />,
+    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+      <Tabs
+        screenOptions={{
+          tabBarStyle: { display: 'none' },
+          headerLeft: () => (
+            <TouchableOpacity onPress={toggleSidebar} style={styles.menuButton}>
+              <Feather name="menu" size={24} color={themeColors.icon} />
+            </TouchableOpacity>
+          ),
+          headerStyle: {
+            backgroundColor: themeColors.background,
+          },
+          headerTintColor: themeColors.text,
         }}
-      />
-      <Tabs.Screen
-        name="camera"
-        options={{
-          title: 'Scan',
-          tabBarIcon: ({ size, color }) => <Camera size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="history"
-        options={{
-          title: 'History',
-          tabBarIcon: ({ size, color }) => <History size={size} color={color} />,
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen name="index" options={{ title: 'Academia' }} />
+        <Tabs.Screen 
+          name="history" 
+          options={({ route }) => {
+            const params = route.params as { threadId?: string };
+            const thread = threads.find(t => t.id === params?.threadId);
+            return {
+              title: thread?.title || 'Nouvelle conversation',
+            };
+          }}
+        />
+        <Tabs.Screen name="profile" options={{ title: 'Mon Profil' }} />
+        <Tabs.Screen name="settings" options={{ title: 'Paramètres' }} />
+        {isAdmin && (
+          <Tabs.Screen name="admin" options={{ title: 'Admin' }} />
+        )}
+      </Tabs>
+
+      {showSidebar && (
+        <Pressable style={styles.overlay} onPress={toggleSidebar} />
+      )}
+
+      <Animated.View 
+        style={[
+          styles.sidebar,
+          {
+            transform: [{ translateX: slideAnim }],
+            backgroundColor: themeColors.sidebarBackground,
+            borderRightColor: themeColors.border,
+          }
+        ]}
+      >
+        <View style={[styles.profileSection, { borderBottomColor: themeColors.border }]}>
+          <TouchableOpacity 
+            style={styles.profileButton}
+            onPress={() => {
+              router.push('/(tabs)/profile');
+              toggleSidebar();
+            }}
+          >
+            <Feather name="user" size={24} color={themeColors.icon} />
+            <Text style={[styles.profileText, { color: themeColors.text }]}>Profil</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.navigationSection}>
+          <TouchableOpacity 
+            style={styles.navigationItem}
+            onPress={() => {
+              router.push('/(tabs)');
+              toggleSidebar();
+            }}
+          >
+            <Feather name="home" size={20} color={themeColors.icon} />
+            <Text style={[styles.navigationText, { color: themeColors.text }]}>Accueil</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.navigationItem}
+            onPress={() => {
+              router.push('/(tabs)/entrainement');
+              toggleSidebar();
+            }}
+          >
+            <Feather name="target" size={20} color={themeColors.icon} />
+            <Text style={[styles.navigationText, { color: themeColors.text }]}>Entrainement</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.navigationItem}
+            onPress={() => {
+              router.push('/(tabs)/revision');
+              toggleSidebar();
+            }}
+          >
+            <Feather name="book-open" size={20} color={themeColors.icon} />
+            <Text style={[styles.navigationText, { color: themeColors.text }]}>Révision</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.newThreadButton}
+            onPress={createNewThread}
+          >
+            <Feather name="plus" size={20} color="white" />
+            <Text style={styles.newThreadButtonText}>Nouvelle conversation</Text>
+          </TouchableOpacity>
+
+          <View style={styles.threadsList}>
+            {threads.map((thread) => (
+              <ThreadItem
+                key={thread.id}
+                thread={thread}
+                isActive={activeThreadId === thread.id}
+                onPress={() => {
+                  setActiveThreadId(thread.id);
+                  router.push({
+                    pathname: '/(tabs)/history',
+                    params: { threadId: thread.id }
+                  });
+                  toggleSidebar();
+                }}
+                onTitleChange={(newTitle) => {
+                  handleSaveTitle(thread.id, newTitle);
+                }}
+              />
+            ))}
+          </View>
+        </View>
+
+        <View style={[styles.sidebarFooter, { borderTopColor: themeColors.border }]}>
+          <TouchableOpacity 
+            style={styles.footerButton}
+            onPress={() => {
+              router.push('/(tabs)/admin');
+              toggleSidebar();
+            }}
+          >
+            <Feather name="users" size={20} color={themeColors.icon} />
+            <Text style={[styles.footerButtonText, { color: themeColors.text }]}>Admin</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.footerButton}
+            onPress={() => {
+              router.push('/(tabs)/settings');
+              toggleSidebar();
+            }}
+          >
+            <Feather name="settings" size={20} color={themeColors.icon} />
+            <Text style={[styles.footerButtonText, { color: themeColors.text }]}>Paramètres</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.footerButton} onPress={handleLogout}>
+            <Feather name="log-out" size={20} color={themeColors.icon} />
+            <Text style={[styles.footerButtonText, { color: themeColors.text }]}>Déconnexion</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 1,
+  },
+  sidebar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 320,
+    borderRightWidth: 1,
+    zIndex: 2,
+  },
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+  },
+  menuButton: {
+    padding: 10,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 15,
+  },
+  profileSection: {
+    padding: 20,
+    borderBottomWidth: 1,
+    marginTop: 50,
+  },
+  profileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  profileText: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 10,
+  },
+  navigationSection: {
+    paddingVertical: 15,
+  },
+  navigationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    gap: 12,
+  },
+  navigationText: {
+    fontSize: 16,
+    marginLeft: 10,
+  },
+  separator: {
+    height: 1,
+    marginVertical: 10,
+    marginHorizontal: 15,
+  },
+  newThreadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#60a5fa',
+    padding: 12,
+    borderRadius: 8,
+    marginHorizontal: 15,
+    marginVertical: 10,
+  },
+  newThreadButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  threadsList: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+  },
+  threadItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    marginVertical: 2,
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: 'transparent',
+  },
+  threadItemContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  titleContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  titleEditContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  titleInput: {
+    flex: 1,
+    fontSize: 14,
+    padding: 4,
+    borderBottomWidth: 1,
+  },
+  saveButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  editButton: {
+    padding: 4,
+  },
+  deleteButton: {
+    padding: 4,
+  },
+  threadTitle: {
+    flex: 1,
+    fontSize: 14,
+    marginLeft: 8,
+    opacity: 0.8,
+  },
+  activeThreadItem: {
+    backgroundColor: '#2d2d2d',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cancelButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  sidebarFooter: {
+    padding: 15,
+    marginTop: 'auto',
+    borderTopWidth: 1,
+  },
+  footerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 12,
+  },
+  footerButtonText: {
+    fontSize: 14,
+    marginLeft: 10,
+  },
+});

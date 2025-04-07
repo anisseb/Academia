@@ -1,17 +1,60 @@
-import React from 'react';
-import { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions, Camera } from 'expo-camera';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import { useRouter } from 'expo-router';
-import { Camera as CameraIcon, Camera as FlipCamera } from 'lucide-react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Camera as CameraIcon, Camera as FlipCamera, ArrowLeft } from 'lucide-react-native';
+import { storage, db } from '../../firebaseConfig';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth } from '../../firebaseConfig';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack } from 'expo-router';
 
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>('back');
   const [photo, setPhoto] = useState<string | null>(null);
   const cameraRef = useRef(null);
-  const router = useRouter();
+  const { threadId } = useLocalSearchParams();
+  
+
+  useEffect(() => {
+  }, [threadId]);
+
+  const processImage = async () => {
+    if (!photo) return;
+    
+    try {
+      if (!threadId) {
+        console.error('No threadId found in camera screen');
+        alert('Erreur: Impossible d\'ajouter la photo. Veuillez réessayer.');
+        return;
+      }
+
+      // Convertir l'image en base64
+      const response = await fetch(photo);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      const base64 = await new Promise((resolve) => {
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+
+      // Réinitialiser la photo avant la redirection
+      setPhoto(null);
+
+      router.push({
+        pathname: '/(tabs)/history',
+        params: { 
+          threadId: threadId as string,
+          imageBase64: base64 as string
+        }
+      });
+    } catch (error) {
+      console.error('Failed to process image:', error);
+      alert('Erreur lors du traitement de l\'image. Veuillez réessayer.');
+    }
+  };
 
   if (!permission) {
     return <View />;
@@ -28,19 +71,12 @@ export default function CameraScreen() {
     );
   }
 
-  function toggleCameraFacing() {
-    setFacing(current => (current === 'back' ? 'front' : 'back'));
-  }
-
   const takePicture = async () => {
-    console.log('Button pressed - attempting to take picture');
     if (!cameraRef.current) {
-      console.log('Camera ref is null');
       return;
     }
     try {
       const photo = await (cameraRef.current as any).takePictureAsync();
-      console.log('photo', photo);
 
       setPhoto(photo.uri);
     } catch (error) {
@@ -48,59 +84,61 @@ export default function CameraScreen() {
     }
   };
 
-  const processImage = async () => {
-    if (!photo) return;
-    
-    try {
-      console.log('photo', photo);
-      // Here we would normally send the image to Google Cloud Vision API
-      // and then send the extracted text to Mistral API
-      // For now, we'll just navigate to the results screen
-      router.push({
-        pathname: '/results',
-        params: { photo }
-      });
-    } catch (error) {
-      console.error('Failed to process image:', error);
-    }
-  };
-
   return (
-    <View style={styles.container}>
-      {!photo ? (
-        <View style={styles.container}>
-          <CameraView style={styles.camera} facing={facing} ref={cameraRef}>
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity 
-                style={styles.captureButton} 
-                onPress={takePicture}
-                activeOpacity={0.7}
+    <>
+      <Stack.Screen 
+        options={{
+          headerShown: false,
+          presentation: 'fullScreenModal'
+        }} 
+      />
+      <SafeAreaView style={styles.container}>
+        {!photo && (
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.push({
+              pathname: '/(tabs)/history',
+              params: { threadId: threadId as string }
+            })}
+          >
+            <ArrowLeft color="white" size={32} />
+          </TouchableOpacity>
+        )}
+        {!photo ? (
+          <View style={styles.container}>
+            <CameraView style={styles.camera} facing={facing} ref={cameraRef}>
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity 
+                  style={styles.captureButton} 
+                  onPress={takePicture}
+                  activeOpacity={0.7}
+                >
+                  <CameraIcon color="white" size={32} />
+                </TouchableOpacity>
+              </View>
+            </CameraView>
+          </View>
+        ) : (
+          <View style={styles.previewContainer}>
+            <Image source={{ uri: photo }} style={styles.preview} />
+            <View style={styles.previewButtons}>
+              <TouchableOpacity
+                style={[styles.button, styles.retakeButton]}
+                onPress={() => setPhoto(null)}
               >
-                <CameraIcon color="white" size={32} />
+                <Text style={styles.buttonText}>Reprendre</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.useButton]}
+                onPress={processImage}
+              >
+                <Text style={styles.buttonText}>Utiliser</Text>
               </TouchableOpacity>
             </View>
-          </CameraView>
-        </View>
-      ) : (
-        <View style={styles.previewContainer}>
-          <Image source={{ uri: photo }} style={styles.preview} />
-          <View style={styles.previewButtons}>
-            <TouchableOpacity
-              style={[styles.button, styles.retakeButton]}
-              onPress={() => setPhoto(null)}
-            >
-              <Text style={styles.buttonText}>Retake</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.useButton]}
-              onPress={processImage}
-            >
-              <Text style={styles.buttonText}>Use Photo</Text>
-            </TouchableOpacity>
           </View>
-        </View>
-      )}
-    </View>
+        )}
+      </SafeAreaView>
+    </>
   );
 }
 
@@ -177,5 +215,17 @@ const styles = StyleSheet.create({
   useButton: {
     flex: 1,
     marginLeft: 10,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 70,
+    left: 20,
+    zIndex: 1,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
