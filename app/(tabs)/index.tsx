@@ -51,41 +51,82 @@ export default function HomeScreen() {
       const userData = userDoc.data();
       const exercises = userData.exercises || {};
       
-      const subjectStats: Record<string, SubjectStats> = {};
 
       // Parcourir chaque matière
-      Object.entries(exercises).forEach(([subject, subjectExercises]) => {
-        const exercisesList = Object.values(subjectExercises as Record<string, ExerciseData>);
+      Object.entries(exercises).forEach(([subject, classData]) => {
         
+        // Extraire tous les exercices de la structure imbriquée
+        const allExercises: ExerciseData[] = [];
+        
+        // Parcourir la structure imbriquée pour extraire les exercices
+        Object.entries(classData as Record<string, any>).forEach(([classLevel, chapterData]) => {
+          Object.entries(chapterData as Record<string, any>).forEach(([chapter, contentData]) => {
+            Object.entries(contentData as Record<string, any>).forEach(([content, exerciseData]) => {
+              // Vérifier si exerciseData est un objet
+              if (exerciseData && typeof exerciseData === 'object') {
+                // Parcourir les exercices dans exerciseData
+                Object.entries(exerciseData as Record<string, any>).forEach(([exerciseId, exercise]) => {
+                  
+                  // Vérifier si c'est un exercice avec les propriétés attendues
+                  if (exercise && typeof exercise === 'object' && 
+                      'score' in exercise && 'completedAt' in exercise && 'done' in exercise) {
+                    allExercises.push({
+                      chapter: exercise.chapter || chapter,
+                      content: exercise.content || content,
+                      completedAt: exercise.completedAt || '',
+                      done: exercise.done || false,
+                      score: exercise.score || 0
+                    });
+                  }
+                });
+              }
+            });
+          });
+        });
+      
         // Calculer les statistiques pour cette matière
-        const totalExercises = exercisesList.length;
-        const totalScore = exercisesList.reduce((sum, ex) => sum + ex.score, 0);
-        const averageScore = totalScore / totalExercises || 0;
+        const totalExercises = allExercises.length;
+        // Vérifier si les exercices ont un score défini
+        const validExercises = allExercises.filter(ex => ex.score !== undefined && ex.score !== null);
+        
+        const totalScore = validExercises.reduce((sum, ex) => {
+          return sum + (ex.score || 0);
+        }, 0);
+        
+        const averageScore = validExercises.length > 0 ? totalScore / validExercises.length : 0;
 
         // Calculer les jours consécutifs
-        const dates = exercisesList
+        const dates = allExercises
           .map(ex => new Date(ex.completedAt).toDateString())
           .sort()
           .filter((date, index, array) => array.indexOf(date) === index);
 
-        
         // Calculer les réponses correctes/incorrectes basées sur le score
-        const correctAnswers = exercisesList.reduce((sum, ex) => 
-          sum + Math.round((ex.score / 100) * 10), 0);
-        const incorrectAnswers = exercisesList.reduce((sum, ex) => 
-          sum + (10 - Math.round((ex.score / 100) * 10)), 0);
+        const correctAnswers = validExercises.reduce((sum, ex) => {
+          return sum + Math.round(((ex.score || 0) / 100) * 10);
+          }, 0);
 
+        const incorrectAnswers = validExercises.reduce((sum, ex) => {
+          return sum + (10 - Math.round(((ex.score || 0) / 100) * 10));
+        }, 0);
+        
+        const subjectStats: Record<string, SubjectStats> = {};
         subjectStats[subject] = {
           averageScore: Math.round(averageScore),
           completedExercises: totalExercises,
           consecutiveDays: calculateConsecutiveDays(dates),
           correctAnswers,
           incorrectAnswers,
-          precision: Math.round((correctAnswers / (correctAnswers + incorrectAnswers)) * 100)
+          precision: correctAnswers + incorrectAnswers > 0 
+            ? Math.round((correctAnswers / (correctAnswers + incorrectAnswers)) * 100) 
+            : 0
         };
+        
+        // Mettre à jour les statistiques globales
+        stats[subject] = subjectStats[subject];
       });
 
-      setStats(subjectStats);
+      setStats(stats);
     } catch (error) {
       console.error('Erreur lors du chargement des stats:', error);
     } finally {
