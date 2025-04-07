@@ -62,64 +62,66 @@ export default function AuthScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView 
-          contentContainerStyle={styles.scrollContainer}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.header}>
-            <Text style={styles.appTitle}>Academ<Text style={styles.highlightText}>IA</Text></Text>
-            <Text style={styles.appSubtitle}>Ton assistant personnel d'apprentissage</Text>
-          </View>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContainer}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.header}>
+          <Text style={styles.appTitle}>Academ<Text style={styles.highlightText}>IA</Text></Text>
+          <Text style={styles.appSubtitle}>Ton assistant personnel d'apprentissage</Text>
+        </View>
 
-          <View style={styles.formContainer}>
-            <Text style={styles.title}>{isLogin ? 'Connexion' : 'Inscription'}</Text>
-            
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="exemple@email.com"
-                placeholderTextColor="#666"
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
-            </View>
-            
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Mot de passe</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor="#666"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
-            </View>
-            
-            <TouchableOpacity 
-              style={styles.button} 
-              onPress={handleAuth}
-            >
-              <Text style={styles.buttonText}>
-                {isLogin ? 'Se connecter' : 'S\'inscrire'}
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.switchButton} 
-              onPress={() => setIsLogin(!isLogin)}
-            >
-              <Text style={styles.switchText}>
-                {isLogin ? 'Créer un compte' : 'Déjà un compte ? Se connecter'}
-              </Text>
-            </TouchableOpacity>
+        <View style={styles.formContainer}>
+          <Text style={styles.title}>{isLogin ? 'Connexion' : 'Inscription'}</Text>
+          
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="exemple@email.com"
+              placeholderTextColor="#666"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              editable={true}
+              pointerEvents="auto"
+            />
           </View>
-        </ScrollView>
-      </TouchableWithoutFeedback>
+          
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Mot de passe</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="••••••••"
+              placeholderTextColor="#666"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              editable={true}
+              pointerEvents="auto"
+            />
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.button} 
+            onPress={handleAuth}
+          >
+            <Text style={styles.buttonText}>
+              {isLogin ? 'Se connecter' : 'S\'inscrire'}
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.switchButton} 
+            onPress={() => setIsLogin(!isLogin)}
+          >
+            <Text style={styles.switchText}>
+              {isLogin ? 'Créer un compte' : 'Déjà un compte ? Se connecter'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -182,6 +184,8 @@ const styles = StyleSheet.create({
     padding: 15,
     color: '#fff',
     fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#444',
   },
   button: {
     backgroundColor: '#60a5fa',

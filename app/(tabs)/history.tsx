@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, KeyboardAvoidingView, Platform, TextInput, Alert, Animated, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, KeyboardAvoidingView, Platform, TextInput, Alert, Animated, Keyboard, Platform as RNPlatform, AlertButton } from 'react-native';
 import { Mistral } from '@mistralai/mistralai';
 import { Camera as CameraIcon, X } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -94,6 +94,24 @@ const Message = ({ message, isLast }: { message: Message, isLast: boolean }) => 
       )}
     </Animated.View>
   );
+};
+
+// Fonction utilitaire pour afficher des alertes compatibles avec toutes les plateformes
+const showAlert = (title: string, message: string, buttons: AlertButton[]) => {
+  if (RNPlatform.OS === 'web') {
+    // En version web, utiliser window.confirm
+    const result = window.confirm(`${title}\n\n${message}`);
+    if (result) {
+      // Si l'utilisateur clique sur OK, exécuter l'action de confirmation
+      const confirmButton = buttons.find(btn => btn.style !== 'cancel');
+      if (confirmButton?.onPress) {
+        confirmButton.onPress();
+      }
+    }
+  } else {
+    // Sur mobile, utiliser Alert de React Native
+    Alert.alert(title, message, buttons);
+  }
 };
 
 export default function HistoryScreen() {
@@ -405,7 +423,7 @@ export default function HistoryScreen() {
 
     } catch (error) {
       console.error('Erreur:', error);
-      Alert.alert('Erreur', 'Une erreur est survenue lors de l\'envoi du message');
+      showAlert('Erreur', 'Une erreur est survenue lors de l\'envoi du message', [{ text: "OK" }]);
     } finally {
       setIsLoading(false);
     }

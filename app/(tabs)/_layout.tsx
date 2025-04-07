@@ -1,11 +1,11 @@
 import { Stack } from 'expo-router';
 import { useRef, useState, useEffect } from 'react';
-import { Animated, Alert, Keyboard } from 'react-native';
+import { Animated, Alert, Keyboard, Platform, AlertButton } from 'react-native';
 import { StyleSheet, Pressable, View, Text, TouchableOpacity, TextInput } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
 import { Tabs, router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, deleteField } from 'firebase/firestore';
+import { onSnapshot, doc, updateDoc, getDoc, deleteField } from 'firebase/firestore';
 import React from 'react';
 import { useTheme } from '../context/ThemeContext';
 
@@ -13,6 +13,24 @@ type Thread = {
   id: string;
   title: string;
   timestamp: Date;
+};
+
+// Fonction utilitaire pour afficher des alertes compatibles avec toutes les plateformes
+const showAlert = (title: string, message: string, buttons: AlertButton[]) => {
+  if (Platform.OS === 'web') {
+    // En version web, utiliser window.confirm
+    const result = window.confirm(`${title}\n\n${message}`);
+    if (result) {
+      // Si l'utilisateur clique sur OK, exécuter l'action de confirmation
+      const confirmButton = buttons.find(btn => btn.style !== 'cancel');
+      if (confirmButton?.onPress) {
+        confirmButton.onPress();
+      }
+    }
+  } else {
+    // Sur mobile, utiliser Alert de React Native
+    Alert.alert(title, message, buttons);
+  }
 };
 
 const ThreadItem = ({ thread, isActive, onPress, onTitleChange }: {
@@ -54,12 +72,12 @@ const ThreadItem = ({ thread, isActive, onPress, onTitleChange }: {
       onTitleChange(editedTitle);
     } catch (error) {
       console.error('Erreur lors de la mise à jour du titre:', error);
-      Alert.alert('Erreur', 'Impossible de mettre à jour le titre');
+      showAlert('Erreur', 'Impossible de mettre à jour le titre', [{ text: "OK" }]);
     }
   };
 
   const handleDeleteThread = async () => {
-    Alert.alert(
+    showAlert(
       "Supprimer la conversation",
       "Êtes-vous sûr de vouloir supprimer cette conversation ?",
       [
@@ -82,9 +100,10 @@ const ThreadItem = ({ thread, isActive, onPress, onTitleChange }: {
               router.replace('/(tabs)');
             } catch (error) {
               console.error('Erreur lors de la suppression:', error);
-              Alert.alert(
+              showAlert(
                 "Erreur",
-                "Une erreur est survenue lors de la suppression de la conversation."
+                "Une erreur est survenue lors de la suppression de la conversation.",
+                [{ text: "OK" }]
               );
             }
           }
@@ -262,7 +281,7 @@ export default function TabLayout() {
       toggleSidebar();
     } catch (error) {
       console.error('Erreur lors de la création de la conversation:', error);
-      Alert.alert('Erreur', 'Impossible de créer une nouvelle conversation');
+      showAlert('Erreur', 'Impossible de créer une nouvelle conversation', [{ text: "OK" }]);
     }
   };
 
@@ -278,7 +297,7 @@ export default function TabLayout() {
       });
     } catch (error) {
       console.error('Erreur lors de la mise à jour du titre:', error);
-      Alert.alert('Erreur', 'Impossible de mettre à jour le titre');
+      showAlert('Erreur', 'Impossible de mettre à jour le titre', [{ text: "OK" }]);
     }
   };
 
@@ -295,7 +314,7 @@ export default function TabLayout() {
       router.replace('/(tabs)');
     } catch (error) {
       console.error('Erreur lors de la suppression:', error);
-      Alert.alert('Erreur', 'Une erreur est survenue lors de la suppression de la conversation');
+      showAlert('Erreur', 'Une erreur est survenue lors de la suppression de la conversation', [{ text: "OK" }]);
     }
   };
 

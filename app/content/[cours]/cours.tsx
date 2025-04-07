@@ -7,6 +7,9 @@ import {
   SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
+  Platform,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
@@ -34,6 +37,9 @@ export default function CoursScreen() {
   const router = useRouter();
   const { isDarkMode } = useTheme();
   const params = useLocalSearchParams();
+  
+  // Obtenir la hauteur de la barre de statut
+  const statusBarHeight = StatusBar.currentHeight || 0;
   
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -120,10 +126,18 @@ export default function CoursScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: themeColors.border }]}>
+      <View style={[
+        styles.header, 
+        { 
+          borderBottomColor: themeColors.border,
+          paddingTop: Platform.OS === 'android' ? statusBarHeight + 12 : 16,
+          paddingBottom: Platform.OS === 'android' ? 12 : 16,
+          marginTop: Platform.OS === 'android' ? 10 : 0,
+        }
+      ]}>
         <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => router.replace('/(tabs)/revision')}
         >
           <MaterialCommunityIcons 
             name="arrow-left" 
@@ -235,6 +249,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
+    minHeight: Platform.OS === 'android' ? 70 : 60,
   },
   backButton: {
     padding: 8,
