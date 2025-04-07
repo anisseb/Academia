@@ -1,13 +1,15 @@
-import React from 'react';
+import React, { useEffect }  from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { auth, db } from '../../firebaseConfig';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import Step1 from './Step1';
 import Step2 from './Step2';
 import Step3 from './Step3';
 import Step4 from './Step4';
 import Step5 from './Step5';
+import { onAuthStateChanged } from 'firebase/auth';
+
 
 type OnboardingData = {
   name?: string;
@@ -22,6 +24,31 @@ export default function Onboarding() {
   const [step, setStep] = React.useState(1);
   const [data, setData] = React.useState<OnboardingData>({});
   const router = useRouter();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        router.replace('/auth');
+        return;
+      }
+      
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const userData = userDoc.data();
+        
+        if (userData?.profile?.onboardingCompleted) {
+          router.replace('/(tabs)');
+        }
+      } catch (error) {
+        console.error("Erreur lors de la vérification de l'onboarding:", error);
+        router.replace('/auth');
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const handleNext = async (stepData: Partial<OnboardingData>) => {
     const newData = { ...data, ...stepData };

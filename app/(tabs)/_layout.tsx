@@ -425,8 +425,9 @@ export default function TabLayout() {
         </View>
 
         <View style={[styles.sidebarFooter, { borderTopColor: themeColors.border }]}>
-          <TouchableOpacity 
-            style={styles.footerButton}
+          {isAdmin && (
+            <TouchableOpacity 
+              style={styles.footerButton}
             onPress={() => {
               router.push('/(tabs)/admin');
               toggleSidebar();
@@ -434,7 +435,8 @@ export default function TabLayout() {
           >
             <Feather name="users" size={20} color={themeColors.icon} />
             <Text style={[styles.footerButtonText, { color: themeColors.text }]}>Admin</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity 
             style={styles.footerButton}
             onPress={() => {
