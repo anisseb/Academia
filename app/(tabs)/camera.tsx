@@ -1,14 +1,28 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { CameraView, CameraType, useCameraPermissions, Camera } from 'expo-camera';
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, Platform, AlertButton } from 'react-native';
+import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Camera as CameraIcon, Camera as FlipCamera, ArrowLeft } from 'lucide-react-native';
-import { storage, db } from '../../firebaseConfig';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { auth } from '../../firebaseConfig';
+import { Camera as CameraIcon, ArrowLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
+
+// Fonction utilitaire pour afficher des alertes compatibles avec toutes les plateformes
+const showAlert = (title: string, message: string, buttons: AlertButton[]) => {
+  if (Platform.OS === 'web') {
+    // En version web, utiliser window.confirm
+    const result = window.confirm(`${title}\n\n${message}`);
+    if (result) {
+      // Si l'utilisateur clique sur OK, exécuter l'action de confirmation
+      const confirmButton = buttons.find(btn => btn.style !== 'cancel');
+      if (confirmButton?.onPress) {
+        confirmButton.onPress();
+      }
+    }
+  } else {
+    // Sur mobile, utiliser Alert de React Native
+    Alert.alert(title, message, buttons);
+  }
+};
 
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -27,7 +41,7 @@ export default function CameraScreen() {
     try {
       if (!threadId) {
         console.error('No threadId found in camera screen');
-        alert('Erreur: Impossible d\'ajouter la photo. Veuillez réessayer.');
+        showAlert('Erreur', 'Impossible d\'ajouter la photo. Veuillez réessayer.', [{ text: "OK" }]);
         return;
       }
 
@@ -52,7 +66,7 @@ export default function CameraScreen() {
       });
     } catch (error) {
       console.error('Failed to process image:', error);
-      alert('Erreur lors du traitement de l\'image. Veuillez réessayer.');
+      showAlert('Erreur', 'Erreur lors du traitement de l\'image. Veuillez réessayer.', [{ text: "OK" }]);
     }
   };
 

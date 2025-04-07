@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, SafeAreaView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, SafeAreaView, RefreshControl, Platform, StatusBar } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { ChapterContent } from '../../../constants/programme';
@@ -27,6 +27,8 @@ export default function ContentPage() {
   const [contentData, setContentData] = useState<ChapterContent | null>(null);
   const [chapterTitle, setChapterTitle] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+    // Obtenir la hauteur de la barre de statut
+  const statusBarHeight = StatusBar.currentHeight || 0;
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -117,7 +119,12 @@ export default function ContentPage() {
   };
 
   const renderBackButton = () => (
-    <View style={[styles.header, { backgroundColor: themeColors.background }]}>
+    <View style={[styles.header, { 
+      backgroundColor: themeColors.background,
+      paddingTop: Platform.OS === 'android' ? statusBarHeight + 12 : 16,
+      paddingBottom: Platform.OS === 'android' ? 12 : 16,
+      marginTop: Platform.OS === 'android' ? 10 : 0,
+     }]}>
       <TouchableOpacity 
         style={styles.backButton} 
         onPress={handleBack}
@@ -236,7 +243,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    height: 60,
+    minHeight: Platform.OS === 'android' ? 70 : 60,
     justifyContent: 'center',
   },
   backButton: {

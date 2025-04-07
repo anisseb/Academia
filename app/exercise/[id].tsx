@@ -8,6 +8,8 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../context/ThemeContext';
@@ -31,6 +33,9 @@ export default function ExercisePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showExplanation, setShowExplanation] = useState(false);
   const [hasAnswered, setHasAnswered] = useState(false);
+
+  // Obtenir la hauteur de la barre de statut
+  const statusBarHeight = StatusBar.currentHeight || 0;
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -237,7 +242,11 @@ export default function ExercisePage() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
       <View style={styles.mainContainer}>
-        <View style={styles.header}>
+        <View style={[styles.header, {
+          paddingTop: Platform.OS === 'android' ? statusBarHeight + 12 : 16,
+          paddingBottom: Platform.OS === 'android' ? 12 : 16,
+          marginTop: Platform.OS === 'android' ? 10 : 0,
+        }]}>
           {currentQuestionIndex === 0 && (
             <TouchableOpacity 
               style={styles.backButton}
@@ -416,6 +425,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingHorizontal: 16,
     borderBottomWidth: 0,
+    minHeight: Platform.OS === 'android' ? 70 : 60,
   },
   headerContent: {
     width: '100%',
@@ -568,8 +578,6 @@ const styles = StyleSheet.create({
     color: '#60a5fa'
   },
   explanationContainer: {
-    maxHeight: 100,
-    height: 100,
     backgroundColor: 'rgba(29, 202, 52, 0.1)',
     borderLeftWidth: 4,
     borderLeftColor: '#4CAF50',

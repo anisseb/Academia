@@ -9,6 +9,7 @@ import {
   Alert,
   Animated,
   Platform,
+  AlertButton,
 } from 'react-native';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
@@ -24,6 +25,24 @@ type ProfileData = {
   class?: string;
   section?: string;
   subjects: string[];
+};
+
+// Fonction utilitaire pour afficher des alertes compatibles avec toutes les plateformes
+const showAlert = (title: string, message: string, buttons: AlertButton[]) => {
+  if (Platform.OS === 'web') {
+    // En version web, utiliser window.confirm
+    const result = window.confirm(`${title}\n\n${message}`);
+    if (result) {
+      // Si l'utilisateur clique sur OK, exécuter l'action de confirmation
+      const confirmButton = buttons.find(btn => btn.style !== 'cancel');
+      if (confirmButton?.onPress) {
+        confirmButton.onPress();
+      }
+    }
+  } else {
+    // Sur mobile, utiliser Alert de React Native
+    Alert.alert(title, message, buttons);
+  }
 };
 
 export default function ProfileScreen() {
@@ -77,7 +96,7 @@ export default function ProfileScreen() {
       }
     } catch (error) {
       console.error('Erreur lors du chargement du profil:', error);
-      Alert.alert('Erreur', 'Impossible de charger les données du profil');
+      showAlert('Erreur', 'Impossible de charger les données du profil', [{ text: "OK" }]);
     }
   };
 
@@ -87,7 +106,7 @@ export default function ProfileScreen() {
       if (!user) return;
 
       if (!profileData.name || !profileData.country || !profileData.schoolType) {
-        Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
+        showAlert('Erreur', 'Veuillez remplir tous les champs obligatoires', [{ text: "OK" }]);
         return;
       }
 
@@ -103,10 +122,10 @@ export default function ProfileScreen() {
       });
       
       setIsEditing(false);
-      Alert.alert('Succès', 'Profil mis à jour avec succès');
+      showAlert('Succès', 'Profil mis à jour avec succès', [{ text: "OK" }]);
     } catch (error) {
       console.error('Erreur lors de la mise à jour du profil:', error);
-      Alert.alert('Erreur', 'Une erreur est survenue lors de la mise à jour du profil');
+      showAlert('Erreur', 'Une erreur est survenue lors de la mise à jour du profil', [{ text: "OK" }]);
     }
   };
 

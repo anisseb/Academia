@@ -1,11 +1,29 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform, AlertButton } from 'react-native';
 import { useRouter } from 'expo-router';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { saveExercisesToFirestore } from '../services/exerciseService';
+
+// Fonction utilitaire pour afficher des alertes compatibles avec toutes les plateformes
+const showAlert = (title: string, message: string, buttons: AlertButton[]) => {
+  if (Platform.OS === 'web') {
+    // En version web, utiliser window.confirm
+    const result = window.confirm(`${title}\n\n${message}`);
+    if (result) {
+      // Si l'utilisateur clique sur OK, exécuter l'action de confirmation
+      const confirmButton = buttons.find(btn => btn.style !== 'cancel');
+      if (confirmButton?.onPress) {
+        confirmButton.onPress();
+      }
+    }
+  } else {
+    // Sur mobile, utiliser Alert de React Native
+    Alert.alert(title, message, buttons);
+  }
+};
 
 export default function AdminPage() {
   const router = useRouter();
@@ -53,7 +71,7 @@ export default function AdminPage() {
   };
 
   const handleImportExercises = async () => {
-    Alert.alert(
+    showAlert(
       "Importer les exercices",
       "Voulez-vous importer les exercices prédéfinis dans Firestore ?",
       [
@@ -65,14 +83,14 @@ export default function AdminPage() {
             setIsImporting(true);
             try {
               const savedIds = await saveExercisesToFirestore();
-              Alert.alert(
+              showAlert(
                 "Importation réussie",
                 `${savedIds.length} exercices ont été importés avec succès.`,
                 [{ text: "OK" }]
               );
             } catch (error: any) {
               console.error('Erreur lors de l\'importation:', error);
-              Alert.alert(
+              showAlert(
                 "Erreur d'importation",
                 `Une erreur est survenue lors de l'importation des exercices: ${error?.message || 'Erreur inconnue'}`,
                 [{ text: "OK" }]
