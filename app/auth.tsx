@@ -30,13 +30,14 @@ export default function AuthScreen() {
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const userId = userCredential.user.uid;
+        console.log('userCredential', userCredential.user);
+        console.log('userId', userId);
         
         // Créer le document profil
         await setDoc(doc(db, 'users', userId), {
           profile: {
             name: '',
-            age: '',
-            birthDate: '',
+            is_admin: false,
             country: '',
             schoolType: '',
             class: '',

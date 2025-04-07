@@ -35,7 +35,7 @@ export default function HomeScreen() {
     card: isDarkMode ? '#2d2d2d' : '#f5f5f5',
     primary: '#60a5fa',
   };
-  
+
   useEffect(() => {
     loadUserStats();
   }, []);
