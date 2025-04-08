@@ -6,24 +6,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { saveExercisesToFirestore } from '../services/exerciseService';
+import { showAlert } from '../utils/alerts';
 
-// Fonction utilitaire pour afficher des alertes compatibles avec toutes les plateformes
-const showAlert = (title: string, message: string, buttons: AlertButton[]) => {
-  if (Platform.OS === 'web') {
-    // En version web, utiliser window.confirm
-    const result = window.confirm(`${title}\n\n${message}`);
-    if (result) {
-      // Si l'utilisateur clique sur OK, exécuter l'action de confirmation
-      const confirmButton = buttons.find(btn => btn.style !== 'cancel');
-      if (confirmButton?.onPress) {
-        confirmButton.onPress();
-      }
-    }
-  } else {
-    // Sur mobile, utiliser Alert de React Native
-    Alert.alert(title, message, buttons);
-  }
-};
 
 export default function AdminPage() {
   const router = useRouter();

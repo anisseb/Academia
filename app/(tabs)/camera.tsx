@@ -5,24 +5,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Camera as CameraIcon, ArrowLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
+import { showErrorAlert } from '../utils/alerts';
 
-// Fonction utilitaire pour afficher des alertes compatibles avec toutes les plateformes
-const showAlert = (title: string, message: string, buttons: AlertButton[]) => {
-  if (Platform.OS === 'web') {
-    // En version web, utiliser window.confirm
-    const result = window.confirm(`${title}\n\n${message}`);
-    if (result) {
-      // Si l'utilisateur clique sur OK, exécuter l'action de confirmation
-      const confirmButton = buttons.find(btn => btn.style !== 'cancel');
-      if (confirmButton?.onPress) {
-        confirmButton.onPress();
-      }
-    }
-  } else {
-    // Sur mobile, utiliser Alert de React Native
-    Alert.alert(title, message, buttons);
-  }
-};
 
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -41,7 +25,7 @@ export default function CameraScreen() {
     try {
       if (!threadId) {
         console.error('No threadId found in camera screen');
-        showAlert('Erreur', 'Impossible d\'ajouter la photo. Veuillez réessayer.', [{ text: "OK" }]);
+        showErrorAlert('Erreur', 'Impossible d\'ajouter la photo. Veuillez réessayer.');
         return;
       }
 
@@ -66,7 +50,7 @@ export default function CameraScreen() {
       });
     } catch (error) {
       console.error('Failed to process image:', error);
-      showAlert('Erreur', 'Erreur lors du traitement de l\'image. Veuillez réessayer.', [{ text: "OK" }]);
+      showErrorAlert('Erreur', 'Erreur lors du traitement de l\'image. Veuillez réessayer.');
     }
   };
 

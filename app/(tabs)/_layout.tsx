@@ -8,29 +8,12 @@ import { Feather } from '@expo/vector-icons';
 import { onSnapshot, doc, updateDoc, getDoc, deleteField } from 'firebase/firestore';
 import React from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { showAlert, showConfirmAlert } from '../utils/alerts';
 
 type Thread = {
   id: string;
   title: string;
   timestamp: Date;
-};
-
-// Fonction utilitaire pour afficher des alertes compatibles avec toutes les plateformes
-const showAlert = (title: string, message: string, buttons: AlertButton[]) => {
-  if (Platform.OS === 'web') {
-    // En version web, utiliser window.confirm
-    const result = window.confirm(`${title}\n\n${message}`);
-    if (result) {
-      // Si l'utilisateur clique sur OK, exécuter l'action de confirmation
-      const confirmButton = buttons.find(btn => btn.style !== 'cancel');
-      if (confirmButton?.onPress) {
-        confirmButton.onPress();
-      }
-    }
-  } else {
-    // Sur mobile, utiliser Alert de React Native
-    Alert.alert(title, message, buttons);
-  }
 };
 
 const ThreadItem = ({ thread, isActive, onPress, onTitleChange }: {
@@ -72,43 +55,30 @@ const ThreadItem = ({ thread, isActive, onPress, onTitleChange }: {
       onTitleChange(editedTitle);
     } catch (error) {
       console.error('Erreur lors de la mise à jour du titre:', error);
-      showAlert('Erreur', 'Impossible de mettre à jour le titre', [{ text: "OK" }]);
+      showAlert('Erreur', 'Impossible de mettre à jour le titre');
     }
   };
 
   const handleDeleteThread = async () => {
-    showAlert(
-      "Supprimer la conversation",
-      "Êtes-vous sûr de vouloir supprimer cette conversation ?",
-      [
-        {
-          text: "Annuler",
-          style: "cancel"
-        },
-        {
-          text: "Supprimer",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const user = auth.currentUser;
-              if (!user) return;
-
-              const userRef = doc(db, 'users', user.uid);
-              await updateDoc(userRef, {
-                [`threads.${thread.id}`]: deleteField()
-              });
-              router.replace('/(tabs)');
-            } catch (error) {
-              console.error('Erreur lors de la suppression:', error);
-              showAlert(
-                "Erreur",
-                "Une erreur est survenue lors de la suppression de la conversation.",
-                [{ text: "OK" }]
-              );
-            }
+    showConfirmAlert(
+      'Supprimer la conversation',
+      'Êtes-vous sûr de vouloir supprimer cette conversation ?',
+      async () => {
+        try {
+          if (auth.currentUser) {
+            const userRef = doc(db, 'users', auth.currentUser.uid);
+            await updateDoc(userRef, {
+              [`threads.${thread.id}`]: deleteField()
+            });
+            
+            // Si la conversation supprimée est celle actuellement affichée, rediriger vers la page d'accueil
+            router.replace('/(tabs)');
           }
+        } catch (error) {
+          console.error('Erreur lors de la suppression:', error);
+          showAlert('Erreur', 'Impossible de supprimer la conversation');
         }
-      ]
+      }
     );
   };
 
@@ -253,69 +223,73 @@ export default function TabLayout() {
 
   const createNewThread = async () => {
     try {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      const userRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userRef);
-      
-      const threadId = Date.now().toString();
-      const newThread = {
-        title: 'Nouvelle conversation',
-        timestamp: new Date(),
-        lastUpdated: new Date(),
-        messages: []
-      };
-
-      if (userDoc.exists()) {
+      if (auth.currentUser) {
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        const userDoc = await getDoc(userRef);
+        const userData = userDoc.data();
+        
+        if (!userData) {
+          showAlert('Erreur', 'Données utilisateur non trouvées');
+          return;
+        }
+        
+        const threads = userData.threads || {};
+        const newThreadId = `thread_${Date.now()}`;
+        
         await updateDoc(userRef, {
-          [`threads.${threadId}`]: newThread
+          [`threads.${newThreadId}`]: {
+            title: 'Nouvelle conversation',
+            timestamp: new Date(),
+            messages: []
+          }
+        });
+        
+        router.push({
+          pathname: '/(tabs)/history',
+          params: { threadId: newThreadId }
         });
       }
-
-      setActiveThreadId(threadId);
-      router.replace({
-        pathname: '/(tabs)/history',
-        params: { threadId }
-      });
-      toggleSidebar();
     } catch (error) {
-      console.error('Erreur lors de la création de la conversation:', error);
-      showAlert('Erreur', 'Impossible de créer une nouvelle conversation', [{ text: "OK" }]);
+      console.error('Erreur lors de la création d\'un nouveau fil:', error);
+      showAlert('Erreur', 'Impossible de créer une nouvelle conversation');
     }
   };
 
   const handleSaveTitle = async (threadId: string, newTitle: string) => {
     try {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        [`threads.${threadId}.title`]: newTitle,
-        [`threads.${threadId}.lastUpdated`]: new Date()
-      });
+      if (auth.currentUser) {
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        await updateDoc(userRef, {
+          [`threads.${threadId}.title`]: newTitle
+        });
+      }
     } catch (error) {
       console.error('Erreur lors de la mise à jour du titre:', error);
-      showAlert('Erreur', 'Impossible de mettre à jour le titre', [{ text: "OK" }]);
+      showAlert('Erreur', 'Impossible de mettre à jour le titre');
     }
   };
 
   const handleDeleteThread = async (threadId: string) => {
-    try {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        [`threads.${threadId}`]: deleteField()
-      });
-      
-      router.replace('/(tabs)');
-    } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
-      showAlert('Erreur', 'Une erreur est survenue lors de la suppression de la conversation', [{ text: "OK" }]);
-    }
+    showConfirmAlert(
+      'Supprimer la conversation',
+      'Êtes-vous sûr de vouloir supprimer cette conversation ?',
+      async () => {
+        try {
+          if (auth.currentUser) {
+            const userRef = doc(db, 'users', auth.currentUser.uid);
+            await updateDoc(userRef, {
+              [`threads.${threadId}`]: deleteField()
+            });
+            
+            // Si la conversation supprimée est celle actuellement affichée, rediriger vers la page d'accueil
+            router.replace('/(tabs)');
+          }
+        } catch (error) {
+          console.error('Erreur lors de la suppression:', error);
+          showAlert('Erreur', 'Impossible de supprimer la conversation');
+        }
+      }
+    );
   };
 
   return (
