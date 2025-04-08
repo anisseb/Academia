@@ -12,6 +12,7 @@ import { useTheme } from '../context/ThemeContext';
 import { subjectsList } from '../constants/subjects';
 import { getEducationLevelLabel, EducationLevel } from '../constants/education';
 import { renderMathText as MathText } from '../utils/mathRenderer';
+import { showErrorAlert } from '../utils/alerts';
 const MISTRAL_API_KEY = '5YC1BWCbnpIqsViDDsK9zBbc1NgqjwAj';
 
 const getSubjectLabel = (subjectId: string) => {
@@ -94,24 +95,6 @@ const Message = ({ message, isLast }: { message: Message, isLast: boolean }) => 
       )}
     </Animated.View>
   );
-};
-
-// Fonction utilitaire pour afficher des alertes compatibles avec toutes les plateformes
-const showAlert = (title: string, message: string, buttons: AlertButton[]) => {
-  if (RNPlatform.OS === 'web') {
-    // En version web, utiliser window.confirm
-    const result = window.confirm(`${title}\n\n${message}`);
-    if (result) {
-      // Si l'utilisateur clique sur OK, exécuter l'action de confirmation
-      const confirmButton = buttons.find(btn => btn.style !== 'cancel');
-      if (confirmButton?.onPress) {
-        confirmButton.onPress();
-      }
-    }
-  } else {
-    // Sur mobile, utiliser Alert de React Native
-    Alert.alert(title, message, buttons);
-  }
 };
 
 export default function HistoryScreen() {
@@ -423,7 +406,7 @@ export default function HistoryScreen() {
 
     } catch (error) {
       console.error('Erreur:', error);
-      showAlert('Erreur', 'Une erreur est survenue lors de l\'envoi du message', [{ text: "OK" }]);
+      showErrorAlert('Erreur', 'Une erreur est survenue lors de l\'envoi du message');
     } finally {
       setIsLoading(false);
     }
@@ -508,7 +491,7 @@ export default function HistoryScreen() {
               style={styles.cameraButton} 
               onPress={() => {
                 if (!threadId) {
-                  alert('Erreur: Impossible d\'ajouter une photo. Veuillez réessayer.');
+                  showErrorAlert('Erreur', 'Impossible d\'ajouter une photo. Veuillez réessayer.');
                   return;
                 }
                 

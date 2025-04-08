@@ -17,6 +17,7 @@ import { useTheme } from '../context/ThemeContext';
 import { schoolTypes, countries, technologicalSections, getSubjectInfo, getAvailableSubjects, Class } from '../constants/education';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { showErrorAlert, showSuccessAlert } from '../utils/alerts';
 
 type ProfileData = {
   name: string;
@@ -27,23 +28,6 @@ type ProfileData = {
   subjects: string[];
 };
 
-// Fonction utilitaire pour afficher des alertes compatibles avec toutes les plateformes
-const showAlert = (title: string, message: string, buttons: AlertButton[]) => {
-  if (Platform.OS === 'web') {
-    // En version web, utiliser window.confirm
-    const result = window.confirm(`${title}\n\n${message}`);
-    if (result) {
-      // Si l'utilisateur clique sur OK, exécuter l'action de confirmation
-      const confirmButton = buttons.find(btn => btn.style !== 'cancel');
-      if (confirmButton?.onPress) {
-        confirmButton.onPress();
-      }
-    }
-  } else {
-    // Sur mobile, utiliser Alert de React Native
-    Alert.alert(title, message, buttons);
-  }
-};
 
 export default function ProfileScreen() {
   const { isDarkMode } = useTheme();
@@ -96,7 +80,7 @@ export default function ProfileScreen() {
       }
     } catch (error) {
       console.error('Erreur lors du chargement du profil:', error);
-      showAlert('Erreur', 'Impossible de charger les données du profil', [{ text: "OK" }]);
+      showErrorAlert('Erreur', 'Impossible de charger les données du profil');
     }
   };
 
@@ -106,7 +90,7 @@ export default function ProfileScreen() {
       if (!user) return;
 
       if (!profileData.name || !profileData.country || !profileData.schoolType) {
-        showAlert('Erreur', 'Veuillez remplir tous les champs obligatoires', [{ text: "OK" }]);
+        showErrorAlert('Erreur', 'Veuillez remplir tous les champs obligatoires');
         return;
       }
 
@@ -122,10 +106,10 @@ export default function ProfileScreen() {
       });
       
       setIsEditing(false);
-      showAlert('Succès', 'Profil mis à jour avec succès', [{ text: "OK" }]);
+      showSuccessAlert('Succès', 'Profil mis à jour avec succès');
     } catch (error) {
       console.error('Erreur lors de la mise à jour du profil:', error);
-      showAlert('Erreur', 'Une erreur est survenue lors de la mise à jour du profil', [{ text: "OK" }]);
+      showErrorAlert('Erreur', 'Une erreur est survenue lors de la mise à jour du profil');
     }
   };
 
