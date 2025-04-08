@@ -6,10 +6,8 @@ import {
   TouchableOpacity, 
   StyleSheet, 
   ScrollView, 
-  Alert,
   Animated,
   Platform,
-  AlertButton,
 } from 'react-native';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';

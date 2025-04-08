@@ -1,22 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Animated, TouchableOpacity, ActivityIndicator, Dimensions, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Animated, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
 import { doc, updateDoc } from 'firebase/firestore';
-import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getSubjectInfo } from '../constants/education';
+import { showErrorAlert } from '../utils/alerts';
 
 type Step6Props = {
-  onNext: (data: Partial<{ name: string; birthDate: string; subjects: string[] }>) => void;
-  data: { name: string; birthDate: string; subjects: string[] };
+  onNext: (data: Partial<{ name: string; subjects: string[] }>) => void;
+  data: { name: string; subjects: string[] };
 };
 
 export default function Step5({ onNext, data }: Step6Props) {
   const fadeAnim = new Animated.Value(0);
   const scaleAnim = new Animated.Value(0.9);
   const [isSaving, setIsSaving] = useState(false);
-  const router = useRouter();
 
   useEffect(() => {
     Animated.parallel([
@@ -33,17 +32,6 @@ export default function Step5({ onNext, data }: Step6Props) {
     ]).start();
   }, []);
 
-  const calculateAge = (birthDate: string) => {
-    const today = new Date();
-    const birth = new Date(birthDate);
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age--;
-    }
-    return age.toString();
-  };
-
   const handleSaveAndContinue = async () => {
     try {
       setIsSaving(true);
@@ -53,16 +41,13 @@ export default function Step5({ onNext, data }: Step6Props) {
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
         'profile.name': data.name,
-        'profile.age': calculateAge(data.birthDate),
-        'profile.birthDate': data.birthDate,
         'profile.subjects': data.subjects,
         'profile.onboardingCompleted': true,
       });
 
       onNext(data);
     } catch (error) {
-      console.error('Erreur lors de la sauvegarde du profil:', error);
-      alert('Une erreur est survenue lors de la sauvegarde de votre profil.');
+      showErrorAlert('Erreur', 'Une erreur est survenue lors de la sauvegarde de votre profil.');
     } finally {
       setIsSaving(false);
     }
