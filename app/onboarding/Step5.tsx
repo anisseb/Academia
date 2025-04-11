@@ -1,10 +1,18 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getAvailableSubjects, getSubjectInfo } from '../constants/education';
+import { useSchoolTypes } from '../hooks/useSchoolTypes';
 import { OnboardingButton } from '../components/OnboardingButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+
+const parseGradient = (gradientString: string): [string, string] => {
+  const colors = gradientString.match(/#[0-9a-fA-F]{6}/g);
+  if (colors && colors.length >= 2) {
+    return [colors[0], colors[1]];
+  }
+  return ['#60a5fa', '#3b82f6']; // Valeur par défaut
+};
 
 type Step5Props = {
   onNext: (data: { subjects: string[] }) => void;
@@ -12,7 +20,6 @@ type Step5Props = {
   data: {
     schoolType: string;
     class: string;
-    section?: string;
     subjects?: string[];
   };
 };
@@ -22,12 +29,15 @@ export default function Step5({ onNext, onBack, data }: Step5Props) {
     data.subjects || []
   );
   const insets = useSafeAreaInsets();
+  const { schoolTypes, loading, error } = useSchoolTypes();
 
-  const availableSubjects = getAvailableSubjects(
-    data.schoolType,
-    data.class,
-    data.section
-  );
+  const schoolType = schoolTypes.find(type => type.id === data.schoolType);
+  const selectedClass = schoolType?.classes[data.class];
+  const availableSubjects = selectedClass ? Object.entries(selectedClass.matieres).map(([id, subject]) => ({
+    ...subject,
+    id,
+    gradientColors: parseGradient(subject.gradient || 'linear-gradient(to right, #60a5fa, #3b82f6)')
+  })) : [];
 
   const toggleSubject = (subjectId: string) => {
     setSelectedSubjects((prev) =>
@@ -36,6 +46,22 @@ export default function Step5({ onNext, onBack, data }: Step5Props) {
         : [...prev, subjectId]
     );
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#60a5fa" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -46,21 +72,20 @@ export default function Step5({ onNext, onBack, data }: Step5Props) {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.grid}>
-          {availableSubjects.map((subjectId) => {
-            const subject = getSubjectInfo(subjectId);
-            const isSelected = selectedSubjects.includes(subjectId);
+          {availableSubjects.map((subject) => {
+            const isSelected = selectedSubjects.includes(subject.id);
 
             return (
               <TouchableOpacity
-                key={subjectId}
+                key={subject.id}
                 style={[
                   styles.subjectButton,
                   isSelected && styles.selectedSubject,
                 ]}
-                onPress={() => toggleSubject(subjectId)}
+                onPress={() => toggleSubject(subject.id)}
               >
                 <LinearGradient
-                  colors={subject.gradient}
+                  colors={subject.gradientColors}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={[
@@ -196,5 +221,21 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 0,
     zIndex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 }); 

@@ -5,7 +5,6 @@ import { useTheme } from '../../../context/ThemeContext';
 import { ChapterContent } from '../../../constants/programme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Exercise } from '../../../types/exercise';
-import { getExercisesByPath } from '../../../services/exerciseService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../../../firebaseConfig';
 
@@ -15,9 +14,10 @@ export default function ContentPage() {
     subjectLabel,
     classe,
     classeLabel,
-    chapter,
+    chapterIndex,
     chapterLabel,
-    content, 
+    content,
+    contentId,
     contentLabel 
   } = useLocalSearchParams();
   const { isDarkMode } = useTheme();
@@ -27,6 +27,8 @@ export default function ContentPage() {
   const [contentData, setContentData] = useState<ChapterContent | null>(null);
   const [chapterTitle, setChapterTitle] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [userSchoolType, setUserSchoolType] = useState<string>('');
+  const [userClass, setUserClass] = useState<string>('');
     // Obtenir la hauteur de la barre de statut
   const statusBarHeight = StatusBar.currentHeight || 0;
 
@@ -36,49 +38,84 @@ export default function ContentPage() {
     card: isDarkMode ? '#2d2d2d' : '#f5f5f5',
   };
 
-  const loadExercises = async () => {
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    if (userDoc.exists()) { 
+      const userData = userDoc.data();
+      setUserSchoolType(userData.profile.schoolType || '');
+      setUserClass(userData.profile.class || '');
+      await loadExercises(userData.profile.schoolType, userData.profile.class);
+    }
+  };  
+  
+
+  const loadExercises = async (schoolType: string, classe: string) => {
     try {
       setLoading(true);
       
-      // Récupérer les exercices avec la nouvelle structure
-      const exercisesList = await getExercisesByPath(
-        String(subject),
-        String(classe),
-        String(chapter),
-        String(content)
-      );
-
-      // Récupérer les exercices complétés par l'utilisateur
-      const user = auth.currentUser;
       let completedExercises: string[] = [];
-      
-      if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          const userExercises = userData.exercises?.[String(subject)]?.[String(classe)]?.[String(chapter)]?.[String(content)] || {};
-          completedExercises = Object.keys(userExercises).filter(id => userExercises[id].done);
-        }
+      const academiaDoc = await getDoc(doc(db, 'academia', schoolType));
+      if (!academiaDoc.exists()) {
+        console.error('Document academia non trouvé');
+        setLoading(false);
+        return;
       }
 
-      // Filtrer les exercices non complétés par difficulté
-      const easyExercises = exercisesList.filter(ex => 
-        ex.difficulty === 'facile' && !completedExercises.includes(ex.id)
-      );
-      const mediumExercises = exercisesList.filter(ex => 
-        ex.difficulty === 'moyen' && !completedExercises.includes(ex.id)
-      );
-      const hardExercises = exercisesList.filter(ex => 
-        ex.difficulty === 'difficile' && !completedExercises.includes(ex.id)
-      );
-
-      // Sélectionner un exercice de chaque difficulté
-      const selectedExercises = [];
-      if (easyExercises.length > 0) selectedExercises.push(easyExercises[0]);
-      if (mediumExercises.length > 0) selectedExercises.push(mediumExercises[0]);
-      if (hardExercises.length > 0) selectedExercises.push(hardExercises[0]);
+      const academiaData = academiaDoc.data();
+      if (!academiaData.classes || 
+        !academiaData.classes[classe] || 
+        !academiaData.classes[classe].matieres || 
+        !academiaData.classes[classe].matieres[subject as string]) {
+        console.error('Structure de données invalide');
+        setLoading(false);
+        return;
+      }
       
-      setExercises(selectedExercises);
+      // Récupérer le programme de la matière
+      const subjectProgram = academiaData.classes[classe].matieres[subject as string].programme || [];
+      
+      // Trouver le chapitre correspondant
+      if (isNaN(parseInt(chapterIndex as string)) || parseInt(chapterIndex as string) < 0 || parseInt(chapterIndex as string) >= subjectProgram.length) {
+        console.error('Index de chapitre invalide');
+        setLoading(false);
+        return;
+      }
+      const chapter = subjectProgram[parseInt(chapterIndex as string)];
+
+      // Trouver le contenu correspondant
+      const contentIndex = parseInt(contentId as string);
+      if (isNaN(contentIndex) || contentIndex < 0 || contentIndex >= chapter.content.length) {
+        console.error('Index de contenu invalide');
+        setLoading(false);
+        return;
+      }
+
+      const content = chapter.content[contentIndex];
+      
+      // Vérifier si les exercices existent
+      if (!content.exercices) {
+        console.error('Exercices non trouvés');
+        setLoading(false);
+        return;
+      }
+
+      // Récupérer les exercices au même niveau que cours
+      const exercisesData = content.exercices || [];
+      
+      // Transformer les exercices pour ajouter le statut de complétion
+      const exercisesWithCompletion = exercisesData.map((exercise: any) => ({
+        ...exercise,
+        isCompleted: completedExercises.includes(exercise.id)
+      }));
+      
+      setExercises(exercisesWithCompletion);
       setContentData({
         id: String(content),
         content: String(contentLabel)
@@ -94,26 +131,27 @@ export default function ContentPage() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadExercises();
+    await loadExercises(userSchoolType, userClass);
   };
-
-  useEffect(() => {
-    loadExercises();
-  }, [subject, chapter, content]);
 
   const handleBack = () => {
     router.back();
   };
 
   const handleExercisePress = (exercise: Exercise) => {
+    console.log('exercise', exercise);
+
     router.push({
       pathname: "/exercise/[id]",
       params: { 
-        id: exercise.id,
+        schoolType: String(userSchoolType),
+        classe: String(userClass),
         subject: String(subject),
-        classe: String(classe),
-        chapter: String(chapter),
-        content: String(content)
+        chapterIndex: String(chapterIndex),
+        contentId: String(contentId),
+        contentLabel: String(contentLabel),
+        exerciseId: exercise.id,
+        exercice: exercise
       }
     } as any);
   };

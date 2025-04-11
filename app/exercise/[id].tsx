@@ -22,7 +22,16 @@ import { programmes } from '../constants/programme';
 import { renderMathText as MathText } from '../utils/mathRenderer';
 
 export default function ExercisePage() {
-  const { id, subject, classe, chapter, content } = useLocalSearchParams();
+  const { 
+    schoolType,
+    classe,
+    subject,
+    chapterIndex,
+    contentId,
+    contentLabel,
+    exerciseId,
+    exercice,
+   } = useLocalSearchParams();
   const router = useRouter();
   const { isDarkMode } = useTheme();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -32,6 +41,15 @@ export default function ExercisePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showExplanation, setShowExplanation] = useState(false);
   const [hasAnswered, setHasAnswered] = useState(false);
+  const [exercises, setExercises] = useState<Array<{
+    exerciceId: string;
+    subject: string;
+    chapterId: string;
+    contentId: string;
+    done: boolean;
+    score: number;
+    completedAt: string;
+  }>>([]);
 
   // Obtenir la hauteur de la barre de statut
   const statusBarHeight = StatusBar.currentHeight || 0;
@@ -42,21 +60,79 @@ export default function ExercisePage() {
     card: isDarkMode ? '#2d2d2d' : '#f5f5f5',
   };
 
-  const loadExercise = async () => {
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    await loadExercise(schoolType as string, classe as string);
+  };  
+
+  const loadExercise = async (schoolType: string, classe: string) => {
     try {
       // Construire le chemin hiérarchique
-      const path = `exercises/${subject}/${classe}/${chapter}/${content}/${id}`;
-      const exerciseDoc = await getDoc(doc(db, path));
-      
-      if (!exerciseDoc.exists()) {
-        console.error('Exercise non trouvé:', id);
+      const academiaDoc = await getDoc(doc(db, 'academia', schoolType));
+      if (!academiaDoc.exists()) {
+        console.error('Document academia non trouvé');
+        setIsLoading(false);
         return;
       }
 
-      const exerciseData = exerciseDoc.data() as Exercise;
+      const academiaData = academiaDoc.data();
+      if (!academiaData.classes || 
+        !academiaData.classes[classe] || 
+        !academiaData.classes[classe].matieres || 
+        !academiaData.classes[classe].matieres[subject as string]) {
+        console.error('Structure de données invalide');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Récupérer le programme de la matière
+      const subjectProgram = academiaData.classes[classe].matieres[subject as string].programme || [];
+      
+      // Trouver le chapitre correspondant
+      if (isNaN(parseInt(chapterIndex as string)) || parseInt(chapterIndex as string) < 0 || parseInt(chapterIndex as string) >= subjectProgram.length) {
+        console.error('Index de chapitre invalide');
+        setIsLoading(false);
+        return;
+      }
+      const chapter = subjectProgram[parseInt(chapterIndex as string)];
+
+      // Trouver le contenu correspondant
+      const contentIndex = parseInt(contentId as string);
+      if (isNaN(contentIndex) || contentIndex < 0 || contentIndex >= chapter.content.length) {
+        console.error('Index de contenu invalide');
+        setIsLoading(false);
+        return;
+      }
+
+      const content = chapter.content[contentIndex];
+      
+      // Vérifier si les exercices existent
+      if (!content.exercices) {
+        console.error('Exercices non trouvés');
+        setIsLoading(false);
+        return;
+      }
+
+      
+      // Parcourir le tableau content.exercices pour trouver l'exercice correspondant à l'exerciseId
+      const exerciseData = content.exercices.find((ex: any) => ex.id === exerciseId);
+      
+      if (!exerciseData) {
+        console.error('Exercice non trouvé avec l\'ID:', exerciseId);
+        setIsLoading(false);
+        return;
+      }
+      
+
       setExercise({
         ...exerciseData,
-        id: exerciseDoc.id
+        id: exerciseId as string,
+        difficulty: exerciseData.difficulty,
+        questions: exerciseData.questions,
+        title: exerciseData.title,
       });
     } catch (error) {
       console.error('Erreur lors du chargement de l\'exercice:', error);
@@ -66,8 +142,8 @@ export default function ExercisePage() {
   };
 
   useEffect(() => {
-    loadExercise();
-  }, [id]);
+    loadExercise(schoolType as string, classe as string);
+  }, []);
 
   const handleBack = async () => {
     router.back();
@@ -133,17 +209,19 @@ export default function ExercisePage() {
         return;
       }
 
-      // Récupérer les données de l'exercice
-      console.log(subject, classe, chapter, content, id);
-      const path = `exercises/${subject}/${classe}/${chapter}/${content}/${id}`;
-      const exerciseDoc = await getDoc(doc(db, path));
-      if (!exerciseDoc.exists()) {
-        console.error('Exercise non trouvé');
-        return;
-      }
+      // Créer un nouvel objet pour l'exercice complété
+      const completedExercise = {
+        exerciceId: exerciseId as string,
+        subject: subject as string,
+        chapterId: chapterIndex as string,
+        contentId: contentId as string,
+        done: true,
+        score: score,
+        completedAt: new Date().toISOString()
+      };
 
-      const exerciseData = exerciseDoc.data();
-      console.log(exerciseData);
+      // Ajouter le nouvel exercice au tableau
+      setExercises(prevExercises => [...prevExercises, completedExercise]);
 
       // Récupérer le document utilisateur
       const userRef = doc(db, 'users', user.uid);
@@ -154,18 +232,17 @@ export default function ExercisePage() {
         return;
       }
 
-      // Créer le chemin pour l'exercice
-      const exercisePath = `exercises.${subject}.${classe}.${chapter}.${content}.${id}`;
+      // Récupérer le profil actuel de l'utilisateur
+      const userData = userDoc.data();
+      const currentProfile = userData.profile || {};
+      const currentExercises = currentProfile.exercises || [];
 
-      // Mettre à jour le document utilisateur
+      // Ajouter le nouvel exercice au tableau des exercices du profil
+      const updatedExercises = [...currentExercises, completedExercise];
+
+      // Mettre à jour le document utilisateur avec le nouveau tableau d'exercices
       await updateDoc(userRef, {
-        [exercisePath]: {
-          chapter: exerciseData.chapter,
-          content: exerciseData.content,
-          done: true,
-          score: score,
-          completedAt: new Date().toISOString()
-        }
+        'profile.exercises': updatedExercises
       });
 
     } catch (error) {
@@ -261,7 +338,7 @@ export default function ExercisePage() {
           <View style={styles.headerContent}>
             <View style={styles.headerTitleRow}>
               <Text style={[styles.headerTitle, { color: themeColors.text }]}>
-                {findContentLabel(exercise) || "Exercice"}
+                {exercise.title || "Exercice"}
               </Text>
               <View style={[
                 styles.difficultyBadge, 
@@ -436,7 +513,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 18,
     width: '80%',
     fontWeight: '600',
   },

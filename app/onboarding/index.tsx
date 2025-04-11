@@ -129,7 +129,6 @@ export default function Onboarding() {
             data={{
               schoolType: data.schoolType,
               class: data.class,
-              section: data.section,
             }}
           />
         );
@@ -145,7 +144,6 @@ export default function Onboarding() {
             data={{
               schoolType: data.schoolType,
               class: data.class,
-              section: data.section,
               subjects: data.subjects,
             }}
           />

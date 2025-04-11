@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { schoolTypes } from '../constants/education';
+import { useSchoolTypes } from '../hooks/useSchoolTypes';
 import { OnboardingButton } from '../components/OnboardingButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -23,6 +23,25 @@ const schoolTypeIcons: Record<string, keyof typeof MaterialCommunityIcons.glyphM
 export default function Step3({ onNext, onBack, data }: Step3Props) {
   const [selectedType, setSelectedType] = React.useState<string | undefined>(data?.schoolType);
   const insets = useSafeAreaInsets();
+  const fadeAnim = new Animated.Value(0);
+  const scaleAnim = new Animated.Value(0.9);
+  const { schoolTypes, loading, error } = useSchoolTypes();
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#60a5fa" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -134,5 +153,21 @@ const styles = StyleSheet.create({
   continueButton: {
     flex: 1,
     marginLeft: 12,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 16,
+    textAlign: 'center',
   },
 }); 
