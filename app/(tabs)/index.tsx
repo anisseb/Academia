@@ -21,6 +21,7 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [profileData, setProfileData] = useState<any>(null);
   const [subjectInfos, setSubjectInfos] = useState<Record<string, any>>({});
+  const [isLoadingSubjects, setIsLoadingSubjects] = useState(false);
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -62,6 +63,8 @@ export default function HomeScreen() {
       });
       
       // Calculer les statistiques pour chaque matière
+      const newStats: Record<string, SubjectStats> = {};
+      
       Object.entries(exercisesBySubject).forEach(([subject, subjectExercises]) => {
         // Calculer les statistiques pour cette matière
         const totalExercises = subjectExercises.length;
@@ -88,8 +91,7 @@ export default function HomeScreen() {
           return sum + (10 - Math.round(((ex.score || 0) / 100) * 10));
         }, 0);
         
-        const subjectStats: Record<string, SubjectStats> = {};
-        subjectStats[subject] = {
+        newStats[subject] = {
           averageScore: Math.round(averageScore),
           completedExercises: totalExercises,
           consecutiveDays: calculateConsecutiveDays(dates),
@@ -99,12 +101,9 @@ export default function HomeScreen() {
             ? Math.round((correctAnswers / (correctAnswers + incorrectAnswers)) * 100) 
             : 0
         };
-        
-        // Mettre à jour les statistiques globales
-        stats[subject] = subjectStats[subject];
       });
 
-      setStats(stats);
+      setStats(newStats);
     } catch (error) {
       console.error('Erreur lors du chargement des stats:', error);
     } finally {
@@ -113,9 +112,25 @@ export default function HomeScreen() {
   };
 
   const calculateConsecutiveDays = (dates: string[]) => {
-    // Logique pour calculer les jours consécutifs
-    // À implémenter selon vos besoins
-    return dates.length;
+    if (dates.length === 0) return 0;
+    
+    let consecutiveDays = 1;
+    let currentDate = new Date(dates[0]);
+    
+    for (let i = 1; i < dates.length; i++) {
+      const nextDate = new Date(dates[i]);
+      const diffTime = Math.abs(currentDate.getTime() - nextDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 1) {
+        consecutiveDays++;
+        currentDate = nextDate;
+      } else {
+        break;
+      }
+    }
+    
+    return consecutiveDays;
   };
 
   const getSubjectInfo = async (subjectId: string) => {
@@ -153,14 +168,21 @@ export default function HomeScreen() {
   };
 
   const loadSubjectInfos = async () => {
-    const newSubjectInfos: Record<string, any> = {};
-    for (const subject of Object.keys(stats)) {
-      const info = await getSubjectInfo(subject);
-      if (info) {
-        newSubjectInfos[subject] = info;
+    try {
+      setIsLoadingSubjects(true);
+      const newSubjectInfos: Record<string, any> = {};
+      for (const subject of Object.keys(stats)) {
+        const info = await getSubjectInfo(subject);
+        if (info) {
+          newSubjectInfos[subject] = info;
+        }
       }
+      setSubjectInfos(newSubjectInfos);
+    } catch (error) {
+      console.error('Erreur lors du chargement des infos des matières:', error);
+    } finally {
+      setIsLoadingSubjects(false);
     }
-    setSubjectInfos(newSubjectInfos);
   };
 
   const extractGradientColors = (gradientString: string): string[] => {
@@ -270,9 +292,17 @@ export default function HomeScreen() {
           <Text style={[styles.subtitle, { color: themeColors.text }]}>
             Suivez votre progression et améliorez vos compétences
           </Text>
-          {Object.entries(stats).map(([subject, subjectStats]) => 
-          renderSubjectStats(subject, subjectStats)
-        )}
+          {isLoadingSubjects ? (
+            <View style={styles.loadingContainer}>
+              <Text style={[styles.loadingText, { color: themeColors.text }]}>
+                Chargement des statistiques...
+              </Text>
+            </View>
+          ) : (
+            Object.entries(stats).map(([subject, subjectStats]) => 
+              renderSubjectStats(subject, subjectStats)
+            )
+          )}
         </View>
       )}
     </ScrollView>
@@ -493,5 +523,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     opacity: 0.7,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
