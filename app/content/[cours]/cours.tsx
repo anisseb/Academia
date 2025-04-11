@@ -14,7 +14,6 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { generateAndSaveCourse } from '../../services/coursService';
 import { auth, db } from '../../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { renderMathText as MathText } from '../../utils/mathRenderer';
@@ -49,16 +48,16 @@ export default function CoursScreen() {
     accent: '#60a5fa',
   };
 
-  // Corriger le nom de la variable (coursContent au lieu de coursContent)
   const [coursContent, setCoursContent] = useState<CoursContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [userLevel, setUserLevel] = useState<string>('');
+  const [userSchoolType, setUserSchoolType] = useState<string>('');
 
   useEffect(() => {
-    loadUserLevel();
+    loadUserData();
   }, []);
 
-  const loadUserLevel = async () => {
+  const loadUserData = async () => {
     try {
       const user = auth.currentUser;
       if (!user) {
@@ -69,28 +68,75 @@ export default function CoursScreen() {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        if (userData.profile && userData.profile.class) {
-          setUserLevel(userData.profile.class);
-          await loadCourse(userData.profile.class);
+        if (userData.profile) {
+          setUserLevel(userData.profile.class || '');
+          setUserSchoolType(userData.profile.schoolType || '');
+          await loadCourse(userData.profile.class, userData.profile.schoolType);
         }
       }
     } catch (error) {
-      console.error('Erreur lors du chargement du niveau:', error);
+      console.error('Erreur lors du chargement des données utilisateur:', error);
       setLoading(false);
     }
   };
 
-  const loadCourse = async (level: string) => {
+  const loadCourse = async (level: string, schoolType: string) => {
     try {
       setLoading(true);
-      const content = await generateAndSaveCourse(
-        params.subject as string,
-        params.chapter as string,
-        params.contentId as string,
-        params.contentLabel as string,
-        level
-      );
-      setCoursContent(content);
+      
+      // Récupérer le cours depuis la collection academia
+      const academiaDoc = await getDoc(doc(db, 'academia', schoolType));
+      if (!academiaDoc.exists()) {
+        console.error('Document academia non trouvé');
+        setLoading(false);
+        return;
+      }
+      
+      const academiaData = academiaDoc.data();
+      
+      // Vérifier si les données nécessaires existent
+      if (!academiaData.classes || 
+          !academiaData.classes[level] || 
+          !academiaData.classes[level].matieres || 
+          !academiaData.classes[level].matieres[params.subject as string]) {
+        console.error('Structure de données invalide');
+        setLoading(false);
+        return;
+      }
+      
+      // Récupérer le programme de la matière
+      const subjectProgram = academiaData.classes[level].matieres[params.subject as string].programme || [];
+      
+      // Trouver le chapitre correspondant
+      const chapterIndex = parseInt(params.chapter as string);
+      if (isNaN(chapterIndex) || chapterIndex < 0 || chapterIndex >= subjectProgram.length) {
+        console.error('Index de chapitre invalide');
+        setLoading(false);
+        return;
+      }
+      
+      const chapter = subjectProgram[chapterIndex];
+      
+      // Trouver le contenu correspondant
+      const contentIndex = parseInt(params.contentId as string);
+      if (isNaN(contentIndex) || contentIndex < 0 || contentIndex >= chapter.content.length) {
+        console.error('Index de contenu invalide');
+        setLoading(false);
+        return;
+      }
+      
+      const content = chapter.content[contentIndex];
+      
+      // Vérifier si le cours existe
+      if (!content.cours) {
+        console.error('Cours non trouvé');
+        setLoading(false);
+        return;
+      }
+      
+      // Utiliser le cours existant
+      setCoursContent(content.cours);
+      
     } catch (error) {
       console.error('Erreur lors du chargement du cours:', error);
     } finally {
@@ -104,7 +150,7 @@ export default function CoursScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={themeColors.accent} />
           <Text style={[styles.loadingText, { color: themeColors.text }]}>
-            Génération du cours en cours...
+            Chargement du cours...
           </Text>
         </View>
       </SafeAreaView>

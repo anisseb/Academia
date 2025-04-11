@@ -16,7 +16,6 @@ import { getSubjectInfo } from '../constants/education';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { programmes, Programme, Chapter } from '../constants/programme';
 import { useFocusEffect } from '@react-navigation/native';
 
 interface Subject {
@@ -39,9 +38,9 @@ interface SubjectSceneProps {
 
 const SubjectScene: React.FC<SubjectSceneProps> = ({ subject, themeColors }) => {
   const [userClass, setUserClass] = useState<string>('');
-  const [userSection, setUserSection] = useState<string | undefined>();
+  const [userSchoolType, setUserSchoolType] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [programme, setProgramme] = useState<Programme | null>(null);
+  const [programme, setProgramme] = useState<any[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -59,38 +58,51 @@ const SubjectScene: React.FC<SubjectSceneProps> = ({ subject, themeColors }) => 
         const userData = userDoc.data();
         if (userData.profile) {
           setUserClass(userData.profile.class || '');
-          setUserSection(userData.profile.section);
+          setUserSchoolType(userData.profile.schoolType || '');
           
-          // Rechercher le programme correspondant
-          const foundProgramme = programmes.find(p => 
-            p.country === 'fr' && 
-            p.class === userData.profile.class && 
-            p.subject === subject.id &&
-            (!p.section || p.section === userData.profile.section)
-          );
-          
-          setProgramme(foundProgramme || null);
+          // Récupérer le programme depuis la collection academia
+          const academiaDoc = await getDoc(doc(db, 'academia', userData.profile.schoolType));
+          if (academiaDoc.exists()) {
+            const academiaData = academiaDoc.data();
+            
+            // Vérifier si les données nécessaires existent
+            if (academiaData.classes && 
+                academiaData.classes[userData.profile.class] && 
+                academiaData.classes[userData.profile.class].matieres && 
+                academiaData.classes[userData.profile.class].matieres[subject.id]) {
+              
+              // Récupérer le programme de la matière
+              const subjectProgram = academiaData.classes[userData.profile.class].matieres[subject.id].programme || [];
+              setProgramme(subjectProgram);
+            } else {
+              setProgramme([]);
+            }
+          } else {
+            setProgramme([]);
+          }
         }
       }
     } catch (error) {
       console.error('Erreur lors du chargement du profil:', error);
+      setProgramme([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChapterContentPress = (chapterId: string, contentId: string) => {
+  const handleChapterContentPress = (chapterIndex: number, contentIndex: number) => {
+    const chapter = programme[chapterIndex];
+    const content = chapter.content[contentIndex];
+    
     router.push({
       pathname: '/content/[subject]/[chapter]/[content]',
       params: {
         subject: subject.id,
         subjectLabel: subject.label,
-        classe: userClass,
-        classeLabel: userClass,
-        chapter: chapterId,
-        chapterLabel: programme?.chapters.find(c => c.id === chapterId)?.title,
-        content: contentId,
-        contentLabel: programme?.chapters.find(c => c.id === chapterId)?.content.find(c => c.id === contentId)?.content,
+        chapterIndex: chapterIndex,
+        chapterLabel: chapter.title,
+        contentId: contentIndex,
+        contentLabel: content.content,
       },
     } as any);
   };
@@ -103,7 +115,7 @@ const SubjectScene: React.FC<SubjectSceneProps> = ({ subject, themeColors }) => 
     );
   }
 
-  if (!programme) {
+  if (!programme || programme.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <Text style={[styles.noContentText, { color: themeColors.text }]}>
@@ -115,19 +127,19 @@ const SubjectScene: React.FC<SubjectSceneProps> = ({ subject, themeColors }) => 
 
   return (
     <ScrollView style={styles.content}>
-      {programme.chapters.map((chapter) => (
+      {programme.map((chapter, chapterIndex) => (
         <View
-          key={chapter.id}
+          key={chapterIndex}
           style={[styles.chapterCard, { backgroundColor: themeColors.card }]}
         >
           <Text style={[styles.chapterTitle, { color: themeColors.text }]}>
             {chapter.title}
           </Text>
-          {chapter.content.map((item) => (
+          {chapter.content.map((item: any, contentIndex: number) => (
             <TouchableOpacity
-              key={item.id}
+              key={contentIndex}
               style={styles.contentItem}
-              onPress={() => handleChapterContentPress(chapter.id, item.id)}
+              onPress={() => handleChapterContentPress(chapterIndex, contentIndex)}
             >
               <Text style={[styles.contentText, { color: themeColors.text }]}>
                 {item.content}
@@ -190,11 +202,18 @@ export default function EntrainementScreen() {
         const userData = userDoc.data();
         if (userData.profile && userData.profile.subjects) {
           const userSubjects = userData.profile.subjects
-            .map((id: string) => {
-              const subject = getSubjectInfo(id);
-              return subject ? { ...subject, id, key: id } : null;
-            })
-            .filter((subject: { id: string; label: string; icon: string; gradient: string[]; key: string; } | null): subject is Subject => subject !== null);
+            .map((subjectData: any) => {
+              // Vérifier si gradient existe avant d'appeler split
+              const gradientArray = subjectData.gradient ? subjectData.gradient.split(',') : ['#60a5fa', '#3b82f6'];
+              
+              return {
+                id: subjectData.id,
+                label: subjectData.label,
+                icon: subjectData.icon || 'book-open-variant',
+                gradient: gradientArray,
+                key: subjectData.id
+              };
+            });
           setSubjects(userSubjects);
           if (userSubjects.length > 0) {
             setSelectedSubject(userSubjects[0]);

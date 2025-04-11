@@ -4,16 +4,7 @@ import { useState, useEffect } from 'react';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
-import { getSubjectInfo } from '../constants/subjects';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-
-interface ExerciseData {
-  chapter: string;
-  completedAt: string;
-  content: string;
-  done: boolean;
-  score: number;
-}
 
 interface SubjectStats {
   averageScore: number;
@@ -28,6 +19,8 @@ export default function HomeScreen() {
   const { isDarkMode } = useTheme();
   const [stats, setStats] = useState<Record<string, SubjectStats>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [profileData, setProfileData] = useState<any>(null);
+  const [subjectInfos, setSubjectInfos] = useState<Record<string, any>>({});
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -40,6 +33,10 @@ export default function HomeScreen() {
     loadUserStats();
   }, []);
 
+  useEffect(() => {
+    loadSubjectInfos();
+  }, [stats]);
+
   const loadUserStats = async () => {
     try {
       const user = auth.currentUser;
@@ -49,63 +46,44 @@ export default function HomeScreen() {
       if (!userDoc.exists()) return;
 
       const userData = userDoc.data();
-      const exercises = userData.exercises || {};
+      const profile = userData.profile || {};
+      setProfileData(profile);
+      const completedExercises = profile.exercises || [];
       
-
-      // Parcourir chaque matière
-      Object.entries(exercises).forEach(([subject, classData]) => {
-        
-        // Extraire tous les exercices de la structure imbriquée
-        const allExercises: ExerciseData[] = [];
-        
-        // Parcourir la structure imbriquée pour extraire les exercices
-        Object.entries(classData as Record<string, any>).forEach(([classLevel, chapterData]) => {
-          Object.entries(chapterData as Record<string, any>).forEach(([chapter, contentData]) => {
-            Object.entries(contentData as Record<string, any>).forEach(([content, exerciseData]) => {
-              // Vérifier si exerciseData est un objet
-              if (exerciseData && typeof exerciseData === 'object') {
-                // Parcourir les exercices dans exerciseData
-                Object.entries(exerciseData as Record<string, any>).forEach(([exerciseId, exercise]) => {
-                  
-                  // Vérifier si c'est un exercice avec les propriétés attendues
-                  if (exercise && typeof exercise === 'object' && 
-                      'score' in exercise && 'completedAt' in exercise && 'done' in exercise) {
-                    allExercises.push({
-                      chapter: exercise.chapter || chapter,
-                      content: exercise.content || content,
-                      completedAt: exercise.completedAt || '',
-                      done: exercise.done || false,
-                      score: exercise.score || 0
-                    });
-                  }
-                });
-              }
-            });
-          });
-        });
+      // Regrouper les exercices par matière
+      const exercisesBySubject: Record<string, any[]> = {};
       
+      completedExercises.forEach((exercise: any) => {
+        const subject = exercise.subject;
+        if (!exercisesBySubject[subject]) {
+          exercisesBySubject[subject] = [];
+        }
+        exercisesBySubject[subject].push(exercise);
+      });
+      
+      // Calculer les statistiques pour chaque matière
+      Object.entries(exercisesBySubject).forEach(([subject, subjectExercises]) => {
         // Calculer les statistiques pour cette matière
-        const totalExercises = allExercises.length;
-        // Vérifier si les exercices ont un score défini
-        const validExercises = allExercises.filter(ex => ex.score !== undefined && ex.score !== null);
+        const totalExercises = subjectExercises.length;
+        const validExercises = subjectExercises.filter(ex => ex.score !== undefined && ex.score !== null);
         
         const totalScore = validExercises.reduce((sum, ex) => {
           return sum + (ex.score || 0);
         }, 0);
         
         const averageScore = validExercises.length > 0 ? totalScore / validExercises.length : 0;
-
+        
         // Calculer les jours consécutifs
-        const dates = allExercises
+        const dates = subjectExercises
           .map(ex => new Date(ex.completedAt).toDateString())
           .sort()
           .filter((date, index, array) => array.indexOf(date) === index);
-
+        
         // Calculer les réponses correctes/incorrectes basées sur le score
         const correctAnswers = validExercises.reduce((sum, ex) => {
           return sum + Math.round(((ex.score || 0) / 100) * 10);
-          }, 0);
-
+        }, 0);
+        
         const incorrectAnswers = validExercises.reduce((sum, ex) => {
           return sum + (10 - Math.round(((ex.score || 0) / 100) * 10));
         }, 0);
@@ -140,18 +118,79 @@ export default function HomeScreen() {
     return dates.length;
   };
 
+  const getSubjectInfo = async (subjectId: string) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return null;
+
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) return null;
+
+      const userData = userDoc.data();
+      const profile = userData.profile || {};
+      const schoolType = profile.schoolType;
+      const classe = profile.class;
+
+      if (!schoolType || !classe) return null;
+
+      const academiaDoc = await getDoc(doc(db, 'academia', schoolType));
+      if (!academiaDoc.exists()) return null;
+
+      const academiaData = academiaDoc.data();
+      
+      if (academiaData.classes && 
+          academiaData.classes[classe] && 
+          academiaData.classes[classe].matieres && 
+          academiaData.classes[classe].matieres[subjectId]) {
+        return academiaData.classes[classe].matieres[subjectId];
+      }
+
+
+    } catch (error) {
+      console.error('Erreur lors de la récupération des informations de la matière:', error);
+      return null;
+    }
+  };
+
+  const loadSubjectInfos = async () => {
+    const newSubjectInfos: Record<string, any> = {};
+    for (const subject of Object.keys(stats)) {
+      const info = await getSubjectInfo(subject);
+      if (info) {
+        newSubjectInfos[subject] = info;
+      }
+    }
+    setSubjectInfos(newSubjectInfos);
+  };
+
+  const extractGradientColors = (gradientString: string): string[] => {
+    if (!gradientString) return ['#60a5fa', '#3b82f6'];
+    
+    // Extraire les couleurs du format "linear-gradient(to right, #4c1d95, #2563eb)"
+    const colorMatch = gradientString.match(/#[0-9a-fA-F]{6}/g);
+    if (colorMatch && colorMatch.length >= 2) {
+      return [colorMatch[0], colorMatch[1]];
+    }
+    
+    return ['#60a5fa', '#3b82f6'];
+  };
+
   const renderSubjectStats = (subject: string, stats: SubjectStats) => {
-    const subjectInfo = getSubjectInfo(subject);
-    const gradientColors = subjectInfo.gradient;
+    const subjectInfo = subjectInfos[subject];
+    if (!subjectInfo) return null;
+    
+    const gradientColors = extractGradientColors(subjectInfo.gradient);
+    const primaryColor = gradientColors[0];
+    const secondaryColor = gradientColors[1];
     const cardsColors = 'rgba(13, 103, 172, 0.56)';
 
     return (
       <View key={subject} style={[styles.statsCard, { backgroundColor: 'rgba(234, 232, 232, 0.78)' }]}>
         <View style={styles.subjectHeader}>
           <MaterialCommunityIcons 
-            name={subjectInfo.icon as any} 
+            name={subjectInfo.icon || 'book-open-variant'} 
             size={24} 
-            color={gradientColors[0]} 
+            color={primaryColor} 
           />
           <Text style={[styles.subjectTitle, { color: themeColors.text }]}>
             {subjectInfo.label}
@@ -196,7 +235,7 @@ export default function HomeScreen() {
           <View style={styles.precisionBar}>
             <View style={[styles.precisionFill, { 
               width: `${stats.precision}%`,
-              backgroundColor: gradientColors[0]
+              backgroundColor: primaryColor
             }]} />
             <Text style={styles.precisionText}>{stats.precision}% de précision</Text>
           </View>
