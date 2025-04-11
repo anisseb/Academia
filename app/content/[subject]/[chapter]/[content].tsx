@@ -139,7 +139,6 @@ export default function ContentPage() {
   };
 
   const handleExercisePress = (exercise: Exercise) => {
-    console.log('exercise', exercise);
 
     router.push({
       pathname: "/exercise/[id]",
