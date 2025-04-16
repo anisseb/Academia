@@ -21,10 +21,8 @@ export default function Index() {
         const userData = userDoc.data();
         
         if (!userData?.profile?.onboardingCompleted) {
-            console.log('onboarding not completed');
           router.replace('/onboarding');
         } else {
-          console.log('onboarding completed');
           router.replace('/(tabs)');
         }
       } catch (error) {

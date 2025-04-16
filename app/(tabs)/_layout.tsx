@@ -377,17 +377,6 @@ export default function TabLayout() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={styles.navigationItem}
-            onPress={() => {
-              router.push('/(tabs)/revision');
-              toggleSidebar();
-            }}
-          >
-            <Feather name="book-open" size={20} color={themeColors.icon} />
-            <Text style={[styles.navigationText, { color: themeColors.text }]}>Révision</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
             style={styles.newThreadButton}
             onPress={createNewThread}
           >

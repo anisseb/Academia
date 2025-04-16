@@ -183,7 +183,7 @@ export default function CoursScreen() {
       ]}>
         <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => router.replace('/(tabs)/revision')}
+          onPress={() => router.back()}
         >
           <MaterialCommunityIcons 
             name="arrow-left" 

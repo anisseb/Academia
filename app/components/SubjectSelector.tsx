@@ -1,20 +1,65 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { X, Check } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
-import { subjectsList } from '../constants/subjects';
+import { auth, db } from '../../firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
 
 type SubjectSelectorProps = {
   visible: boolean;
-  subjects: string[];
   onSelect: (subject: string) => void;
   onClose: () => void;
   selectedSubject: string | null;
 };
 
+type SubjectInfo = {
+  id: string;
+  label: string;
+  icon: string;
+  gradient: string;
+};
 
-export const SubjectSelector = ({ visible, subjects, onSelect, onClose, selectedSubject }: SubjectSelectorProps) => {
+export const SubjectSelector = ({ visible, onSelect, onClose, selectedSubject }: SubjectSelectorProps) => {
   const { isDarkMode } = useTheme();
+  const [availableSubjects, setAvailableSubjects] = useState<SubjectInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadUserSubjects();
+  }, [visible]);
+
+  const loadUserSubjects = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) return;
+
+      const userData = userDoc.data();
+      const profile = userData.profile || {};
+      
+      // Récupérer les matières depuis le profil de l'utilisateur
+      if (profile.subjects) {
+        const subjects = Object.entries(profile.subjects).map(([id, data]: [string, any]) => ({
+          id,
+          label: data.label || id,
+          icon: data.icon || 'book-open-variant',
+          gradient: data.gradient || 'linear-gradient(to right, #60a5fa, #3b82f6)'
+        }));
+        setAvailableSubjects(subjects);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des matières:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubjectSelect = (subject: SubjectInfo) => {
+    // Renvoyer le label de la matière au lieu de l'ID
+    onSelect(subject.label);
+  };
 
   const themeColors = {
     background: isDarkMode ? '#2d2d2d' : '#ffffff',
@@ -39,38 +84,40 @@ export const SubjectSelector = ({ visible, subjects, onSelect, onClose, selected
             <Text style={[styles.modalTitle, { color: themeColors.text }]}>Choisissez une matière</Text>
           </View>
           <ScrollView style={styles.subjectList}>
-            {subjectsList.map((subject) => {
-              const isAvailable = subjects.includes(subject.id) || subject.id === 'discussion';
-              if (!isAvailable) return null;
-              
-              const isSelected = selectedSubject === subject.id;
-              return (
-                <TouchableOpacity
-                  key={subject.id}
-                  style={[
-                    styles.subjectButton,
-                    subject.id === 'discussion' && styles.justChatButton,
-                    { 
-                      backgroundColor: isSelected ? themeColors.selectedBackground : themeColors.buttonBackground,
-                      flexDirection: 'row',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }
-                  ]}
-                  onPress={() => onSelect(subject.id)}
-                >
-                  <Text style={[
-                    styles.subjectButtonText, 
-                    { color: isSelected ? themeColors.selectedText : themeColors.buttonText }
-                  ]}>
-                    {subject.label}
-                  </Text>
-                  {isSelected && (
-                    <Check size={20} color={themeColors.selectedText} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+            {isLoading ? (
+              <Text style={[styles.loadingText, { color: themeColors.text }]}>
+                Chargement des matières...
+              </Text>
+            ) : (
+              availableSubjects.map((subject) => {
+                const isSelected = selectedSubject === subject.label;
+                return (
+                  <TouchableOpacity
+                    key={subject.id}
+                    style={[
+                      styles.subjectButton,
+                      { 
+                        backgroundColor: isSelected ? themeColors.selectedBackground : themeColors.buttonBackground,
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }
+                    ]}
+                    onPress={() => handleSubjectSelect(subject)}
+                  >
+                    <Text style={[
+                      styles.subjectButtonText, 
+                      { color: isSelected ? themeColors.selectedText : themeColors.buttonText }
+                    ]}>
+                      {subject.label}
+                    </Text>
+                    {isSelected && (
+                      <Check size={20} color={themeColors.selectedText} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            )}
           </ScrollView>
         </View>
       </View>
@@ -121,12 +168,14 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
-  justChatButton: {
-    marginTop: 16,
-  },
   subjectButtonText: {
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginVertical: 20,
   },
 }); 

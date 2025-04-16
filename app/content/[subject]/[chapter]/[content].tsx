@@ -134,10 +134,6 @@ export default function ContentPage() {
     await loadExercises(userSchoolType, userClass);
   };
 
-  const handleBack = () => {
-    router.back();
-  };
-
   const handleExercisePress = (exercise: Exercise) => {
 
     router.push({
@@ -155,6 +151,22 @@ export default function ContentPage() {
     } as any);
   };
 
+  const handleChapterContentPress = (chapterIndex: number, contentIndex: number) => {
+    router.push({
+      pathname: '/content/[cours]/cours',
+      params: {
+        subject: subject as string,
+        subjectLabel: subjectLabel as string,
+        classe: classe as string,
+        classeLabel: classeLabel as string,
+        chapter: chapterIndex.toString(),
+        chapterLabel: chapterLabel as string,
+        contentId: contentIndex.toString(),
+        contentLabel: contentLabel as string,
+      },
+    } as any);
+  };
+
   const renderBackButton = () => (
     <View style={[styles.header, { 
       backgroundColor: themeColors.background,
@@ -164,7 +176,7 @@ export default function ContentPage() {
      }]}>
       <TouchableOpacity 
         style={styles.backButton} 
-        onPress={handleBack}
+        onPress={() => router.replace('/(tabs)/entrainement')}
       >
         <MaterialCommunityIcons 
           name="arrow-left" 
@@ -263,6 +275,37 @@ export default function ContentPage() {
               </View>
             </View>
           </View>
+          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
+            Cours
+          </Text>
+          <TouchableOpacity
+            style={[styles.courseCard, { backgroundColor: themeColors.card }]}
+            onPress={() => handleChapterContentPress(Number(chapterIndex), Number(contentId))}
+          >
+            <View style={styles.courseContent}>
+              <View style={styles.courseIconContainer}>
+                <MaterialCommunityIcons 
+                  name="book-open-page-variant"
+                  size={32} 
+                  color="#60a5fa" 
+                />
+              </View>
+              <View style={styles.courseTextContainer}>
+                <Text style={[styles.courseTitle, { color: themeColors.text }]}>
+                  Consulter le cours
+                </Text>
+                <Text style={[styles.courseDescription, { color: themeColors.text + '99' }]}>
+                  Apprenez les concepts clés et les applications pratiques
+                </Text>
+              </View>
+              <MaterialCommunityIcons 
+                name="chevron-right" 
+                size={24} 
+                color={themeColors.text} 
+                style={styles.courseArrow}
+              />
+            </View>
+          </TouchableOpacity>
           
           <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
             Exercices
@@ -308,17 +351,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
+    flexWrap: 'wrap',
   },
   subjectTitle: {
     fontSize: 14,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    marginRight: 4,
   },
   chapterTitle: {
     fontSize: 14,
     fontWeight: '500',
     color: '#6b7280',
+    flex: 1,
+    flexWrap: 'wrap',
   },
   contentHeader: {
     marginTop: 8,
@@ -391,5 +438,36 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 18,
     textAlign: 'center',
+  },
+  courseCard: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  courseContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  courseIconContainer: {
+    padding: 8,
+  },
+  courseTextContainer: {
+    flex: 1,
+  },
+  courseTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  courseDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  courseArrow: {
+    marginLeft: 12,
   },
 }); 
