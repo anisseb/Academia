@@ -17,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+import { parseGradient } from '../utils/gradientUtils';
 
 interface Subject {
   id: string;
@@ -201,22 +202,32 @@ export default function EntrainementScreen() {
       if (userDoc.exists()) {
         const userData = userDoc.data();
         if (userData.profile && userData.profile.subjects) {
-          const userSubjects = userData.profile.subjects
-            .map((subjectData: any) => {
-              // Vérifier si gradient existe avant d'appeler split
-              const gradientArray = subjectData.gradient ? subjectData.gradient.split(',') : ['#60a5fa', '#3b82f6'];
-              
-              return {
-                id: subjectData.id,
-                label: subjectData.label,
-                icon: subjectData.icon || 'book-open-variant',
-                gradient: gradientArray,
-                key: subjectData.id
-              };
-            });
-          setSubjects(userSubjects);
-          if (userSubjects.length > 0) {
-            setSelectedSubject(userSubjects[0]);
+          // Charger d'abord les données des matières
+          const academiaDoc = await getDoc(doc(db, 'academia', userData.profile.schoolType));
+          if (academiaDoc.exists()) {
+            const academiaData = academiaDoc.data();
+            if (academiaData.classes && 
+                academiaData.classes[userData.profile.class] && 
+                academiaData.classes[userData.profile.class].matieres) {
+              const matieres = academiaData.classes[userData.profile.class].matieres;
+
+              // Créer les objets subjects avec les données à jour
+              const userSubjects = userData.profile.subjects
+                .map((subjectData: any) => {
+                  const subjectInfo = matieres[subjectData.id];
+                  return {
+                    id: subjectData.id,
+                    label: subjectData.label,
+                    icon: subjectInfo?.icon || 'book-open-variant',
+                    gradient: parseGradient(subjectInfo?.gradient || '#60a5fa, #3b82f6'),
+                    key: subjectData.id
+                  };
+                });
+              setSubjects(userSubjects);
+              if (userSubjects.length > 0) {
+                setSelectedSubject(userSubjects[0]);
+              }
+            }
           }
         }
       }

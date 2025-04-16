@@ -13,7 +13,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Exercise } from '../types/exercise';
+import { Exercise, Question } from '../types/exercise';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
 import { ExerciseResults } from '../components/ExerciseResults';
@@ -21,17 +21,39 @@ import { Ionicons } from '@expo/vector-icons';
 import { programmes } from '../constants/programme';
 import { renderMathText as MathText } from '../utils/mathRenderer';
 
+interface CompletedExercise {
+  exerciceId: string;
+  completedAt: string;
+  done: boolean;
+  score: number;
+}
+
+interface ExercisesStructure {
+  [schoolType: string]: {
+    [classe: string]: {
+      [subject: string]: {
+        [chapterId: string]: {
+          [contentId: string]: CompletedExercise[];
+        };
+      };
+    };
+  };
+}
+
+interface UserProfile {
+  exercises?: ExercisesStructure;
+  // ... autres propriétés du profil
+}
+
 export default function ExercisePage() {
-  const { 
-    schoolType,
-    classe,
-    subject,
-    chapterIndex,
-    contentId,
-    contentLabel,
-    exerciseId,
-    exercice,
-   } = useLocalSearchParams();
+  const { exerciseId, schoolType, classe, subject, chapterIndex, contentId } = useLocalSearchParams<{
+    exerciseId: string;
+    schoolType: string;
+    classe: string;
+    subject: string;
+    chapterIndex: string;
+    contentId: string;
+  }>();
   const router = useRouter();
   const { isDarkMode } = useTheme();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -92,15 +114,15 @@ export default function ExercisePage() {
       const subjectProgram = academiaData.classes[classe].matieres[subject as string].programme || [];
       
       // Trouver le chapitre correspondant
-      if (isNaN(parseInt(chapterIndex as string)) || parseInt(chapterIndex as string) < 0 || parseInt(chapterIndex as string) >= subjectProgram.length) {
+      if (isNaN(parseInt(chapterIndex)) || parseInt(chapterIndex) < 0 || parseInt(chapterIndex) >= subjectProgram.length) {
         console.error('Index de chapitre invalide');
         setIsLoading(false);
         return;
       }
-      const chapter = subjectProgram[parseInt(chapterIndex as string)];
+      const chapter = subjectProgram[parseInt(chapterIndex)];
 
       // Trouver le contenu correspondant
-      const contentIndex = parseInt(contentId as string);
+      const contentIndex = parseInt(contentId);
       if (isNaN(contentIndex) || contentIndex < 0 || contentIndex >= chapter.content.length) {
         console.error('Index de contenu invalide');
         setIsLoading(false);
@@ -116,7 +138,6 @@ export default function ExercisePage() {
         return;
       }
 
-      
       // Parcourir le tableau content.exercices pour trouver l'exercice correspondant à l'exerciseId
       const exerciseData = content.exercices.find((ex: any) => ex.id === exerciseId);
       
@@ -209,44 +230,87 @@ export default function ExercisePage() {
         return;
       }
 
-      // Créer un nouvel objet pour l'exercice complété
-      const completedExercise = {
-        exerciceId: exerciseId as string,
-        subject: subject as string,
-        chapterId: chapterIndex as string,
-        contentId: contentId as string,
-        done: true,
-        score: score,
-        completedAt: new Date().toISOString()
-      };
-
-      // Ajouter le nouvel exercice au tableau
-      setExercises(prevExercises => [...prevExercises, completedExercise]);
-
-      // Récupérer le document utilisateur
-      const userRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userRef);
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
       
       if (!userDoc.exists()) {
         console.error('Document utilisateur non trouvé');
         return;
       }
 
-      // Récupérer le profil actuel de l'utilisateur
       const userData = userDoc.data();
-      const currentProfile = userData.profile || {};
-      const currentExercises = currentProfile.exercises || [];
+      const profile = userData.profile as UserProfile || {};
+      
+      // Créer l'objet exercice complété
+      const completedExercise: CompletedExercise = {
+        exerciceId: exerciseId,
+        completedAt: new Date().toISOString(),
+        done: true,
+        score: score
+      };
 
-      // Ajouter le nouvel exercice au tableau des exercices du profil
-      const updatedExercises = [...currentExercises, completedExercise];
+      // Vérifier et initialiser la structure de manière sécurisée
+      const exercises = profile.exercises || {};
+      const schoolTypeExercises = exercises[schoolType] || {};
+      const classeExercises = schoolTypeExercises[classe] || {};
+      const subjectExercises = classeExercises[subject] || {};
+      const chapterExercises = subjectExercises[chapterIndex] || {};
+      const contentExercises = chapterExercises[contentId] || [];
 
-      // Mettre à jour le document utilisateur avec le nouveau tableau d'exercices
-      await updateDoc(userRef, {
-        'profile.exercises': updatedExercises
+      // Vérifier si l'exercice existe déjà
+      const existingExerciseIndex = contentExercises.findIndex(
+        (ex: CompletedExercise) => ex.exerciceId === exerciseId
+      );
+
+      if (existingExerciseIndex !== -1) {
+        // Mettre à jour l'exercice existant
+        contentExercises[existingExerciseIndex] = {
+          ...contentExercises[existingExerciseIndex],
+          score: score,
+          completedAt: completedExercise.completedAt
+        };
+      } else {
+        // Ajouter le nouvel exercice
+        contentExercises.push(completedExercise);
+      }
+
+      // Reconstruire l'objet de manière sécurisée
+      const updatedProfile = {
+        ...profile,
+        exercises: {
+          ...exercises,
+          [schoolType]: {
+            ...schoolTypeExercises,
+            [classe]: {
+              ...classeExercises,
+              [subject]: {
+                ...subjectExercises,
+                [chapterIndex]: {
+                  ...chapterExercises,
+                  [contentId]: contentExercises
+                }
+              }
+            }
+          }
+        }
+      };
+
+      // Mettre à jour le document utilisateur
+      await updateDoc(userDocRef, {
+        profile: updatedProfile
       });
+      
+      // Mettre à jour l'état local
+      setExercises(prevExercises => 
+        prevExercises.map(ex => 
+          ex.exerciceId === exerciseId 
+            ? { ...ex, completed: true, score: score }
+            : ex
+        )
+      );
 
     } catch (error) {
-      console.error('Erreur lors de l\'enregistrement:', error);
+      console.error('Erreur lors de la sauvegarde de l\'exercice:', error);
     }
   };
 
@@ -391,7 +455,7 @@ export default function ExercisePage() {
                           hasAnswered && 
                           selectedAnswers[currentQuestionIndex] === index && 
                           index !== exercise.questions[currentQuestionIndex].correctAnswer && 
-                          styles.incorrectOption,
+                          styles.wrongOption,
                         ]}
                         onPress={() => handleAnswerSelect(index)}
                         disabled={hasAnswered}
@@ -617,7 +681,7 @@ const styles = StyleSheet.create({
     borderColor: '#4CAF50',
     backgroundColor: '#d9ead3',
   },
-  incorrectOption: {
+  wrongOption: {
     borderColor: '#F44336',
     backgroundColor: '#fde0df',
   },

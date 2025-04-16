@@ -18,6 +18,7 @@ import { countries } from '../constants/education';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showErrorAlert, showSuccessAlert } from '../utils/alerts';
+import { parseGradient } from '../utils/gradientUtils';
 
 interface Section {
   id: string;
@@ -67,14 +68,6 @@ type ProfileData = {
   class?: string;
   section?: string;
   subjects: SubjectData[];
-};
-
-const parseGradient = (gradientString: string): [string, string] => {
-  const colors = gradientString.match(/#[0-9a-fA-F]{6}/g);
-  if (colors && colors.length >= 2) {
-    return [colors[0], colors[1]];
-  }
-  return ['#60a5fa', '#3b82f6']; // Valeur par défaut
 };
 
 export default function ProfileScreen() {
@@ -138,18 +131,21 @@ export default function ProfileScreen() {
       const user = auth.currentUser;
       if (!user) return;
 
-      if (!profileData.name || !profileData.country || !profileData.schoolType) {
+      if (!profileData.name || !profileData.country || !profileData.schoolType || !profileData.subjects || profileData.subjects.length === 0) {
         showErrorAlert('Erreur', 'Veuillez remplir tous les champs obligatoires');
         return;
       }
 
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       const currentData = userDoc.data() || {};
+      const currentProfile = currentData.profile || {};
 
       await updateDoc(doc(db, 'users', user.uid), {
         ...currentData,
         profile: {
+          ...currentProfile,
           ...profileData,
+          exercises: currentProfile.exercises || {},
           onboardingCompleted: true
         }
       });
@@ -588,7 +584,7 @@ const styles = StyleSheet.create({
   },
   subjectButton: {
     borderRadius: 12,
-    width: '31%',
+    width: '48%',
     borderWidth: 1,
     overflow: 'hidden',
     position: 'relative',

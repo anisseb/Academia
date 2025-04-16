@@ -9,16 +9,10 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Feather } from '@expo/vector-icons';
 import { SubjectSelector } from '../components/SubjectSelector';
 import { useTheme } from '../context/ThemeContext';
-import { subjectsList } from '../constants/subjects';
 import { getEducationLevelLabel, EducationLevel } from '../constants/education';
 import { renderMathText as MathText } from '../utils/mathRenderer';
 import { showErrorAlert } from '../utils/alerts';
 const MISTRAL_API_KEY = '5YC1BWCbnpIqsViDDsK9zBbc1NgqjwAj';
-
-const getSubjectLabel = (subjectId: string) => {
-  const subject = subjectsList.find(s => s.id === subjectId);
-  return subject ? subject.label : 'Choisir matière';
-};
 
 type Message = {
   id: string;
@@ -420,7 +414,6 @@ export default function HistoryScreen() {
     >
       <SubjectSelector
         visible={showSubjectSelector}
-        subjects={userSubjects}
         onSelect={handleSubjectSelect}
         onClose={() => setShowSubjectSelector(false)}
         selectedSubject={selectedSubject}
@@ -433,7 +426,7 @@ export default function HistoryScreen() {
               onPress={() => setShowSubjectSelector(true)}
             >
               <Text style={styles.subjectButtonText}>
-                {selectedSubject ? getSubjectLabel(selectedSubject) : 'Choisir matière'}
+                {selectedSubject ? selectedSubject : 'Choisir matière'}
               </Text>
             </TouchableOpacity>
           </View>

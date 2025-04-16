@@ -29,7 +29,7 @@ export default function HomeScreen() {
     card: isDarkMode ? '#2d2d2d' : '#f5f5f5',
     primary: '#60a5fa',
   };
-
+  
   useEffect(() => {
     loadUserStats();
   }, []);
@@ -49,7 +49,40 @@ export default function HomeScreen() {
       const userData = userDoc.data();
       const profile = userData.profile || {};
       setProfileData(profile);
-      const completedExercises = profile.exercises || [];
+      
+      // Récupérer tous les exercices complétés de la nouvelle structure
+      const exercises = profile.exercises || {};
+      const completedExercises: any[] = [];
+
+      // Parcourir la structure imbriquée pour extraire tous les exercices
+      Object.entries(exercises).forEach(([schoolType, schoolTypeData]) => {
+        if (typeof schoolTypeData === 'object' && schoolTypeData !== null) {
+          Object.entries(schoolTypeData).forEach(([classe, classeData]) => {
+            if (typeof classeData === 'object' && classeData !== null) {
+              Object.entries(classeData).forEach(([subject, subjectData]) => {
+                if (typeof subjectData === 'object' && subjectData !== null) {
+                  Object.entries(subjectData).forEach(([chapterId, chapterData]) => {
+                    if (typeof chapterData === 'object' && chapterData !== null) {
+                      Object.entries(chapterData).forEach(([contentId, contentExercises]) => {
+                        if (Array.isArray(contentExercises)) {
+                          contentExercises.forEach((exercise: any) => {
+                            completedExercises.push({
+                              ...exercise,
+                              subject,
+                              chapterId,
+                              contentId
+                            });
+                          });
+                        }
+                      });
+                    }
+                  });
+                }
+              });
+            }
+          });
+        }
+      });
       
       // Regrouper les exercices par matière
       const exercisesBySubject: Record<string, any[]> = {};
@@ -270,7 +303,7 @@ export default function HomeScreen() {
     <ScrollView
       style={[styles.container, { backgroundColor: themeColors.background }]}
       contentContainerStyle={{ paddingBottom: 40 }}
-    >      
+    >
       {Object.keys(stats).length === 0 ? (
         <View style={styles.emptyStatsContainer}>
           <MaterialCommunityIcons 
@@ -296,7 +329,7 @@ export default function HomeScreen() {
             <View style={styles.loadingContainer}>
               <Text style={[styles.loadingText, { color: themeColors.text }]}>
                 Chargement des statistiques...
-              </Text>
+          </Text>
             </View>
           ) : (
             Object.entries(stats).map(([subject, subjectStats]) => 
