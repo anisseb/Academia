@@ -357,6 +357,7 @@ const styles = StyleSheet.create({
   },
   keyPoints: {
     marginTop: 12,
+    width: '90%',
     gap: 8,
   },
   keyPointItem: {
