@@ -37,12 +37,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     alignItems: 'center',
   },
-  textPart: {
-    flexShrink: 1,
-  },
-  mathPart: {
-    marginHorizontal: 4,
-  }
 });
 
 const MathText: React.FC<MathTextProps> = ({ content, type = 'cours', isDarkMode }) => {
@@ -69,10 +63,6 @@ const MathText: React.FC<MathTextProps> = ({ content, type = 'cours', isDarkMode
   return (
     <View style={styles.mathContainer}>
       {parts.map((part, index) => {
-        if (part.startsWith('$') && part.endsWith('$')) {
-          // Extraire la formule sans les $
-          const formula = part.slice(1, -1);
-
           return (
             <MathJaxSvg
               key={index}
@@ -80,25 +70,9 @@ const MathText: React.FC<MathTextProps> = ({ content, type = 'cours', isDarkMode
               color={textColor}
               fontCache={false}
             >
-              {`$${formula.replace(/\\\\/g, '\\')}$`}
+              {`${part.replace(/\\\\/g, '\\')}`}
             </MathJaxSvg>
           );
-        } else {
-          return (
-            <Text
-              key={index}
-              style={[
-                styles.textPart,
-                type === 'question' && styles.questionText,
-                type === 'option' && styles.optionText,
-                type === 'explanation' && styles.explanationText,
-                type === 'cours' && styles.coursText
-              ]}
-            >
-              {part}
-            </Text>
-          );
-        }
       })}
     </View>
   );
