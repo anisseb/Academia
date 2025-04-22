@@ -221,13 +221,13 @@ export default function HistoryScreen() {
       return `${baseMessage} Sois amical et ouvert à la discussion tout en restant pédagogique. IMPORTANT: Ta réponse doit être au format JSON avec la structure suivante: {"message": "ton message", "suggestions": ["suggestion 1", "suggestion 2"]}`;
     }
 
-    const scientificInstruction = (subject === 'maths' || subject === 'physique-chimie')
+    const scientificInstruction = (subject === 'Mathématiques' || subject === 'Physique Chimie')
       ? 'IMPORTANT: j\'aimerais que les formules soient au format latex. Réponds uniquement en JSON valide avec le format suivant, sans texte supplémentaire.'
       : '';
 
     // Structure JSON différente selon que l'utilisateur envoie une image ou non
-    const jsonStructure = hasImage && subject === 'maths'
-      ? `IMPORTANT: les formules maths contenu dans les steps doivent être au format latex.
+    const jsonStructure = subject === 'Mathématiques'
+      ? `IMPORTANT: les formules mathematiques doivent etre au format latex, il faut que le format soit correcte pour etre pris en compte par katex.
       {
               "message": "ton message principal",
               "steps": [
@@ -306,6 +306,7 @@ export default function HistoryScreen() {
           [`threads.${threadId}.lastUpdated`]: new Date()
         });
 
+        console.log('selectedSubject', selectedSubject);
         // Créer l'historique des messages pour l'API Mistral
         const messageHistory: any[] = [
           {
@@ -340,7 +341,6 @@ export default function HistoryScreen() {
             ? apiResponse.choices[0].message.content 
             : "Pas de réponse";
           
-          console.log('Réponse brute:', responseText);
           
           // Rechercher un objet JSON dans la réponse
           let cleanedContent = responseText
@@ -595,7 +595,11 @@ const FormattedMessage = ({ content, isDarkMode }: { content: string, isDarkMode
                     />
                   </View>
                   <Text style={[styles.formulaDescription, { color: isDarkMode ? '#fff' : '#000' }]}>
-                    {formula.description}
+                    <MathText
+                        content={formula.description}
+                        isDarkMode={isDarkMode}
+                        type="cours"
+                      />
                   </Text>
                 </View>
               ))}
