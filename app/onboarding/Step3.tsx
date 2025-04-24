@@ -1,90 +1,56 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator } from 'react-native';
+import React from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSchoolTypes } from '../hooks/useSchoolTypes';
+import { countries } from '../constants/education';
 import { OnboardingButton } from '../components/OnboardingButton';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 type Step3Props = {
-  onNext: (data: { schoolType: string }) => void;
+  onNext: (data: { country: string }) => void;
   onBack: () => void;
-  data?: { schoolType?: string };
-};
-
-const schoolTypeIcons: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
-  primary: 'school',
-  middle: 'school-outline',
-  high_general: 'school',
-  high_technological: 'tools',
-  high_professional: 'hammer-wrench',
-  university: 'school',
+  data?: { name?: string; username?: string; country?: string };
 };
 
 export default function Step3({ onNext, onBack, data }: Step3Props) {
-  const [selectedType, setSelectedType] = React.useState<string | undefined>(data?.schoolType);
+  const [selectedCountry, setSelectedCountry] = React.useState<string | undefined>(data?.country);
   const insets = useSafeAreaInsets();
-  const fadeAnim = new Animated.Value(0);
-  const scaleAnim = new Animated.Value(0.9);
-  const { schoolTypes, loading, error } = useSchoolTypes();
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#60a5fa" />
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    );
-  }
 
   return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Text style={styles.title}>Votre niveau d'études</Text>
-        <Text style={styles.subtitle}>Sélectionnez votre type d'établissement</Text>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <Text style={styles.title}>Votre pays de résidence</Text>
+      <Text style={styles.subtitle}>Sélectionnez votre pays pour personnaliser votre expérience</Text>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          <View style={styles.grid}>
-            {schoolTypes.map((type) => (
-              <TouchableOpacity
-                key={type.id}
-                style={[
-                  styles.typeButton,
-                  selectedType === type.id && styles.selectedType,
-                ]}
-                onPress={() => setSelectedType(type.id)}
-              >
-                <MaterialCommunityIcons
-                  name={schoolTypeIcons[type.id] || 'school'}
-                  size={32}
-                  color={selectedType === type.id ? '#60a5fa' : '#94a3b8'}
-                  style={styles.icon}
-                />
-                <Text style={styles.typeName}>{type.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-
-        <View style={styles.footer}>
-          <OnboardingButton
-            icon="arrow-left"
-            onPress={onBack}
-            style={styles.backButton}
-          />
-          <OnboardingButton
-            label="Continuer"
-            onPress={() => selectedType && onNext({ schoolType: selectedType })}
-            disabled={!selectedType}
-            style={styles.continueButton}
-          />
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.grid}>
+          {countries.map((country) => (
+            <TouchableOpacity
+              key={country.id}
+              style={[
+                styles.countryButton,
+                selectedCountry === country.id && styles.selectedCountry,
+              ]}
+              onPress={() => setSelectedCountry(country.id)}
+            >
+              <Text style={styles.flag}>{country.flag}</Text>
+              <Text style={styles.countryName}>{country.name}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <OnboardingButton
+          icon="arrow-left"
+          onPress={onBack}
+          style={styles.backButton}
+        />
+        <OnboardingButton
+          label="Continuer"
+          onPress={() => selectedCountry && onNext({ country: selectedCountry })}
+          disabled={!selectedCountry}
+          style={styles.continueButton}
+        />
       </View>
+    </View>
   );
 }
 
@@ -117,7 +83,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 10,
   },
-  typeButton: {
+  countryButton: {
     width: '48%',
     backgroundColor: '#1e293b',
     borderRadius: 12,
@@ -127,14 +93,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#334155',
   },
-  selectedType: {
+  selectedCountry: {
     backgroundColor: '#334155',
     borderColor: '#60a5fa',
   },
-  icon: {
+  flag: {
+    fontSize: 32,
     marginBottom: 8,
   },
-  typeName: {
+  countryName: {
     color: '#fff',
     fontSize: 14,
     textAlign: 'center',
@@ -149,25 +116,11 @@ const styles = StyleSheet.create({
   backButton: {
     width: 50,
     height: 50,
+    borderRadius: 25,
+    backgroundColor: '#1e293b',
   },
   continueButton: {
     flex: 1,
     marginLeft: 12,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    color: '#ef4444',
-    fontSize: 16,
-    textAlign: 'center',
   },
 }); 

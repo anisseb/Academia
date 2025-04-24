@@ -18,12 +18,13 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { parseGradient } from '../utils/gradientUtils';
+import { getSubjects } from '../utils/subjectGradients';
 
 interface Subject {
   id: string;
   label: string;
   icon: string;
-  gradient: string[];
+  gradient: string;
   key: string;
 }
 
@@ -160,7 +161,13 @@ const SubjectScene: React.FC<SubjectSceneProps> = ({ subject, themeColors }) => 
 
 export default function EntrainementScreen() {
   const { isDarkMode } = useTheme();
-  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [subjects, setSubjects] = useState<Array<{
+    id: string;
+    label: string;
+    icon: string;
+    gradient: string;
+    key: string;
+  }>>([]);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -171,72 +178,39 @@ export default function EntrainementScreen() {
     border: isDarkMode ? '#333333' : '#e0e0e0',
   };
 
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        loadUserSubjects();
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  useFocusEffect(
-    React.useCallback(() => {
-      const loadData = async () => {
-        if (auth.currentUser) {
-          await loadUserSubjects();
-        }
-      };
-      
-      loadData();
-    }, [])
-  );
-
-  const loadUserSubjects = async () => {
+  const loadSubjects = async () => {
+    setLoading(true);
     try {
       const user = auth.currentUser;
       if (!user) return;
 
       const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        if (userData.profile && userData.profile.subjects) {
-          // Charger d'abord les données des matières
-          const academiaDoc = await getDoc(doc(db, 'academia', userData.profile.schoolType));
-          if (academiaDoc.exists()) {
-            const academiaData = academiaDoc.data();
-            if (academiaData.classes && 
-                academiaData.classes[userData.profile.class] && 
-                academiaData.classes[userData.profile.class].matieres) {
-              const matieres = academiaData.classes[userData.profile.class].matieres;
+      if (!userDoc.exists()) return;
 
-              // Créer les objets subjects avec les données à jour
-              const userSubjects = userData.profile.subjects
-                .map((subjectData: any) => {
-                  const subjectInfo = matieres[subjectData.id];
-                  return {
-                    id: subjectData.id,
-                    label: subjectData.label,
-                    icon: subjectInfo?.icon || 'book-open-variant',
-                    gradient: parseGradient(subjectInfo?.gradient || '#60a5fa, #3b82f6'),
-                    key: subjectData.id
-                  };
-                });
-              setSubjects(userSubjects);
-              if (userSubjects.length > 0) {
-                setSelectedSubject(userSubjects[0]);
-              }
-            }
-          }
-        }
+      const userData = userDoc.data();
+      if (!userData.profile || !userData.profile.subjects) return;
+
+      const userSubjects = await getSubjects(
+        userData.profile.subjects,
+        userData.profile.schoolType,
+        userData.profile.class
+      );
+      setSubjects(userSubjects);
+      if (userSubjects.length > 0) {
+        setSelectedSubject(userSubjects[0]);
       }
-      setLoading(false);
     } catch (error) {
       console.error('Erreur lors du chargement des matières:', error);
+    } finally {
       setLoading(false);
     }
   };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadSubjects();
+    }, [])
+  );
 
   if (loading) {
     return (
@@ -274,7 +248,7 @@ export default function EntrainementScreen() {
           >
             <LinearGradient
               colors={selectedSubject?.id === subject.id ? 
-                [subject.gradient[0], subject.gradient[1]] as const : 
+                parseGradient(subject.gradient) : 
                 [themeColors.card, themeColors.card] as const}
               style={styles.tabGradient}
               start={{ x: 0, y: 0 }}

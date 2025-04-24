@@ -8,16 +8,19 @@ import Step2 from './Step2';
 import Step3 from './Step3';
 import Step4 from './Step4';
 import Step5 from './Step5';
+import Step6 from './Step6';
+import Step7 from './Step7';
 import { onAuthStateChanged } from 'firebase/auth';
 
 
 type OnboardingData = {
   name?: string;
+  username?: string;
   country?: string;
   schoolType?: string;
   class?: string;
   section?: string;
-  subjects?: string[];
+  subjects?: Array<{ id: string; label: string }>;
 };
 
 export default function Onboarding() {
@@ -54,7 +57,7 @@ export default function Onboarding() {
     const newData = { ...data, ...stepData };
     setData(newData);
 
-    if (step < 5) {
+    if (step < 7) {
       setStep(step + 1);
     } else {
       // Sauvegarde des données dans Firestore
@@ -64,6 +67,7 @@ export default function Onboarding() {
           const dataToUpdate: Record<string, any> = {
             profile: {
               name: newData.name,
+              username: newData.username,
               country: newData.country,
               schoolType: newData.schoolType,
               class: newData.class,
@@ -95,59 +99,31 @@ export default function Onboarding() {
   const renderStep = () => {
     switch (step) {
       case 1:
-        return (
-          <Step1
-            onNext={(stepData) => handleNext(stepData)}
-            data={data}
-          />
-        );
+        return <Step1 onNext={handleNext} data={{ name: data.name}} />;
       case 2:
-        return (
-          <Step2
-            onNext={(stepData) => handleNext(stepData)}
-            onBack={handleBack}
-            data={data}
-          />
-        );
+        return <Step2 onNext={handleNext} onBack={handleBack} data={{ name: data.name, username: data.username }} />;
       case 3:
-        return (
-          <Step3
-            onNext={(stepData) => handleNext(stepData)}
-            onBack={handleBack}
-            data={data}
-          />
-        );
+        return <Step3 onNext={handleNext} onBack={handleBack} data={{ name: data.name, username: data.username, country: data.country }} />;
       case 4:
-        if (!data.schoolType) {
-          setStep(3);
-          return null;
-        }
-        return (
-          <Step4
-            onNext={(stepData) => handleNext(stepData)}
-            onBack={handleBack}
-            data={{
-              schoolType: data.schoolType,
-              class: data.class,
-            }}
-          />
-        );
+        return <Step4 onNext={handleNext} onBack={handleBack} data={{ name: data.name, username: data.username, country: data.country, schoolType: data.schoolType }} />;
       case 5:
-        if (!data.schoolType || !data.class) {
-          setStep(4);
+        if (!data.schoolType) {
+          setStep(5);
           return null;
         }
-        return (
-          <Step5
-            onNext={(stepData) => handleNext(stepData)}
-            onBack={handleBack}
-            data={{
-              schoolType: data.schoolType,
-              class: data.class,
-              subjects: data.subjects,
-            }}
-          />
-        );
+        return <Step5 onNext={handleNext} onBack={handleBack} data={{ name: data.name, username: data.username, country: data.country, schoolType: data.schoolType, class: data.class }} />;
+      case 6:
+        if (!data.schoolType || !data.class) {
+          setStep(6);
+          return null;
+        }
+        return <Step6 onNext={handleNext} onBack={handleBack} data={{ name: data.name, username: data.username, country: data.country, schoolType: data.schoolType, class: data.class}} />;
+      case 7:
+        if (!data.schoolType || !data.class || !data.subjects) {
+          setStep(7);
+          return null;
+        }
+        return <Step7 onNext={handleNext} onBack={handleBack} data={{ name: data.name, username: data.username, country: data.country, schoolType: data.schoolType, class: data.class, subjects: data.subjects }} />;
       default:
         return null;
     }

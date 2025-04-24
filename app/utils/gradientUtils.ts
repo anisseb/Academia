@@ -9,4 +9,4 @@ export const parseGradient = (gradientString: string): [string, string] => {
     return [colors[0], colors[1]];
   }
   return ['#60a5fa', '#3b82f6']; // Valeur par défaut
-}; 
+};

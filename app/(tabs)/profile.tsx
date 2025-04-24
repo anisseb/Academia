@@ -19,6 +19,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showErrorAlert, showSuccessAlert } from '../utils/alerts';
 import { parseGradient } from '../utils/gradientUtils';
+import { validateUsername } from '../utils/usernameValidation';
 
 interface Section {
   id: string;
@@ -63,6 +64,7 @@ type SubjectDisplay = {
 
 type ProfileData = {
   name: string;
+  username: string;
   country: string;
   schoolType: string;
   class?: string;
@@ -75,6 +77,7 @@ export default function ProfileScreen() {
   const { schoolTypes, loading: schoolTypesLoading, error: schoolTypesError } = useSchoolTypes();
   const [profileData, setProfileData] = useState<ProfileData>({
     name: '',
+    username: '',
     country: '',
     schoolType: '',
     class: '',
@@ -83,6 +86,7 @@ export default function ProfileScreen() {
   });
   const [isEditing, setIsEditing] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [usernameError, setUsernameError] = useState<string | null>(null);
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -92,6 +96,7 @@ export default function ProfileScreen() {
     inputBackground: isDarkMode ? '#1a1a1a' : '#ffffff',
     placeholder: isDarkMode ? '#666666' : '#999999',
     buttonBackground: isDarkMode ? '#2d2d2d' : '#ffffff',
+    error: isDarkMode ? '#ef4444' : '#ff3b30',
   };
 
   useEffect(() => {
@@ -113,6 +118,7 @@ export default function ProfileScreen() {
         const profile = userDoc.data().profile;
         setProfileData({
           name: profile.name || '',
+          username: profile.username || '',
           country: profile.country || '',
           schoolType: profile.schoolType || '',
           class: profile.class || '',
@@ -130,6 +136,18 @@ export default function ProfileScreen() {
     try {
       const user = auth.currentUser;
       if (!user) return;
+
+      // Vérification du pseudo
+      if (!profileData.username.trim()) {
+        setUsernameError('Le pseudo ne peut pas être vide');
+        return;
+      }
+
+      const validationResult = await validateUsername(profileData.username, profileData.username);
+      if (!validationResult.isValid && validationResult.error) {
+        setUsernameError(validationResult.error);
+        return;
+      }
 
       if (!profileData.name || !profileData.country || !profileData.schoolType || !profileData.subjects || profileData.subjects.length === 0) {
         showErrorAlert('Erreur', 'Veuillez remplir tous les champs obligatoires');
@@ -224,6 +242,20 @@ export default function ProfileScreen() {
         ? prev.subjects.filter(s => s.id !== subject.id)
         : [...prev.subjects, { id: subject.id, label: subject.label }],
     }));
+  };
+
+  const handleUsernameChange = async (text: string) => {
+    setProfileData(prev => ({ ...prev, username: text }));
+    setUsernameError(null);
+
+    if (!text.trim()) {
+      return;
+    }
+
+    const validationResult = await validateUsername(text, profileData.username);
+    if (!validationResult.isValid && validationResult.error) {
+      setUsernameError(validationResult.error);
+    }
   };
 
   const renderSchoolTypeSelector = () => {
@@ -464,6 +496,32 @@ export default function ProfileScreen() {
                 placeholder="Ton prénom"
                 placeholderTextColor={themeColors.placeholder}
               />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={[styles.fieldLabel, { color: themeColors.text }]}>Pseudo</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  !isEditing && styles.inputDisabled,
+                  { 
+                    backgroundColor: themeColors.inputBackground,
+                    color: themeColors.text,
+                    borderColor: themeColors.border
+                  },
+                  usernameError && styles.inputError
+                ]}
+                value={profileData.username}
+                onChangeText={handleUsernameChange}
+                editable={isEditing}
+                placeholder="Ton pseudo"
+                placeholderTextColor={themeColors.placeholder}
+              />
+              {usernameError && (
+                <Text style={[styles.errorText, { color: themeColors.error }]}>
+                  {usernameError}
+                </Text>
+              )}
             </View>
 
             <View style={styles.field}>
@@ -716,5 +774,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     opacity: 0.8,
+  },
+  inputError: {
+    borderColor: '#ff3b30',
   },
 }); 
