@@ -1,14 +1,16 @@
 import { Stack } from 'expo-router';
 import { useRef, useState, useEffect } from 'react';
 import { Animated, Alert, Keyboard, Platform, AlertButton } from 'react-native';
-import { StyleSheet, Pressable, View, Text, TouchableOpacity, TextInput } from 'react-native';
+import { StyleSheet, Pressable, View, Text, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
-import { Tabs, router, useLocalSearchParams } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Feather, FontAwesome } from '@expo/vector-icons';
 import { onSnapshot, doc, updateDoc, getDoc, deleteField } from 'firebase/firestore';
 import React from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { showAlert, showConfirmAlert } from '../utils/alerts';
+import { getFirestore } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 type Thread = {
   id: string;
@@ -155,6 +157,9 @@ export default function TabLayout() {
   const slideAnim = useRef(new Animated.Value(-320)).current;
   const { threadId } = useLocalSearchParams();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState(0);
+  const auth = getAuth();
+  const db = getFirestore();
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -185,20 +190,33 @@ export default function TabLayout() {
     const unsubscribe = onSnapshot(userRef, (doc) => {
       if (doc.exists()) {
         const data = doc.data();
-        const isAdmin = data.profile.is_admin;
-        setIsAdmin(isAdmin);
         const threads = data.threads || {};
         const threadsList = Object.entries(threads).map(([id, thread]: [string, any]) => ({
           id,
           title: thread.title || 'Nouvelle conversation',
-          timestamp: thread.timestamp?.toDate(),
-        })) as Thread[];
+          timestamp: thread.timestamp?.toDate() || new Date(),
+        })).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+        
         setThreads(threadsList);
       }
     });
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const userRef = doc(db, 'users', auth.currentUser.uid);
+    const unsubscribe = onSnapshot(userRef, (doc) => {
+      const data = doc.data();
+      if (data?.pendingRequests) {
+        setPendingRequests(data.pendingRequests.length);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [auth.currentUser, pendingRequests]);
 
   const toggleSidebar = () => {
     Keyboard.dismiss(); // Ferme le clavier
@@ -244,6 +262,9 @@ export default function TabLayout() {
           }
         });
         
+        // Fermer la navigation avant de rediriger
+        toggleSidebar();
+        
         router.push({
           pathname: '/(tabs)/history',
           params: { threadId: newThreadId }
@@ -269,34 +290,10 @@ export default function TabLayout() {
     }
   };
 
-  const handleDeleteThread = async (threadId: string) => {
-    showConfirmAlert(
-      'Supprimer la conversation',
-      'Êtes-vous sûr de vouloir supprimer cette conversation ?',
-      async () => {
-        try {
-          if (auth.currentUser) {
-            const userRef = doc(db, 'users', auth.currentUser.uid);
-            await updateDoc(userRef, {
-              [`threads.${threadId}`]: deleteField()
-            });
-            
-            // Si la conversation supprimée est celle actuellement affichée, rediriger vers la page d'accueil
-            router.replace('/(tabs)');
-          }
-        } catch (error) {
-          console.error('Erreur lors de la suppression:', error);
-          showAlert('Erreur', 'Impossible de supprimer la conversation');
-        }
-      }
-    );
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
-      <Tabs
+      <Stack
         screenOptions={{
-          tabBarStyle: { display: 'none' },
           headerLeft: () => (
             <TouchableOpacity onPress={toggleSidebar} style={styles.menuButton}>
               <Feather name="menu" size={24} color={themeColors.icon} />
@@ -306,10 +303,16 @@ export default function TabLayout() {
             backgroundColor: themeColors.background,
           },
           headerTintColor: themeColors.text,
+          animation: 'simple_push',
         }}
       >
-        <Tabs.Screen name="index" options={{ title: 'Academia' }} />
-        <Tabs.Screen 
+        <Stack.Screen
+          name="index"
+          options={{
+            title: 'Statistiques',
+          }}
+        />
+        <Stack.Screen 
           name="history" 
           options={({ route }) => {
             const params = route.params as { threadId?: string };
@@ -319,12 +322,37 @@ export default function TabLayout() {
             };
           }}
         />
-        <Tabs.Screen name="profile" options={{ title: 'Mon Profil' }} />
-        <Tabs.Screen name="settings" options={{ title: 'Paramètres' }} />
+        <Stack.Screen
+          name="profile"
+          options={{
+            title: 'Profil',
+          }}
+        />
+        <Stack.Screen name="settings" options={{ title: 'Paramètres' }} />
         {isAdmin && (
-          <Tabs.Screen name="admin" options={{ title: 'Admin' }} />
+          <Stack.Screen name="admin" options={{ title: 'Admin' }} />
         )}
-      </Tabs>
+        <Stack.Screen
+          name="entrainement"
+          options={{
+            title: 'Entraînement',
+          }}
+        />
+
+        <Stack.Screen
+          name="classement"
+          options={{
+            title: 'Classement',
+          }}
+        />
+
+        <Stack.Screen
+          name="amis"
+          options={{
+            title: 'Amis',
+          }}
+        />
+      </Stack>
 
       {showSidebar && (
         <Pressable style={styles.overlay} onPress={toggleSidebar} />
@@ -361,8 +389,48 @@ export default function TabLayout() {
               toggleSidebar();
             }}
           >
-            <Feather name="home" size={20} color={themeColors.icon} />
-            <Text style={[styles.navigationText, { color: themeColors.text }]}>Accueil</Text>
+            <Feather name="pie-chart" size={20} color={themeColors.icon} />
+            <Text style={[styles.navigationText, { color: themeColors.text }]}>Statistiques</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.navigationItem}
+            onPress={() => {
+              router.push('/(tabs)/avatar');
+              toggleSidebar();
+            }}
+          >
+            <Feather name="smile" size={20} color={themeColors.icon} />
+            <Text style={[styles.navigationText, { color: themeColors.text }]}>Avatar</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.navigationItem}
+            onPress={() => {
+              router.push('/(tabs)/amis');
+              toggleSidebar();
+            }}
+          >
+            <View style={styles.navigationIconContainer}>
+            <Feather name="users" size={20} color={themeColors.icon} />
+              {pendingRequests > 0 && (
+                <View style={[styles.badge, { backgroundColor: '#ef4444' }]}>
+                  <Text style={styles.badgeText}>{pendingRequests}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={[styles.navigationText, { color: themeColors.text }]}>Amis</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.navigationItem}
+            onPress={() => {
+              router.push('/(tabs)/classement');
+              toggleSidebar();
+            }}
+          >
+            <Feather name="award" size={20} color={themeColors.icon} />
+            <Text style={[styles.navigationText, { color: themeColors.text }]}>Classement</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -384,25 +452,27 @@ export default function TabLayout() {
             <Text style={styles.newThreadButtonText}>Nouvelle conversation</Text>
           </TouchableOpacity>
 
-          <View style={styles.threadsList}>
-            {threads.map((thread) => (
-              <ThreadItem
-                key={thread.id}
-                thread={thread}
-                isActive={activeThreadId === thread.id}
-                onPress={() => {
-                  setActiveThreadId(thread.id);
-                  router.push({
-                    pathname: '/(tabs)/history',
-                    params: { threadId: thread.id }
-                  });
-                  toggleSidebar();
-                }}
-                onTitleChange={(newTitle) => {
-                  handleSaveTitle(thread.id, newTitle);
-                }}
-              />
-            ))}
+          <View style={styles.threadsContainer}>
+            <ScrollView style={styles.threadsList}>
+              {threads.map((thread) => (
+                <ThreadItem
+                  key={thread.id}
+                  thread={thread}
+                  isActive={activeThreadId === thread.id}
+                  onPress={() => {
+                    setActiveThreadId(thread.id);
+                    router.push({
+                      pathname: '/(tabs)/history',
+                      params: { threadId: thread.id }
+                    });
+                    toggleSidebar();
+                  }}
+                  onTitleChange={(newTitle) => {
+                    handleSaveTitle(thread.id, newTitle);
+                  }}
+                />
+              ))}
+            </ScrollView>
           </View>
         </View>
 
@@ -486,6 +556,7 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   navigationSection: {
+    flex: 1,
     paddingVertical: 15,
   },
   navigationItem: {
@@ -518,9 +589,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 8,
   },
+  threadsContainer: {
+    flex: 1,
+    maxHeight: '50%',
+  },
   threadsList: {
     paddingHorizontal: 15,
-    paddingVertical: 10,
+    ...Platform.select({
+      web: {
+        overflowY: 'auto',
+      },
+      default: {
+        overflow: 'hidden',
+      }
+    }),
   },
   threadItem: {
     flexDirection: 'row',
@@ -602,5 +684,26 @@ const styles = StyleSheet.create({
   footerButtonText: {
     fontSize: 14,
     marginLeft: 10,
+  },
+  navigationIconContainer: {
+    position: 'relative',
+    width: 20,
+    height: 20,
+  },
+  badge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: 'bold',
   },
 });

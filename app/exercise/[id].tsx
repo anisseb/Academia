@@ -466,7 +466,7 @@ export default function ExercisePage() {
                               {String.fromCharCode(65 + index)}
                             </Text>
                           </View>
-                          <View style={[styles.optionTextContainer, { justifyContent: 'center' }]}>
+                          <View style={styles.optionTextContainer}>
                             <MathText
                               content={option}
                               type="option"
@@ -657,9 +657,10 @@ const styles = StyleSheet.create({
   },
   optionTextContainer: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 4,
     minHeight: 40,
-    justifyContent: 'center',
-    display: 'flex',
   },
   optionCircle: {
     width: 32,

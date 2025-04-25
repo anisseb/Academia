@@ -4,7 +4,7 @@ const config = getDefaultConfig(__dirname);
 
 // Ajouter cette configuration pour react-native-math-view
 config.resolver.sourceExts = [...config.resolver.sourceExts, 'mjs'];
-config.resolver.assetExts = [...config.resolver.assetExts, 'ttf'];
+config.resolver.assetExts = [...config.resolver.assetExts, 'ttf', 'glb', 'gltf', 'png', 'jpg'];
 
 // Ajouter ceci pour éviter le warning
 config.resolver.blockList = [

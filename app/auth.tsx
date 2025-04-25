@@ -83,6 +83,7 @@ export default function AuthScreen() {
           profile: {
             name: '',
             is_admin: false,
+            username: '',
             country: '',
             schoolType: '',
             class: '',

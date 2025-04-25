@@ -1,125 +1,144 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Animated, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { auth, db } from '../../firebaseConfig';
-import { doc, updateDoc } from 'firebase/firestore';
+import React from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSchoolTypes } from '../hooks/useSchoolTypes';
+import { OnboardingButton } from '../components/OnboardingButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getSubjectInfo } from '../constants/education';
-import { showErrorAlert } from '../utils/alerts';
 
-type Step6Props = {
-  onNext: (data: Partial<{ name: string; subjects: string[] }>) => void;
-  data: { name: string; subjects: string[] };
+const parseGradient = (gradientString: string): [string, string] => {
+  const colors = gradientString.match(/#[0-9a-fA-F]{6}/g);
+  if (colors && colors.length >= 2) {
+    return [colors[0], colors[1]];
+  }
+  return ['#60a5fa', '#3b82f6']; // Valeur par défaut
 };
 
-export default function Step5({ onNext, data }: Step6Props) {
-  const fadeAnim = new Animated.Value(0);
-  const scaleAnim = new Animated.Value(0.9);
-  const [isSaving, setIsSaving] = useState(false);
+type Step6Props = {
+  onNext: (data: { subjects: Array<{ id: string; label: string }> }) => void;
+  onBack: () => void;
+  data: {
+    name?: string;
+    username?: string;
+    country?: string;
+    schoolType?: string;
+    class?: string;
+    subjects?: Array<{ id: string; label: string }>;
+  };
+};
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 8,
-        useNativeDriver: true,
-      })
-    ]).start();
-  }, []);
+export default function Step6({ onNext, onBack, data }: Step6Props) {
+  const [selectedSubjects, setSelectedSubjects] = React.useState<Array<{ id: string; label: string }>>(
+    data.subjects || []
+  );
+  const insets = useSafeAreaInsets();
+  const { schoolTypes, loading, error } = useSchoolTypes();
 
-  const handleSaveAndContinue = async () => {
-    try {
-      setIsSaving(true);
-      const user = auth.currentUser;
-      if (!user) return;
+  const schoolType = schoolTypes.find(type => type.id === data.schoolType);
+  const selectedClass = schoolType?.classes[data.class || ''];
+  const availableSubjects = selectedClass ? Object.entries(selectedClass.matieres).map(([id, subject]) => ({
+    ...subject,
+    id,
+    gradientColors: parseGradient(subject.gradient || 'linear-gradient(to right, #60a5fa, #3b82f6)')
+  })) : [];
 
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        'profile.name': data.name,
-        'profile.subjects': data.subjects,
-        'profile.onboardingCompleted': true,
-      });
-
-      onNext(data);
-    } catch (error) {
-      showErrorAlert('Erreur', 'Une erreur est survenue lors de la sauvegarde de votre profil.');
-    } finally {
-      setIsSaving(false);
-    }
+  const toggleSubject = (subjectId: string, subjectLabel: string) => {
+    setSelectedSubjects((prev) =>
+      prev.some(subject => subject.id === subjectId)
+        ? prev.filter((subject) => subject.id !== subjectId)
+        : [...prev, { id: subjectId, label: subjectLabel }]
+    );
   };
 
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#60a5fa" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={['#1a1a1a', '#2d2d2d']}
-        style={styles.gradient}
-      >
-        <Animated.View 
-          style={[
-            styles.content, 
-            { 
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }]
-            }
-          ]}
-        >
-          <View style={styles.header}>
-            <Text style={styles.title}>Bienvenue sur AcademIA !</Text>
-          </View>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <Text style={styles.title}>Vos matières</Text>
+      <Text style={styles.subtitle}>
+        Sélectionnez les matières que vous souhaitez étudier
+      </Text>
 
-          <View style={styles.infoContainer}>
-            <Text style={styles.welcomeText}>
-              Ravi de te rencontrer, <Text style={styles.nameText}>{data.name}</Text> !
-            </Text>
-            <Text style={styles.subjectsTitle}>
-              Voici les matières que nous allons explorer ensemble :
-            </Text>
-            <View style={styles.subjectsList}>
-              {data.subjects.map((subject) => {
-                const subjectInfo = getSubjectInfo(subject);
-                return (
-                  <LinearGradient
-                    key={subject}
-                    colors={subjectInfo.gradient as [string, string]}
-                    style={styles.subjectCard}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <MaterialCommunityIcons 
-                      name={subjectInfo.icon as any}
-                      size={16} 
-                      color="#fff" 
-                    />
-                    <Text style={styles.subjectText} numberOfLines={1}>
-                      {subjectInfo.label}
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.grid}>
+          {availableSubjects.map((subject) => {
+            const isSelected = selectedSubjects.some(s => s.id === subject.id);
+
+            return (
+              <TouchableOpacity
+                key={subject.id}
+                style={[
+                  styles.subjectButton,
+                  isSelected && styles.selectedSubject,
+                ]}
+                onPress={() => toggleSubject(subject.id, subject.label)}
+              >
+                <LinearGradient
+                  colors={subject.gradientColors}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[
+                    styles.gradient,
+                    isSelected && styles.selectedGradient,
+                  ]}
+                >
+                  {isSelected && (
+                    <View style={styles.checkmarkContainer}>
+                      <MaterialCommunityIcons
+                        name="check-circle"
+                        size={24}
+                        color="#22c55e"
+                      />
+                    </View>
+                  )}
+                  <MaterialCommunityIcons
+                    name={subject.icon as keyof typeof MaterialCommunityIcons.glyphMap}
+                    size={32}
+                    color="#fff"
+                    style={styles.icon}
+                  />
+                    <Text 
+                      style={styles.subjectLabel}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {subject.label}
                     </Text>
-                  </LinearGradient>
-                );
-              })}
-            </View>
-          </View>
+                  <Text style={styles.description}>{subject.description}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </ScrollView>
 
-          <TouchableOpacity 
-            style={styles.button}
-            onPress={handleSaveAndContinue}
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Text style={styles.buttonText}>Commencer l'aventure</Text>
-                <MaterialCommunityIcons name="arrow-right" size={24} color="#fff" />
-              </>
-            )}
-          </TouchableOpacity>
-        </Animated.View>
-      </LinearGradient>
+      <View style={styles.footer}>
+        <OnboardingButton
+          icon="arrow-left"
+          onPress={onBack}
+          style={styles.backButton}
+        />
+        <OnboardingButton
+          label="Continuer"
+          onPress={() => onNext({ subjects: selectedSubjects })}
+          disabled={selectedSubjects.length === 0}
+          style={styles.continueButton}
+        />
+      </View>
     </View>
   );
 }
@@ -127,93 +146,105 @@ export default function Step5({ onNext, data }: Step6Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000',
+    padding: 20,
+    marginTop: 20,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  subjectButton: {
+    width: '48%',
+    aspectRatio: 1,
+    marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  selectedSubject: {
+    transform: [{ scale: 0.95 }],
   },
   gradient: {
     flex: 1,
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  header: {
-    alignItems: 'center',
-    marginTop: 50,
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 18,
-    color: '#999',
-    textAlign: 'center',
-  },
-  infoContainer: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    padding: 20,
-    borderRadius: 20,
-    marginBottom: 20,
-    flex: 1,
-  },
-  welcomeText: {
-    color: '#fff',
-    fontSize: 20,
-    marginBottom: 8,
-  },
-  nameText: {
-    color: '#60a5fa',
-    fontWeight: 'bold',
-  },
-  subjectsTitle: {
-    color: '#999',
-    fontSize: 16,
-    marginBottom: 16,
-  },
-  subjectsList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    justifyContent: 'space-between',
-  },
-  subjectCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    gap: 4,
-    width: '48%',
-    marginBottom: 8,
-  },
-  subjectText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '500',
-    flex: 1,
-  },
-  button: {
-    backgroundColor: '#60a5fa',
-    flexDirection: 'row',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 16,
-    alignItems: 'center',
+    padding: 16,
     justifyContent: 'center',
-    gap: 12,
-    shadowColor: '#60a5fa',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    alignItems: 'center',
+  },
+  selectedGradient: {
+    opacity: 0.8,
+  },
+  icon: {
+    marginBottom: 12,
+  },
+  subjectLabel: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  description: {
+    color: '#fff',
+    fontSize: 10,
+    textAlign: 'center',
+    opacity: 0.8,
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
     marginBottom: 20,
   },
-  buttonText: {
+  backButton: {
+    width: 50,
+    height: 50,
+  },
+  continueButton: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  checkmarkContainer: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 0,
+    zIndex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
 }); 

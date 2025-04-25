@@ -30,25 +30,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   container: {
+    flex: 1,
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
   },
   mathContainer: {
     flexDirection: 'row',
+    width: '100%',
     alignItems: 'center',
+    flexGrow: 0,
+    flexShrink: 1,
   },
   textContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexGrow: 0,
+    flexShrink: 1,
   },
   textPart: {
     fontSize: 16,
   },
   mathPart: {
-    width: '100%',
-    height: 'auto',
-    marginHorizontal: 0,
+    flexGrow: 0,
+    flexShrink: 1,
+    marginHorizontal: 2,
   }
 });
 
@@ -59,66 +65,15 @@ const MathText: React.FC<MathTextProps> = ({ content, type = 'cours', isDarkMode
 
   const textColor = isDarkMode ? '#ffffff' : '#000000';
   
-  // Remplacer les délimiteurs \( et \) par $ et $
-  content = content.replace(/\\\(/g, '$').replace(/\\\)/g, '$');
-  
-  const parts = content.split(/(\$[^$]*\$)/g);
-
-  const renderContainer = (children: React.ReactNode) => {
-    if (Platform.OS === 'web') {
-      return <div className="container">{children}</div>;
-    }
-    return <View className="container">{children}</View>;
-  };
-
-  const renderMathContainer = (children: React.ReactNode, key: number) => {
-    if (Platform.OS === 'web') {
-      return <div key={key} className="formules">{children}</div>;
-    }
-    return <View key={key} style={styles.mathContainer}>{children}</View>;
-  };
-
-  const renderTextContainer = (children: React.ReactNode, key: number) => {
-    if (Platform.OS === 'web') {
-      return <div key={key} className="textContainer">{children}</div>;
-    }
-    return <View key={key} style={styles.textContainer}>{children}</View>;
-  };
-
-  return renderContainer(
-    parts.map((part, index) => {
-      if (part.startsWith('$') && part.endsWith('$')) {
-        // C'est une formule mathématique
-        return renderMathContainer(
-          <MathJaxSvg
-            fontSize={16}
-            color={textColor}
-            fontCache={true}
-            style={styles.mathPart}
-          >
-            {part.replace(/\\\\/g, '\\')}
-          </MathJaxSvg>,
-          index
-        );
-      } else if (part.trim()) {
-        // C'est du texte normal
-        return renderTextContainer(
-          <Text
-            style={[
-              styles.textPart,
-              type === 'question' && styles.questionText,
-              type === 'option' && styles.optionText,
-              type === 'explanation' && styles.explanationText,
-              type === 'cours' && styles.coursText
-            ]}
-          >
-            {part}
-          </Text>,
-          index
-        );
-      }
-      return null;
-    })
+  return (
+    <MathJaxSvg
+      fontSize={16}
+      color={textColor}
+      fontCache={true}
+      style={styles.mathPart}
+    >
+      {content.replace(/\\\\/g, '\\')}
+    </MathJaxSvg>
   );
 };
 
