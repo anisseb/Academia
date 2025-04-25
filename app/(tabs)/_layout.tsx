@@ -189,7 +189,7 @@ export default function TabLayout() {
     const userRef = doc(db, 'users', user.uid);
     const unsubscribe = onSnapshot(userRef, (doc) => {
       if (doc.exists()) {
-        const data = doc.data();        
+        const data = doc.data();
         const threads = data.threads || {};
         const threadsList = Object.entries(threads).map(([id, thread]: [string, any]) => ({
           id,
@@ -412,7 +412,7 @@ export default function TabLayout() {
             }}
           >
             <View style={styles.navigationIconContainer}>
-              <Feather name="users" size={20} color={themeColors.icon} />
+            <Feather name="users" size={20} color={themeColors.icon} />
               {pendingRequests > 0 && (
                 <View style={[styles.badge, { backgroundColor: '#ef4444' }]}>
                   <Text style={styles.badgeText}>{pendingRequests}</Text>
