@@ -1,11 +1,19 @@
 import React from 'react';
-import { View, Text } from 'react-native';
-import Avatar3D from '../components/Avatar3D';
+import { View, StyleSheet, Text } from 'react-native';
 
 export default function AvatarScreen() {
+
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <Text>In coming soon</Text>
+    <View style={styles.container}>
+      <Text>Avatar coming soon</Text>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

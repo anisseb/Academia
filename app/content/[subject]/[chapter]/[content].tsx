@@ -137,7 +137,7 @@ export default function ContentPage() {
   const handleExercisePress = (exercise: Exercise) => {
 
     router.push({
-      pathname: "/exercise/[id]",
+      pathname: "/content/exercise/[id]",
       params: { 
         schoolType: String(userSchoolType),
         classe: String(userClass),

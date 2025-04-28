@@ -41,6 +41,18 @@
           "enableFullScreenImage_legacy": true,
           "backgroundColor": "#ffffff"
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#ffffff",
+          "defaultChannel": "default",
+          "sounds": [
+            "./assets/sounds/notif.wav"
+          ],
+          "enableBackgroundRemoteNotifications": false
+        }
       ]
     ],
     "experiments": {

@@ -28,6 +28,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { parseGradient } from '../utils/gradientUtils';
 import { showConfirmAlert } from '../utils/alerts';
+import { sendFriendRequestNotification } from '../utils/notifications';
 
 interface Friend {
   id: string;
@@ -250,18 +251,16 @@ export default function AmisScreen() {
         sentRequests: arrayUnion(friendId)
       });
 
-      // Ajouter aux demandes en attente de l'ami
+      // Ajouter à la liste des demandes en attente de l'ami
       await updateDoc(friendRef, {
         pendingRequests: arrayUnion(user.uid)
       });
 
-      // Réinitialiser la recherche
-      setSearchQuery('');
-      setSearchResults([]);
+      // Envoyer la notification
+      await sendFriendRequestNotification(friendId, username);
+
     } catch (error) {
-      console.error('Erreur lors de l\'envoi de la demande:', error);
-      // En cas d'erreur, retirer la demande de l'état local
-      setSentRequests(prev => prev.filter(request => request.id !== friendId));
+      console.error('Erreur lors de l\'envoi de la demande d\'ami:', error);
     }
   };
 

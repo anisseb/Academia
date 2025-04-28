@@ -11,15 +11,15 @@ import {
   StatusBar,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '../../context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Exercise, Question } from '../types/exercise';
+import { Exercise, Question } from '../../types/exercise';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import { db, auth } from '../../firebaseConfig';
-import { ExerciseResults } from '../components/ExerciseResults';
+import { db, auth } from '../../../firebaseConfig';
+import { ExerciseResults } from '../../components/ExerciseResults';
 import { Ionicons } from '@expo/vector-icons';
-import { programmes } from '../constants/programme';
-import { renderMathText as MathText } from '../utils/mathRenderer';
+import { programmes } from '../../constants/programme';
+import { renderMathText as MathText } from '../../utils/mathRenderer';
 
 interface CompletedExercise {
   exerciceId: string;
