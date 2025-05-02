@@ -17,7 +17,7 @@ export const FORBIDDEN_USERNAMES = [
   'admin', 'administrateur', 'modo', 'moderateur', 'system', 'root',
   
   // Termes vides ou trop courts
-  'a', 'aa', 'aaa', 'aaaa', 'aaaaa',
+  'aa', 'aaa', 'aaaa', 'aaaaa',
 ];
 
 export const USERNAME_REGEX = /^[a-zA-Z0-9_-]{3,20}$/;

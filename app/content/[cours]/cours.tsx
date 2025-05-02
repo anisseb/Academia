@@ -15,8 +15,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth, db } from '../../../firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { renderMathText as MathText } from '../../utils/mathRenderer';
+import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
+import * as Print from 'expo-print';
+import { shareAsync } from 'expo-sharing';
+import katex from 'katex';
+import * as Haptics from 'expo-haptics';
 
 interface CoursSection {
   title: string;
@@ -52,9 +57,49 @@ export default function CoursScreen() {
   const [loading, setLoading] = useState(true);
   const [userLevel, setUserLevel] = useState<string>('');
   const [userSchoolType, setUserSchoolType] = useState<string>('');
+  const [interstitialAd, setInterstitialAd] = useState<InterstitialAd | null>(null);
+  const [adLoaded, setAdLoaded] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
 
   useEffect(() => {
     loadUserData();
+    checkIfFavorite();
+    // Initialiser l'annonce
+    const ad = InterstitialAd.createForAdRequest(TestIds.INTERSTITIAL, {
+      requestNonPersonalizedAdsOnly: true,
+      keywords: ['education', 'school']
+    });
+
+    const unsubscribeLoaded = ad.addAdEventListener(AdEventType.LOADED, () => {
+      setAdLoaded(true);
+    });
+
+    const unsubscribeError = ad.addAdEventListener(AdEventType.ERROR, (error: any) => {
+      setAdLoaded(false);
+    });
+
+    const unsubscribeClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
+      setAdLoaded(false);
+      // Recharger une nouvelle annonce
+      ad.load();
+      // Revenir en arrière après la fermeture de l'annonce
+      router.back();
+    });
+
+    // Charger l'annonce
+    try {
+      ad.load();
+    } catch (error) {
+      console.error('Erreur lors du chargement de l\'annonce:', error);
+    }
+
+    setInterstitialAd(ad);
+
+    return () => {
+      unsubscribeLoaded();
+      unsubscribeError();
+      unsubscribeClosed();
+    };
   }, []);
 
   const loadUserData = async () => {
@@ -144,6 +189,324 @@ export default function CoursScreen() {
     }
   };
 
+  const checkIfFavorite = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) return;
+
+      const userData = userDoc.data();
+      const favorites = userData.favorites || [];
+      
+      const isInFavorites = favorites.some(
+        (fav: any) => 
+          fav.subject === params.subject &&
+          fav.chapter === params.chapter &&
+          fav.contentId === params.contentId
+      );
+      
+      setIsFavorite(isInFavorites);
+    } catch (error) {
+      console.error('Erreur lors de la vérification des favoris:', error);
+    }
+  };
+
+  const toggleFavorite = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const user = auth.currentUser;
+      if (!user || !coursContent) return;
+
+      const userRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
+      
+      if (!userDoc.exists()) return;
+
+      const userData = userDoc.data();
+      const favorites = userData.favorites || [];
+      
+      if (isFavorite) {
+        // Retirer des favoris
+        const newFavorites = favorites.filter(
+          (fav: any) => 
+            !(fav.subject === params.subject &&
+              fav.chapter === params.chapter &&
+              fav.contentId === params.contentId)
+        );
+        
+        await updateDoc(userRef, {
+          favorites: newFavorites
+        });
+      } else {
+        // Ajouter aux favoris
+        const newFavorite = {
+          id: `${params.subject}-${params.chapter}-${params.contentId}`,
+          subject: params.subject,
+          subjectLabel: params.subjectLabel,
+          chapter: params.chapter,
+          chapterLabel: params.chapterLabel,
+          contentId: params.contentId,
+          courseTitle: coursContent.title,
+          timestamp: Date.now()
+        };
+        
+        await updateDoc(userRef, {
+          favorites: [...favorites, newFavorite]
+        });
+      }
+      
+      setIsFavorite(!isFavorite);
+      
+    } catch (error) {
+      console.error('Erreur lors de la modification des favoris:', error);
+    }
+  };
+
+  const handleBack = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (adLoaded && interstitialAd) {
+      interstitialAd.show();
+    } else {
+      router.back();
+    }
+  };
+
+  const generatePDF = async () => {
+    if (!coursContent) return null;
+    
+    try {
+      // Charger l'image
+
+      const html = `
+        <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" integrity="sha384-5TcZemv2l/9On385z///+d7MSYlvIEw9FuZTIdZ14vJLqWphw7e7ZPuOiCHJcFCP" crossorigin="anonymous">
+            <style>
+              @page {
+                margin: 0;
+                @top-left {
+                  content: element(header);
+                }
+              }
+              body {
+                font-family: Arial, sans-serif;
+                padding: 20px;
+                color: ${isDarkMode ? '#ffffff' : '#000000'};
+                background-color: ${isDarkMode ? '#1a1a1a' : '#ffffff'};
+                margin-top: 80px;
+              }
+              .header {
+                position: running(header);
+                text-align: left;
+                padding: 10px;
+                background-color: ${isDarkMode ? '#1a1a1a' : '#ffffff'};
+                width: 100%;
+                height: 60px;
+                display: table;
+                table-layout: fixed;
+                border-collapse: collapse;
+                border-spacing: 0;
+              }
+              .header-row {
+                display: table-row;
+              }
+              .header-cell {
+                display: table-cell;
+                vertical-align: middle;
+                padding: 10px;
+                margin: 0;
+                width: 40px;
+              }
+              .header-text {
+                display: table-cell;
+                vertical-align: middle;
+                padding: 0;
+                margin: 0;
+                text-align: left;
+              }
+              .header img {
+                width: 50px;
+                height: 50px;
+                margin-right: 10px;
+              }
+              .header-text {
+                font-size: 14px;
+                color: ${isDarkMode ? '#ffffff' : '#000000'};
+              }
+              .title {
+                font-size: 24px;
+                font-weight: bold;
+                margin-bottom: 20px;
+                text-align: center;
+              }
+              .section {
+                margin-bottom: 20px;
+                page-break-inside: avoid;
+              }
+              .section-title {
+                font-size: 18px;
+                font-weight: bold;
+                color: #60a5fa;
+                margin-bottom: 10px;
+              }
+              .content {
+                font-size: 16px;
+                line-height: 1.5;
+                white-space: normal;
+                word-wrap: break-word;
+              }
+              .examples {
+                margin-top: 12px;
+                margin-left: 20px;
+              }
+              .example {
+                margin-bottom: 8px;
+                padding: 8px;
+                background-color: ${isDarkMode ? '#2d2d2d' : '#f5f5f5'};
+                border-radius: 4px;
+                white-space: normal;
+                word-wrap: break-word;
+              }
+              .key-points {
+                margin-top: 12px;
+                margin-left: 20px;
+              }
+              .key-point {
+                margin-bottom: 8px;
+                display: flex;
+                align-items: center;
+                white-space: normal;
+                word-wrap: break-word;
+              }
+              .key-point::before {
+                content: "•";
+                color: #60a5fa;
+                margin-right: 8px;
+              }
+              .page-break {
+                page-break-before: always;
+              }
+              .katex {
+                font-size: 1.1em;
+                display: inline !important;
+                white-space: nowrap !important;
+              }
+              .katex-display {
+                margin: 0 !important;
+                display: inline !important;
+                white-space: nowrap !important;
+              }
+              .math-container {
+                display: inline !important;
+                margin: 0 4px;
+                white-space: nowrap !important;
+              }
+              .math-display-container {
+                display: inline !important;
+                margin: 0 4px;
+                white-space: nowrap !important;
+              }
+              p {
+                margin: 0;
+                padding: 0;
+                display: inline;
+                white-space: normal;
+                word-wrap: break-word;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="header-cell">
+                <img src="https://academiaforkids.com/wp-content/uploads/2025/04/favicon.png" alt="academIA Logo" />
+              </div>
+              <div class="header-text">
+                <div>${params.subjectLabel}</div>
+                <div>${params.chapterLabel}</div>
+              </div>
+            </div>
+
+            <div class="title">${coursContent.title}</div>
+            
+            <div class="section">
+              <div class="section-title">Introduction</div>
+              <div class="content">${renderMathContent(coursContent.introduction)}</div>
+            </div>
+
+            ${coursContent.sections.map((section, index) => `
+              ${index > 0 ? `
+                <div class="page-break"></div>
+                  <div class="header">
+                    <div class="header-cell">
+                      <img src="https://academiaforkids.com/wp-content/uploads/2025/04/favicon.png" alt="academIA Logo" />
+                    </div>
+                    <div class="header-text">
+                      <div>${params.subjectLabel}</div>
+                      <div>${params.chapterLabel}</div>
+                    </div>
+                  </div>
+              ` : ''}
+              <div class="section">
+                <div class="section-title">${section.title}</div>
+                <div class="content">${renderMathContent(section.content)}</div>
+                ${section.examples ? `
+                  <div class="examples">
+                    ${section.examples.map(example => `
+                      <div class="example">${renderMathContent(example)}</div>
+                    `).join('')}
+                  </div>
+                ` : ''}
+                ${section.keyPoints ? `
+                  <div class="key-points">
+                    ${section.keyPoints.map(point => `
+                      <div class="key-point">${renderMathContent(point)}</div>
+                    `).join('')}
+                  </div>
+                ` : ''}
+              </div>
+            `).join('')}
+
+            <div class="section">
+              <div class="section-title">Conclusion</div>
+              <div class="content">${renderMathContent(coursContent.conclusion)}</div>
+            </div>
+            <div class="page-break"></div>
+          </body>
+        </html>
+      `;
+
+      const { uri } = await Print.printToFileAsync({
+        html,
+        base64: false,
+      });
+
+      return uri;
+    } catch (error) {
+      console.error('Erreur lors de la génération du PDF:', error);
+      return null;
+    }
+  };
+
+  const handleExport = async () => {
+    if (!coursContent) return;
+    
+    try {
+      const pdfUri = await generatePDF();
+      if (pdfUri) {
+        await shareAsync(pdfUri, {
+          UTI: '.pdf',
+          mimeType: 'application/pdf',
+          dialogTitle: 'Exporter le cours',
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'exportation du PDF:', error);
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -183,7 +546,7 @@ export default function CoursScreen() {
       ]}>
         <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={handleBack}
         >
           <MaterialCommunityIcons 
             name="arrow-left" 
@@ -199,6 +562,16 @@ export default function CoursScreen() {
             {params.chapterLabel}
           </Text>
         </View>
+        <TouchableOpacity 
+          style={styles.favoriteButton}
+          onPress={toggleFavorite}
+        >
+          <MaterialCommunityIcons 
+            name={isFavorite ? "heart" : "heart-outline"} 
+            size={24} 
+            color={isFavorite ? "#ef4444" : themeColors.text} 
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Content */}
@@ -282,6 +655,16 @@ export default function CoursScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Footer with export button */}
+      <View style={styles.footer}>
+        <TouchableOpacity 
+          style={[styles.footerButton, { backgroundColor: themeColors.accent }]}
+          onPress={handleExport}
+        >
+          <MaterialCommunityIcons name="share-variant" size={24} color="#fff" />
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -302,6 +685,7 @@ const styles = StyleSheet.create({
   },
   headerTitleContainer: {
     marginLeft: 16,
+    flex: 1,
   },
   subjectLabel: {
     fontSize: 14,
@@ -391,4 +775,58 @@ const styles = StyleSheet.create({
   mathContent: {
     height: 'auto',
   },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    left: 0,
+    height: 80,
+    backgroundColor: 'transparent',
+  },
+  footerButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  favoriteButton: {
+    padding: 8,
+    marginLeft: 'auto',
+  },
 });
+
+function renderMathContent(content: string): string {
+  // Remplacer les doubles backslashes par des simples
+  const cleanContent = content.replace(/\\\\/g, '\\');
+  
+  // Rendre les formules avec les délimiteurs \(...\)
+  const parenContent = cleanContent.replace(/\\\((.*?)\\\)/g, (match, formula) => {
+    try {
+      return katex.renderToString(formula, { displayMode: false, throwOnError: false });
+    } catch (e) {
+      console.error('Erreur de rendu KaTeX (paren):', e);
+      return match;
+    }
+  });
+  
+  // Rendre les formules avec les délimiteurs $...$
+  const finalContent = parenContent.replace(/\$(.*?)\$/g, (match, formula) => {
+    try {
+      return katex.renderToString(formula, { displayMode: false, throwOnError: false });
+    } catch (e) {
+      console.error('Erreur de rendu KaTeX (inline):', e);
+      return match;
+    }
+  });
+  
+  return finalContent;
+}

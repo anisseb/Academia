@@ -24,7 +24,6 @@ export async function configureNotifications() {
     }
     
     if (finalStatus !== 'granted') {
-      console.log('Permission refusée pour les notifications');
       return;
     }
 
@@ -62,7 +61,6 @@ export async function sendFriendRequestNotification(friendId: string, username: 
     const friendDoc = await getDoc(doc(db, 'users', friendId));
     
     if (!friendDoc.exists()) {
-      console.log('Utilisateur non trouvé');
       return;
     }
 
@@ -70,17 +68,34 @@ export async function sendFriendRequestNotification(friendId: string, username: 
     const friendToken = friendData.expoPushToken;
 
     if (!friendToken) {
-      console.log('Token de notification non trouvé pour l\'utilisateur');
       return;
     }
 
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'Nouvelle demande d\'ami',
-        body: `${username} vous a envoyé une demande d\'ami`,
-        data: { type: 'friend_request', friendId: getAuth().currentUser?.uid },
+    const message = {
+      to: friendToken,
+      sound: 'notif.wav',
+      title: 'Nouvelle demande d\'ami',
+      body: `${username} vous a envoyé une demande d\'ami`,
+      data: { type: 'friend_request', friendId: friendId },
+      android: {
+        icon: './assets/images/icon.png',
+        color: '#231f70',
+        sound: './assets/sounds/notif.wav',
+        channelId: 'default'
       },
-      trigger: null,
+      ios: {
+        sound: './assets/sounds/notif.wav'
+      }
+    };
+
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Accept-encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
     });
   } catch (error) {
     console.error('Erreur lors de l\'envoi de la notification:', error);

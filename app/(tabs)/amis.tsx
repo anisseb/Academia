@@ -25,8 +25,6 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { parseGradient } from '../utils/gradientUtils';
 import { showConfirmAlert } from '../utils/alerts';
 import { sendFriendRequestNotification } from '../utils/notifications';
 
@@ -220,14 +218,12 @@ export default function AmisScreen() {
       // Vérifier si la demande n'a pas déjà été envoyée dans l'état local
       const isAlreadySent = sentRequests.some(request => request.id === friendId);
       if (isAlreadySent) {
-        console.log('Demande déjà envoyée dans l\'état local');
         return;
       }
 
       // Vérifier si la demande n'a pas déjà été envoyée dans Firestore
       const sentRequestsInFirestore = userData?.sentRequests || [];
       if (sentRequestsInFirestore.includes(friendId)) {
-        console.log('Demande déjà envoyée dans Firestore');
         return;
       }
 
@@ -258,6 +254,11 @@ export default function AmisScreen() {
 
       // Envoyer la notification
       await sendFriendRequestNotification(friendId, username);
+
+      // Effacer le champ de recherche et recharger la liste des amis
+      setSearchQuery('');
+      setSearchResults([]);
+      await loadFriends();
 
     } catch (error) {
       console.error('Erreur lors de l\'envoi de la demande d\'ami:', error);

@@ -20,6 +20,8 @@ import { ExerciseResults } from '../../components/ExerciseResults';
 import { Ionicons } from '@expo/vector-icons';
 import { programmes } from '../../constants/programme';
 import { renderMathText as MathText } from '../../utils/mathRenderer';
+import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
+import { adUnitIds } from '../../config/admob';
 
 interface CompletedExercise {
   exerciceId: string;
@@ -72,6 +74,8 @@ export default function ExercisePage() {
     score: number;
     completedAt: string;
   }>>([]);
+  const [interstitialAd, setInterstitialAd] = useState<InterstitialAd | null>(null);
+  const [adLoaded, setAdLoaded] = useState(false);
 
   // Obtenir la hauteur de la barre de statut
   const statusBarHeight = StatusBar.currentHeight || 0;
@@ -163,7 +167,41 @@ export default function ExercisePage() {
   };
 
   useEffect(() => {
-    loadExercise(schoolType as string, classe as string);
+    // Initialiser l'annonce
+    const ad = InterstitialAd.createForAdRequest(TestIds.INTERSTITIAL, {
+      requestNonPersonalizedAdsOnly: true,
+      keywords: ['education', 'school']
+    });
+
+    const unsubscribeLoaded = ad.addAdEventListener(AdEventType.LOADED, () => {
+      setAdLoaded(true);
+    });
+
+    const unsubscribeError = ad.addAdEventListener(AdEventType.ERROR, (error: any) => {
+      setAdLoaded(false);
+    });
+
+    const unsubscribeClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
+      setShowResults(true);
+      setAdLoaded(false);
+      // Recharger une nouvelle annonce
+      ad.load();
+    });
+
+    // Charger l'annonce
+    try {
+      ad.load();
+    } catch (error) {
+      console.error('Erreur lors du chargement de l\'annonce:', error);
+    }
+
+    setInterstitialAd(ad);
+
+    return () => {
+      unsubscribeLoaded();
+      unsubscribeError();
+      unsubscribeClosed();
+    };
   }, []);
 
   const handleBack = async () => {
@@ -193,8 +231,19 @@ export default function ExercisePage() {
       setHasAnswered(false);
       setShowExplanation(false);
     } else {
-      setShowResults(true);
-      handleExerciseComplete(calculateScore());
+      // Au lieu d'afficher directement les résultats, on montre l'annonce
+      if (interstitialAd && adLoaded) {
+        try {
+          interstitialAd.show();
+        } catch (error) {
+          console.error('Erreur lors de l\'affichage de l\'annonce:', error);
+          setShowResults(true);
+          handleExerciseComplete(calculateScore());
+        }
+      } else {
+        setShowResults(true);
+        handleExerciseComplete(calculateScore());
+      }
     }
   };
 

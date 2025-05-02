@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/splash_icon.png",
       "resizeMode": "cover",
       "backgroundColor": "#ffffff"
     },
@@ -21,8 +21,9 @@
       }
     },
     "android": {
+      "googleServicesFile": "./credentials/google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png"
+        "foregroundImage": "./assets/images/adaptive_icon.png"
       },
       "package": "com.anisse3000.academia"
     },
@@ -31,12 +32,29 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+    "react-native-google-mobile-ads": {
+      "android_app_id": "ca-app-pub-9849575862637315~4909955983",
+      "ios_app_id": "ca-app-pub-9849575862637315~3948002761"
+    },
     "plugins": [
       "expo-router",
       [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Nous avons besoin de votre permission pour utiliser la caméra.",
+          "cameraPermission": "Autoriser $(PRODUCT_NAME) à ouvrir la caméra"
+        }
+      ],
+      [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/splash_icon.png",
           "resizeMode": "native",
           "enableFullScreenImage_legacy": true,
           "backgroundColor": "#ffffff"
@@ -52,6 +70,13 @@
             "./assets/sounds/notif.wav"
           ],
           "enableBackgroundRemoteNotifications": false
+        }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-9849575862637315~4909955983",
+          "iosAppId": "ca-app-pub-9849575862637315~3948002761"
         }
       ]
     ],

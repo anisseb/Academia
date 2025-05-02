@@ -4,7 +4,6 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import { ThemeProvider } from './context/ThemeContext';
-import { configureNotifications } from './utils/notifications';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 
@@ -20,7 +19,6 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    configureNotifications();
   }, []);
 
   if (!fontsLoaded) {

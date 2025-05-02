@@ -7,6 +7,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Exercise } from '../../../types/exercise';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../../../firebaseConfig';
+import * as Haptics from 'expo-haptics';
 
 export default function ContentPage() {
   const { 
@@ -176,7 +177,10 @@ export default function ContentPage() {
      }]}>
       <TouchableOpacity 
         style={styles.backButton} 
-        onPress={() => router.replace('/(tabs)/entrainement')}
+        onPress={async () => {
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.replace('/(tabs)/entrainement');
+        }}
       >
         <MaterialCommunityIcons 
           name="arrow-left" 

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, KeyboardAvoidingView, Platform, TextInput, Alert, Animated, Keyboard, Platform as RNPlatform, AlertButton } from 'react-native';
 import { Mistral } from '@mistralai/mistralai';
-import { Camera as CameraIcon, X } from 'lucide-react-native';
+import { Camera as CameraIcon, X, Plus, Image as ImageIcon, FileText, Send } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { doc, updateDoc, arrayUnion, onSnapshot, getDoc } from 'firebase/firestore';
 import { db, auth, storage } from '../../firebaseConfig';
@@ -12,6 +12,10 @@ import { useTheme } from '../context/ThemeContext';
 import { getEducationLevelLabel, EducationLevel } from '../constants/education';
 import { renderMathText as MathText } from '../utils/mathRenderer';
 import { showErrorAlert } from '../utils/alerts';
+import AIProfileSelector, { AIProfile, AI_PROFILES } from '../components/AIProfileSelector';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Haptics from 'expo-haptics';
 const MISTRAL_API_KEY = '5YC1BWCbnpIqsViDDsK9zBbc1NgqjwAj';
 
 type Message = {
@@ -106,6 +110,9 @@ export default function HistoryScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const [threadTitle, setThreadTitle] = useState('');
   const { isDarkMode } = useTheme();
+  const [selectedAIProfile, setSelectedAIProfile] = useState<AIProfile>('professeur');
+  const [showAIProfilePicker, setShowAIProfilePicker] = useState(false);
+  const [showImageMenu, setShowImageMenu] = useState(false);
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -115,7 +122,8 @@ export default function HistoryScreen() {
     inputBackground: isDarkMode ? '#2d2d2d' : '#f5f5f5',
     placeholder: isDarkMode ? '#808080' : '#a0a0a0',
     messageBackground: isDarkMode ? '#2d2d2d' : '#f5f5f5',
-    aiMessageBackground: isDarkMode ? '#1e293b' : '#e8f0fe'
+    aiMessageBackground: isDarkMode ? '#1e293b' : '#e8f0fe',
+    tabActive: isDarkMode ? '#3b82f6' : '#2563eb'
   };
 
   const uploadImage = async (base64Image: string) => {
@@ -175,11 +183,13 @@ export default function HistoryScreen() {
           setThreadTitle(currentThread.title || 'Nouvelle conversation');
           setMessages(currentThread.messages || []);
           setSelectedSubject(currentThread.subject || null);
+          setSelectedAIProfile(currentThread.aiProfile || 'professeur');
           setShowSubjectSelector(!currentThread.subject);
         } else {
           setMessages([]);
           setThreadTitle('Nouvelle conversation');
           setSelectedSubject(null);
+          setSelectedAIProfile('professeur');
         }
       }
     });
@@ -202,7 +212,7 @@ export default function HistoryScreen() {
 
     const userRef = doc(db, 'users', user.uid);
     await updateDoc(userRef, {
-      [`threads.${threadId}.subject`]: subject
+      [`threads.${threadId}.subject`]: subject,
     });
   };
 
@@ -215,7 +225,9 @@ export default function HistoryScreen() {
       ? `L'élève est dans un établissement de type ${getEducationLevelLabel(userSchoolType)}.`
       : '';
 
-    let baseMessage = `Tu es un assistant pédagogique. ${classeMessage} ${schoolTypeMessage}`;
+    const profileMessage = `IMPORTANT: utilise le ${AI_PROFILES[selectedAIProfile].description}`;
+
+    let baseMessage = `Tu es un assistant pédagogique. ${classeMessage} ${schoolTypeMessage} ${profileMessage}`;
 
     if (subject === 'discussion') {
       return `${baseMessage} Sois amical et ouvert à la discussion tout en restant pédagogique. IMPORTANT: Ta réponse doit être au format JSON avec la structure suivante: {"message": "ton message", "suggestions": ["suggestion 1", "suggestion 2"]}`;
@@ -306,7 +318,6 @@ export default function HistoryScreen() {
           [`threads.${threadId}.lastUpdated`]: new Date()
         });
 
-        console.log('selectedSubject', selectedSubject);
         // Créer l'historique des messages pour l'API Mistral
         const messageHistory: any[] = [
           {
@@ -406,6 +417,63 @@ export default function HistoryScreen() {
     }
   };
 
+  const handleAIProfileSelect = async (profile: AIProfile) => {
+    setSelectedAIProfile(profile);
+    setShowAIProfilePicker(false);
+
+    const user = auth.currentUser;
+    if (!user || !threadId) return;
+
+    const userRef = doc(db, 'users', user.uid);
+    await updateDoc(userRef, {
+      [`threads.${threadId}.aiProfile`]: profile
+    });
+  };
+
+  const handleImagePicker = async (type: 'library' | 'camera' | 'document') => {
+    try {
+      if (type === 'library') {
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: 'images',
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 1,
+        });
+
+        if (!result.canceled) {
+          router.push({
+            pathname: '/(tabs)/history',
+            params: { 
+              threadId: threadId as string,
+              imageBase64: result.assets[0].uri
+            }
+          });
+        }
+      } else if (type === 'document') {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+          copyToCacheDirectory: true,
+        });
+
+        if (result.assets && result.assets.length > 0) {
+          // Ici vous pouvez gérer le fichier PDF ou document
+          console.log('Document sélectionné:', result.assets[0]);
+          // Vous pouvez ajouter le document à votre message ou le traiter comme vous le souhaitez
+        }
+      } else {
+        router.push({
+          pathname: '/camera',
+          params: {
+            threadId: threadId.toString()
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error picking file:', error);
+      showErrorAlert('Erreur', 'Impossible de sélectionner le fichier. Veuillez réessayer.');
+    }
+  };
+
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -418,6 +486,13 @@ export default function HistoryScreen() {
         onClose={() => setShowSubjectSelector(false)}
         selectedSubject={selectedSubject}
       />
+      <AIProfileSelector
+        visible={showAIProfilePicker}
+        onSelect={handleAIProfileSelect}
+        onClose={() => setShowAIProfilePicker(false)}
+        selectedProfile={selectedAIProfile}
+        themeColors={themeColors}
+      />
       <View style={[styles.chatArea, { backgroundColor: themeColors.background }]}>
         <View style={[styles.chatHeader, { borderBottomColor: themeColors.border }]}>
           <View style={styles.chatHeaderContent}>
@@ -428,6 +503,19 @@ export default function HistoryScreen() {
               <Text style={styles.subjectButtonText}>
                 {selectedSubject ? selectedSubject : 'Choisir matière'}
               </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.profileIAButton}
+              onPress={() => setShowAIProfilePicker(true)}
+            >
+              <View style={styles.profileContainer}>
+                <Image 
+                  source={AI_PROFILES[selectedAIProfile].image} 
+                  style={styles.profileImage} 
+                />
+
+              </View>
             </TouchableOpacity>
           </View>
         </View>
@@ -451,60 +539,92 @@ export default function HistoryScreen() {
           )}
         </ScrollView>
 
-        <View style={[styles.inputContainer, { 
-          backgroundColor: themeColors.background,
-          borderTopColor: themeColors.border
-        }]}>
-          {selectedImageBase64 && (
-            <View style={styles.selectedImageContainer}>
-              <Image 
-                source={{ uri: selectedImageBase64 }} 
-                style={styles.selectedImagePreview}
+        <View style={[styles.inputContainer, { backgroundColor: themeColors.card }]}>
+          <View style={styles.inputContent}>
+            {selectedImageBase64 && (
+              <View style={styles.selectedImageContainer}>
+                <Image 
+                  source={{ uri: selectedImageBase64 }} 
+                  style={styles.selectedImagePreview}
+                />
+                <TouchableOpacity 
+                  style={styles.removeImageButton}
+                  onPress={() => {
+                    setSelectedImageBase64(null);
+                  }}
+                >
+                  <X size={20} color={themeColors.text} />
+                </TouchableOpacity>
+              </View>
+            )}
+            <View style={[styles.inputWrapper, { backgroundColor: themeColors.inputBackground }]}>
+              <TextInput
+                style={[styles.input, { color: themeColors.text }]}
+                placeholder="Écris ton message..."
+                placeholderTextColor={themeColors.text + '80'}
+                value={question}
+                onChangeText={setQuestion}
+                multiline
+                numberOfLines={6}
+                textAlignVertical="top"
               />
-              <TouchableOpacity 
-                style={styles.removeImageButton}
-                onPress={() => {
-                  setSelectedImageBase64(null);
-                }}
-              >
-                <X size={20} color={themeColors.text} />
-              </TouchableOpacity>
+            </View>
           </View>
-          )}
-          <View style={[styles.inputWrapper, { backgroundColor: themeColors.inputBackground }]}>
-            <TextInput
-              style={[styles.input, { color: themeColors.text }]}
-              value={question}
-              onChangeText={setQuestion}
-              placeholder="Posez votre question..."
-              placeholderTextColor={themeColors.placeholder}
-              multiline
-            />
+
+          <View style={styles.footerButtons}>
             <TouchableOpacity 
-              style={styles.cameraButton} 
+              style={styles.plusButton}
               onPress={() => {
-                if (!threadId) {
-                  showErrorAlert('Erreur', 'Impossible d\'ajouter une photo. Veuillez réessayer.');
-                  return;
-                }
-                
-                router.push({
-                  pathname: '/camera',
-                  params: { 
-                    threadId: threadId.toString()
-                  }
-                });
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowImageMenu(!showImageMenu)
               }}
             >
-              <CameraIcon color={themeColors.text} size={24} />
+              <Plus color={themeColors.text} size={24} />
             </TouchableOpacity>
+
             <TouchableOpacity 
-              style={styles.sendButton}
+              style={[styles.sendButton, !question.trim() && { opacity: 0.5 }]}
               onPress={callMistralAPI}
+              disabled={!question.trim()}
             >
-              <Feather name="send" size={20} color="#fff" />
+              <Send color={question.trim() ? '#60a5fa' : themeColors.text} size={24} />
             </TouchableOpacity>
           </View>
+
+          {showImageMenu && (
+            <View style={[styles.menuContainer, { backgroundColor: themeColors.card }]}>
+              <TouchableOpacity 
+                style={styles.menuOption}
+                onPress={() => {
+                  handleImagePicker('library');
+                  setShowImageMenu(false);
+                }}
+              >
+                <ImageIcon color={themeColors.text} size={20} />
+                <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Bibliothèque</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.menuOption}
+                onPress={() => {
+                  handleImagePicker('camera');
+                  setShowImageMenu(false);
+                }}
+              >
+                <CameraIcon color={themeColors.text} size={20} />
+                <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Appareil photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.menuOption}
+                onPress={() => {
+                  handleImagePicker('document');
+                  setShowImageMenu(false);
+                }}
+              >
+                <FileText color={themeColors.text} size={20} />
+                <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Document</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -714,36 +834,92 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     borderTopWidth: 1,
     borderTopColor: '#333',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    borderRadius: 16,
+    margin: 10,
+    marginBottom: 30,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  inputContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    width: '100%',
+    gap: 8,
+    marginBottom: 8,
+  },
+  selectedImageContainer: {
+    position: 'relative',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  selectedImagePreview: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
   },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flex: 1,
+    borderRadius: 24,
+    padding: 8,
     backgroundColor: '#2d2d2d',
-    borderRadius: 8,
-    padding: 6,
-    marginBottom: 14,
   },
   input: {
-    flex: 1,
-    color: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    width: '100%',
     fontSize: 16,
-    minHeight: 40,
+    minHeight: 50,
+    maxHeight: 200,
+    textAlignVertical: 'top',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
   },
-  cameraButton: {
+  footerButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 8,
+  },
+  plusButton: {
     padding: 8,
-    marginHorizontal: 4,
   },
   sendButton: {
-    backgroundColor: '#60a5fa',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    padding: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
-    paddingTop: 2,
+  },
+  menuContainer: {
+    position: 'absolute',
+    bottom: 60,
+    left: 30,
+    borderRadius: 12,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 1000,
+  },
+  menuOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 12,
+  },
+  menuOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
   newThreadButton: {
     flexDirection: 'row',
@@ -786,26 +962,15 @@ const styles = StyleSheet.create({
   chatHeaderContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     padding: 8,
-    gap: 8,
+    width: '100%',
   },
   chatTitle: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '500',
     flex: 1,
-  },
-  selectedImageContainer: {
-    position: 'relative',
-    marginBottom: 8,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  selectedImagePreview: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
   },
   removeImageButton: {
     position: 'absolute',
@@ -1062,4 +1227,24 @@ const styles = StyleSheet.create({
   suggestionText: {
     fontSize: 14,
   },
+  profileContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  profileImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: 'rgba(235, 230, 230, 0.95)',
+  },
+  profileIAButton: {
+    borderRadius: 16,
+  },
+  profileIAButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
 });
+

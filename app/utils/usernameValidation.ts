@@ -6,7 +6,17 @@ export const isUsernameForbidden = (username: string): boolean => {
   if (!username) return false;
   
   const lowerValue = username.toLowerCase();
-  return FORBIDDEN_USERNAMES.some(forbidden => lowerValue.includes(forbidden));
+  // Vérifie si un des mots interdits est présent dans la chaîne
+  const containsForbidden = FORBIDDEN_USERNAMES.some(forbidden => {
+    const forbiddenLower = forbidden.toLowerCase();
+    const contains = lowerValue.includes(forbiddenLower);
+    if (contains) {
+      console.log(`Mot interdit "${forbidden}" trouvé dans "${username}"`);
+    }
+    return contains;
+  });
+  
+  return containsForbidden;
 };
 
 export const validateUsername = async (
@@ -30,7 +40,7 @@ export const validateUsername = async (
     return { isValid: false, error: USERNAME_ERRORS.INVALID_CHARS };
   }
 
-  // Vérification des mots interdits
+  // Vérification des mots interdits en premier
   if (isUsernameForbidden(username)) {
     return { isValid: false, error: USERNAME_ERRORS.FORBIDDEN };
   }
@@ -46,6 +56,7 @@ export const validateUsername = async (
       return { isValid: true };
     }
     
+    // Si le pseudo existe déjà, on le refuse
     if (!querySnapshot.empty) {
       return { isValid: false, error: USERNAME_ERRORS.ALREADY_EXISTS };
     }
