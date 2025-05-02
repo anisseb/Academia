@@ -9,12 +9,10 @@ import {
   ScrollView,
   Modal,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { useTheme } from '../context/ThemeContext';
-import { collection, getDocs, query, where, orderBy, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
 import { LinearGradient } from 'expo-linear-gradient';
-import { parseGradient } from '../utils/gradientUtils';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 interface UserRanking {
@@ -374,14 +372,15 @@ export default function ClassementScreen() {
       const querySnapshot = await getDocs(usersRef);
 
       const rankings: UserRanking[] = [];
+      const currentUserId = auth.currentUser?.uid;
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         if (data.profile) {
           const totalScore = calculateTotalScore(data.profile, selectedSubject || undefined);
           
-          // Si on est dans l'onglet amis, on ne garde que les amis
-          if (activeTab === 'friends' && !friends.includes(doc.id)) return;
+          // Si on est dans l'onglet amis, on garde les amis ET l'utilisateur actuel
+          if (activeTab === 'friends' && !friends.includes(doc.id) && doc.id !== currentUserId) return;
           
           rankings.push({
             id: doc.id,
@@ -396,7 +395,7 @@ export default function ClassementScreen() {
       rankings.sort((a, b) => b.score - a.score);
       rankings.forEach((ranking, index) => {
         ranking.rank = index + 1;
-        if (ranking.id === auth.currentUser?.uid) {
+        if (ranking.id === currentUserId) {
           setUserRank(index + 1);
         }
       });

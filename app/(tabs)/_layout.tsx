@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { useRef, useState, useEffect } from 'react';
-import { Animated, Alert, Keyboard, Platform, AlertButton } from 'react-native';
+import { Animated, Alert, Keyboard, Platform, AlertButton, PanResponder } from 'react-native';
 import { StyleSheet, Pressable, View, Text, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -11,6 +11,7 @@ import { useTheme } from '../context/ThemeContext';
 import { showAlert, showConfirmAlert } from '../utils/alerts';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import * as Haptics from 'expo-haptics';
 
 type Thread = {
   id: string;
@@ -149,12 +150,25 @@ const ThreadItem = ({ thread, isActive, onPress, onTitleChange }: {
   );
 };
 
+const MenuButton = ({ onPress, color }: { onPress: () => void, color: string }) => {
+  return (
+    <TouchableOpacity 
+      onPress={onPress}
+      style={styles.menuButton}
+      activeOpacity={0.7}
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+    >
+      <Feather name="menu" size={24} color={color} />
+    </TouchableOpacity>
+  );
+};
+
 export default function TabLayout() {
   const { isDarkMode } = useTheme();
   const [showSidebar, setShowSidebar] = useState(false);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const slideAnim = useRef(new Animated.Value(-320)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
   const { threadId } = useLocalSearchParams();
   const [isAdmin, setIsAdmin] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
@@ -171,6 +185,46 @@ export default function TabLayout() {
     inputBackground: isDarkMode ? '#2a2a2a' : '#ffffff',
     placeholder: isDarkMode ? '#666666' : '#999999',
   };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (_, gestureState) => {
+        return gestureState.x0 < 20;
+      },
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return gestureState.dx > 5 && Math.abs(gestureState.dy) < 10 && gestureState.x0 < 20;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const multiplier = Platform.OS === 'ios' ? 1.5 : 1;
+        const newX = Math.min(Math.max(gestureState.dx * multiplier, 0), 320);
+        slideAnim.setValue(newX);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const threshold = Platform.OS === 'ios' ? 50 : 100;
+        if (gestureState.dx > threshold) {
+          setShowSidebar(true);
+          Animated.spring(slideAnim, {
+            toValue: 320,
+            useNativeDriver: true,
+            friction: 20,
+            tension: 70,
+          }).start(() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          });
+        } else {
+          setShowSidebar(false);
+          Animated.spring(slideAnim, {
+            toValue: 0,
+            useNativeDriver: true,
+            friction: 20,
+            tension: 70,
+          }).start(() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          });
+        }
+      },
+    })
+  ).current;
 
   // Mettre à jour activeThreadId quand threadId change
   useEffect(() => {
@@ -220,14 +274,19 @@ export default function TabLayout() {
 
   const toggleSidebar = () => {
     Keyboard.dismiss(); // Ferme le clavier
-    const toValue = showSidebar ? -320 : 0;
+    const toValue = showSidebar ? 0 : 320;
     setShowSidebar(!showSidebar);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Animated.spring(slideAnim, {
       toValue,
       useNativeDriver: true,
       friction: 20,
       tension: 70,
     }).start();
+  };
+
+  const handleMenuPress = () => {
+    toggleSidebar();
   };
 
   const handleLogout = async () => {
@@ -292,77 +351,113 @@ export default function TabLayout() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
-      <Stack
-        screenOptions={{
-          headerLeft: () => (
-            <TouchableOpacity onPress={toggleSidebar} style={styles.menuButton}>
-              <Feather name="menu" size={24} color={themeColors.icon} />
-            </TouchableOpacity>
-          ),
-          headerStyle: {
-            backgroundColor: themeColors.background,
-          },
-          headerTintColor: themeColors.text,
-          animation: 'simple_push',
-        }}
+      <Animated.View 
+        style={[
+          styles.mainContent,
+          {
+            transform: [{ translateX: slideAnim }],
+          }
+        ]}
       >
-        <Stack.Screen
-          name="index"
-          options={{
-            title: 'Statistiques',
+        <Stack
+          screenOptions={{
+            headerLeft: () => <MenuButton onPress={handleMenuPress} color={themeColors.icon} />,
+            headerStyle: {
+              backgroundColor: themeColors.background,
+            },
+            headerTintColor: themeColors.text,
+            animation: 'simple_push',
+            gestureEnabled: false,
           }}
-        />
-        <Stack.Screen 
-          name="history" 
-          options={({ route }) => {
-            const params = route.params as { threadId?: string };
-            const thread = threads.find(t => t.id === params?.threadId);
-            return {
-              title: thread?.title || 'Nouvelle conversation',
-            };
-          }}
-        />
-        <Stack.Screen
-          name="profile"
-          options={{
-            title: 'Profil',
-          }}
-        />
-        <Stack.Screen name="settings" options={{ title: 'Paramètres' }} />
-        {isAdmin && (
-          <Stack.Screen name="admin" options={{ title: 'Admin' }} />
-        )}
-        <Stack.Screen
-          name="entrainement"
-          options={{
-            title: 'Entraînement',
-          }}
-        />
+        >
+          <Stack.Screen
+            name="index"
+            options={{
+              title: 'Statistiques',
+            }}
+          />
+          <Stack.Screen 
+            name="history" 
+            options={({ route }) => {
+              const params = route.params as { threadId?: string };
+              const thread = threads.find(t => t.id === params?.threadId);
+              return {
+                title: thread?.title || 'Nouvelle conversation',
+              };
+            }}
+          />
+          <Stack.Screen
+            name="camera"
+            options={{
+              headerShown: false,
+              animation: 'slide_from_left',
+              presentation: 'fullScreenModal',
+              contentStyle: { backgroundColor: '#000' },
+              gestureEnabled: false
+            }}
+          />
+          <Stack.Screen
+            name="profile"
+            options={{
+              title: 'Profil',
+            }}
+          />
+          <Stack.Screen name="settings" options={{ title: 'Paramètres' }} />
+          {isAdmin && (
+            <Stack.Screen name="admin" options={{ title: 'Admin' }} />
+          )}
+          <Stack.Screen
+            name="entrainement"
+            options={{
+              title: 'Entraînement',
+            }}
+          />
 
-        <Stack.Screen
-          name="classement"
-          options={{
-            title: 'Classement',
-          }}
-        />
+          <Stack.Screen
+            name="classement"
+            options={{
+              title: 'Classement',
+            }}
+          />
 
-        <Stack.Screen
-          name="amis"
-          options={{
-            title: 'Amis',
-          }}
-        />
-      </Stack>
+          <Stack.Screen
+            name="amis"
+            options={{
+              title: 'Amis',
+            }}
+          />
+        </Stack>
+      </Animated.View>
 
       {showSidebar && (
-        <Pressable style={styles.overlay} onPress={toggleSidebar} />
+        <Pressable 
+          style={styles.overlay} 
+          onPress={() => {
+            setShowSidebar(false);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            Animated.spring(slideAnim, {
+              toValue: 0,
+              useNativeDriver: true,
+              friction: 20,
+              tension: 70,
+            }).start();
+          }}
+        />
       )}
+
+      <View 
+        style={styles.gestureArea}
+        {...panResponder.panHandlers}
+      />
 
       <Animated.View 
         style={[
           styles.sidebar,
           {
-            transform: [{ translateX: slideAnim }],
+            transform: [{ translateX: slideAnim.interpolate({
+              inputRange: [0, 320],
+              outputRange: [-320, 0]
+            })}],
             backgroundColor: themeColors.sidebarBackground,
             borderRightColor: themeColors.border,
           }
@@ -445,6 +540,17 @@ export default function TabLayout() {
           </TouchableOpacity>
 
           <TouchableOpacity 
+            style={styles.navigationItem}
+            onPress={() => {
+              router.push('/(tabs)/favoris');
+              toggleSidebar();
+            }}
+          >
+            <Feather name="star" size={20} color={themeColors.icon} />
+            <Text style={[styles.navigationText, { color: themeColors.text }]}>Favoris</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
             style={styles.newThreadButton}
             onPress={createNewThread}
           >
@@ -477,18 +583,6 @@ export default function TabLayout() {
         </View>
 
         <View style={[styles.sidebarFooter, { borderTopColor: themeColors.border }]}>
-          {isAdmin && (
-            <TouchableOpacity 
-              style={styles.footerButton}
-            onPress={() => {
-              router.push('/(tabs)/admin');
-              toggleSidebar();
-            }}
-          >
-            <Feather name="users" size={20} color={themeColors.icon} />
-            <Text style={[styles.footerButtonText, { color: themeColors.text }]}>Admin</Text>
-            </TouchableOpacity>
-          )}
           <TouchableOpacity 
             style={styles.footerButton}
             onPress={() => {
@@ -510,10 +604,30 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  mainContent: {
+    flex: 1,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#ffffff',
+  },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     zIndex: 1,
+  },
+  gestureArea: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 20,
+    zIndex: 2,
   },
   sidebar: {
     position: 'absolute',
@@ -522,17 +636,19 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 320,
     borderRightWidth: 1,
-    zIndex: 2,
+    zIndex: 3,
   },
-  container: {
-    flex: 1,
+  menuButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+    zIndex: 1000,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
-  },
-  menuButton: {
     padding: 10,
   },
   headerTitle: {

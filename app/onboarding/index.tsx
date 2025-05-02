@@ -9,6 +9,7 @@ import Step3 from './Step3';
 import Step4 from './Step4';
 import Step5 from './Step5';
 import Step6 from './Step6';
+import Step6b from './Step6b';
 import Step7 from './Step7';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -21,6 +22,7 @@ type OnboardingData = {
   class?: string;
   section?: string;
   subjects?: Array<{ id: string; label: string }>;
+  notificationsEnabled?: boolean;
 };
 
 export default function Onboarding() {
@@ -57,7 +59,7 @@ export default function Onboarding() {
     const newData = { ...data, ...stepData };
     setData(newData);
 
-    if (step < 7) {
+    if (step < 8) {
       setStep(step + 1);
     } else {
       // Sauvegarde des données dans Firestore
@@ -74,6 +76,7 @@ export default function Onboarding() {
               subjects: newData.subjects,
               onboardingCompleted: true,
             },
+            notificationsEnabled: newData.notificationsEnabled || false,
           };
           
           // Ajouter section seulement si elle existe
@@ -121,6 +124,12 @@ export default function Onboarding() {
       case 7:
         if (!data.schoolType || !data.class || !data.subjects) {
           setStep(7);
+          return null;
+        }
+        return <Step6b onNext={handleNext} onBack={handleBack} />;
+      case 8:
+        if (!data.schoolType || !data.class || !data.subjects) {
+          setStep(8);
           return null;
         }
         return <Step7 onNext={handleNext} onBack={handleBack} data={{ name: data.name, username: data.username, country: data.country, schoolType: data.schoolType, class: data.class, subjects: data.subjects }} />;

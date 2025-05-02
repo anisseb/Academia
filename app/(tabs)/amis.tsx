@@ -25,9 +25,8 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { parseGradient } from '../utils/gradientUtils';
 import { showConfirmAlert } from '../utils/alerts';
+import { sendFriendRequestNotification } from '../utils/notifications';
 
 interface Friend {
   id: string;
@@ -219,14 +218,12 @@ export default function AmisScreen() {
       // Vérifier si la demande n'a pas déjà été envoyée dans l'état local
       const isAlreadySent = sentRequests.some(request => request.id === friendId);
       if (isAlreadySent) {
-        console.log('Demande déjà envoyée dans l\'état local');
         return;
       }
 
       // Vérifier si la demande n'a pas déjà été envoyée dans Firestore
       const sentRequestsInFirestore = userData?.sentRequests || [];
       if (sentRequestsInFirestore.includes(friendId)) {
-        console.log('Demande déjà envoyée dans Firestore');
         return;
       }
 
@@ -250,18 +247,21 @@ export default function AmisScreen() {
         sentRequests: arrayUnion(friendId)
       });
 
-      // Ajouter aux demandes en attente de l'ami
+      // Ajouter à la liste des demandes en attente de l'ami
       await updateDoc(friendRef, {
         pendingRequests: arrayUnion(user.uid)
       });
 
-      // Réinitialiser la recherche
+      // Envoyer la notification
+      await sendFriendRequestNotification(friendId, username);
+
+      // Effacer le champ de recherche et recharger la liste des amis
       setSearchQuery('');
       setSearchResults([]);
+      await loadFriends();
+
     } catch (error) {
-      console.error('Erreur lors de l\'envoi de la demande:', error);
-      // En cas d'erreur, retirer la demande de l'état local
-      setSentRequests(prev => prev.filter(request => request.id !== friendId));
+      console.error('Erreur lors de l\'envoi de la demande d\'ami:', error);
     }
   };
 

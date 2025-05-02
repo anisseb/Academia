@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import { ThemeProvider } from './context/ThemeContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useFonts } from 'expo-font';
 
 declare global {
   interface Window {
@@ -12,13 +14,26 @@ declare global {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    // Ajoutez vos polices ici si nécessaire
+  });
+
+  useEffect(() => {
+  }, []);
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
-    <ThemeProvider>
+    <SafeAreaProvider>
       <GestureHandlerRootView style={styles.container}>
-        <Slot />
-        <StatusBar style="auto" />
+        <ThemeProvider>
+          <Slot />
+          <StatusBar style="auto" />
+        </ThemeProvider>
       </GestureHandlerRootView>
-    </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 

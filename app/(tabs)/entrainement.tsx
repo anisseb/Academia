@@ -17,8 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { parseGradient } from '../utils/gradientUtils';
-import { getSubjects } from '../utils/subjectGradients';
+import { getSubjects, parseGradient } from '../utils/subjectGradients';
 
 interface Subject {
   id: string;

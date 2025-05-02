@@ -45,7 +45,6 @@ export const getSubjects = async (
     // Créer les objets subjects avec les données à jour
     return subjects.map((subjectData) => {
       const subjectInfo = matieres[subjectData.id];
-      console.log('subjectInfo', subjectInfo);
       return {
         id: subjectData.id,
         label: subjectData.label,

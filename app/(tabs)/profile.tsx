@@ -18,7 +18,7 @@ import { countries } from '../constants/education';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showErrorAlert, showSuccessAlert } from '../utils/alerts';
-import { parseGradient } from '../utils/gradientUtils';
+import { parseGradient } from '../utils/subjectGradients';
 import { validateUsername } from '../utils/usernameValidation';
 
 interface Section {
@@ -244,18 +244,9 @@ export default function ProfileScreen() {
     }));
   };
 
-  const handleUsernameChange = async (text: string) => {
+  const handleUsernameChange = (text: string) => {
     setProfileData(prev => ({ ...prev, username: text }));
     setUsernameError(null);
-
-    if (!text.trim()) {
-      return;
-    }
-
-    const validationResult = await validateUsername(text, profileData.username);
-    if (!validationResult.isValid && validationResult.error) {
-      setUsernameError(validationResult.error);
-    }
   };
 
   const renderSchoolTypeSelector = () => {
@@ -477,27 +468,6 @@ export default function ProfileScreen() {
           {/* Informations personnelles */}
           <View style={[styles.section, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
             <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Informations personnelles</Text>
-            
-            <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: themeColors.text }]}>Prénom</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  !isEditing && styles.inputDisabled,
-                  { 
-                    backgroundColor: themeColors.inputBackground,
-                    color: themeColors.text,
-                    borderColor: themeColors.border
-                  }
-                ]}
-                value={profileData.name}
-                onChangeText={(text) => setProfileData(prev => ({ ...prev, name: text }))}
-                editable={isEditing}
-                placeholder="Ton prénom"
-                placeholderTextColor={themeColors.placeholder}
-              />
-            </View>
-
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: themeColors.text }]}>Pseudo</Text>
               <TextInput
@@ -572,21 +542,36 @@ export default function ProfileScreen() {
       </ScrollView>
 
       <View style={[styles.bottomButton, { backgroundColor: themeColors.background, borderTopColor: themeColors.border }]}>
+        {isEditing ? (
+          <View style={styles.editButtonsContainer}>
+            <TouchableOpacity 
+              style={[styles.cancelButton, { backgroundColor: themeColors.buttonBackground, borderColor: themeColors.border }]}
+              onPress={() => {
+                setIsEditing(false);
+                loadProfileData(); // Recharger les données originales
+              }}
+            >
+              <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.editButton, styles.editButtonActive]}
+              onPress={handleSave}
+            >
+              <Text style={styles.editButtonTextActive}>
+                Enregistrer
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
         <TouchableOpacity 
-          style={[
-            styles.editButton,
-            isEditing && styles.editButtonActive,
-            { backgroundColor: isEditing ? '#60a5fa' : themeColors.buttonBackground }
-          ]}
-          onPress={() => isEditing ? handleSave() : setIsEditing(true)}
+            style={[styles.editButton, { backgroundColor: themeColors.buttonBackground }]}
+            onPress={() => setIsEditing(true)}
         >
-          <Text style={[
-            styles.editButtonText,
-            isEditing && styles.editButtonTextActive
-          ]}>
-            {isEditing ? 'Enregistrer' : 'Modifier'}
+            <Text style={styles.editButtonText}>
+              Modifier
           </Text>
         </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -670,7 +655,20 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
   },
+  editButtonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cancelButton: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   editButton: {
+    flex: 1,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,

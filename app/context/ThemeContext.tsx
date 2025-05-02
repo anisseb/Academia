@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext } from 'react';
-
+import * as Haptics from 'expo-haptics';
 type ThemeContextType = {
   isDarkMode: boolean;
   toggleTheme: () => void;
@@ -11,6 +11,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   const toggleTheme = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsDarkMode(prev => !prev);
   };
 

@@ -31,9 +31,19 @@
           <string>com.anisse3000.academia</string>
         </array>
       </dict>
+      <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
+          <string>exp+academia</string>
+        </array>
+      </dict>
     </array>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>GADApplicationIdentifier</key>
+    <string>ca-app-pub-9849575862637315~3948002761</string>
+    <key>GADDelayAppMeasurementInit</key>
+    <false/>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
     <key>LSMinimumSystemVersion</key>
@@ -48,9 +58,11 @@
       <true/>
     </dict>
     <key>NSCameraUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your camera</string>
+    <string>Autoriser $(PRODUCT_NAME) à ouvrir la caméra</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your microphone</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Nous avons besoin de votre permission pour utiliser la caméra.</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
