@@ -5,6 +5,7 @@ import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { parseGradient } from '../utils/subjectGradients';
 
 interface SubjectStats {
   averageScore: number;
@@ -218,25 +219,10 @@ export default function HomeScreen() {
     }
   };
 
-  const extractGradientColors = (gradientString: string): string[] => {
-    if (!gradientString) return ['#60a5fa', '#3b82f6'];
-    
-    // Extraire les couleurs du format "linear-gradient(to right, #4c1d95, #2563eb)"
-    const colorMatch = gradientString.match(/#[0-9a-fA-F]{6}/g);
-    if (colorMatch && colorMatch.length >= 2) {
-      return [colorMatch[0], colorMatch[1]];
-    }
-    
-    return ['#60a5fa', '#3b82f6'];
-  };
-
   const renderSubjectStats = (subject: string, stats: SubjectStats) => {
     const subjectInfo = subjectInfos[subject];
     if (!subjectInfo) return null;
     
-    const gradientColors = extractGradientColors(subjectInfo.gradient);
-    const primaryColor = gradientColors[0];
-    const secondaryColor = gradientColors[1];
     const cardsColors = 'rgba(13, 103, 172, 0.56)';
 
     return (
@@ -245,7 +231,7 @@ export default function HomeScreen() {
           <MaterialCommunityIcons 
             name={subjectInfo.icon || 'book-open-variant'} 
             size={24} 
-            color={primaryColor} 
+            color={parseGradient(subjectInfo.gradient)[0]} 
           />
           <Text style={[styles.subjectTitle, { color: themeColors.text }]}>
             {subjectInfo.label}
@@ -290,7 +276,7 @@ export default function HomeScreen() {
           <View style={styles.precisionBar}>
             <View style={[styles.precisionFill, { 
               width: `${stats.precision}%`,
-              backgroundColor: primaryColor
+              backgroundColor: parseGradient(subjectInfo.gradient)[0]
             }]} />
             <Text style={styles.precisionText}>{stats.precision}% de précision</Text>
           </View>
@@ -358,12 +344,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  headerImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    marginBottom: 16,
-  },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
@@ -375,69 +355,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     opacity: 0.8,
     marginBottom: 16,
-  },
-  importButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    marginTop: 16,
-    minWidth: 200,
-    alignItems: 'center',
-  },
-  importButtonText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  features: {
-    padding: 24,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  featuresTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 24,
-  },
-  mathTestContainer: {
-    marginBottom: 20,
-  },
-  mathLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-    backgroundColor: 'rgba(96, 165, 250, 0.1)',
-    padding: 16,
-    borderRadius: 12,
-  },
-  featureNumber: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#60a5fa',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  featureNumberText: {
-    color: '#ffffff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  featureText: {
-    flex: 1,
-    fontSize: 16,
-    lineHeight: 24,
   },
   statsCard: {
     borderRadius: 20,

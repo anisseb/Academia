@@ -35,4 +35,8 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# secrets
+credentials/*.json
+
+# example
 app-example

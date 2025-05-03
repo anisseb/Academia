@@ -12,6 +12,8 @@ import { showAlert, showConfirmAlert } from '../utils/alerts';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import * as Haptics from 'expo-haptics';
+import { ref, listAll, deleteObject } from 'firebase/storage';
+import { storage } from '../../firebaseConfig';
 
 type Thread = {
   id: string;
@@ -70,6 +72,29 @@ const ThreadItem = ({ thread, isActive, onPress, onTitleChange }: {
         try {
           if (auth.currentUser) {
             const userRef = doc(db, 'users', auth.currentUser.uid);
+            
+            try {
+              // Supprimer tous les fichiers dans le dossier du thread
+              const storageRef = ref(storage, `threads/${auth.currentUser.uid}/${thread.id}`);
+              const listResult = await listAll(storageRef);
+              
+              // Supprimer tous les fichiers dans le dossier
+              const deletePromises = listResult.items.map(item => deleteObject(item));
+              await Promise.all(deletePromises);
+              
+              // Supprimer tous les sous-dossiers et leurs fichiers
+              for (const prefix of listResult.prefixes) {
+                const subFolderRef = ref(storage, prefix.fullPath);
+                const subFolderList = await listAll(subFolderRef);
+                const subFolderDeletePromises = subFolderList.items.map(item => deleteObject(item));
+                await Promise.all(subFolderDeletePromises);
+              }
+            } catch (storageError) {
+              // Si le dossier n'existe pas ou s'il y a une erreur, on continue quand même
+              console.log('Aucun fichier à supprimer dans le storage:', storageError);
+            }
+            
+            // Supprimer le thread dans Firestore
             await updateDoc(userRef, {
               [`threads.${thread.id}`]: deleteField()
             });
@@ -359,33 +384,33 @@ export default function TabLayout() {
           }
         ]}
       >
-        <Stack
-          screenOptions={{
+      <Stack
+        screenOptions={{
             headerLeft: () => <MenuButton onPress={handleMenuPress} color={themeColors.icon} />,
-            headerStyle: {
-              backgroundColor: themeColors.background,
-            },
-            headerTintColor: themeColors.text,
-            animation: 'simple_push',
+          headerStyle: {
+            backgroundColor: themeColors.background,
+          },
+          headerTintColor: themeColors.text,
+          animation: 'simple_push',
             gestureEnabled: false,
+        }}
+      >
+        <Stack.Screen
+          name="index"
+          options={{
+            title: 'Statistiques',
           }}
-        >
-          <Stack.Screen
-            name="index"
-            options={{
-              title: 'Statistiques',
-            }}
-          />
-          <Stack.Screen 
-            name="history" 
-            options={({ route }) => {
-              const params = route.params as { threadId?: string };
-              const thread = threads.find(t => t.id === params?.threadId);
-              return {
-                title: thread?.title || 'Nouvelle conversation',
-              };
-            }}
-          />
+        />
+        <Stack.Screen 
+          name="history" 
+          options={({ route }) => {
+            const params = route.params as { threadId?: string };
+            const thread = threads.find(t => t.id === params?.threadId);
+            return {
+              title: thread?.title || 'Nouvelle conversation',
+            };
+          }}
+        />
           <Stack.Screen
             name="camera"
             options={{
@@ -396,37 +421,37 @@ export default function TabLayout() {
               gestureEnabled: false
             }}
           />
-          <Stack.Screen
-            name="profile"
-            options={{
-              title: 'Profil',
-            }}
-          />
-          <Stack.Screen name="settings" options={{ title: 'Paramètres' }} />
-          {isAdmin && (
-            <Stack.Screen name="admin" options={{ title: 'Admin' }} />
-          )}
-          <Stack.Screen
-            name="entrainement"
-            options={{
-              title: 'Entraînement',
-            }}
-          />
+        <Stack.Screen
+          name="profile"
+          options={{
+            title: 'Profil',
+          }}
+        />
+        <Stack.Screen name="settings" options={{ title: 'Paramètres' }} />
+        {isAdmin && (
+          <Stack.Screen name="admin" options={{ title: 'Admin' }} />
+        )}
+        <Stack.Screen
+          name="entrainement"
+          options={{
+            title: 'Entraînement',
+          }}
+        />
 
-          <Stack.Screen
-            name="classement"
-            options={{
-              title: 'Classement',
-            }}
-          />
+        <Stack.Screen
+          name="classement"
+          options={{
+            title: 'Classement',
+          }}
+        />
 
-          <Stack.Screen
-            name="amis"
-            options={{
-              title: 'Amis',
-            }}
-          />
-        </Stack>
+        <Stack.Screen
+          name="amis"
+          options={{
+            title: 'Amis',
+          }}
+        />
+      </Stack>
       </Animated.View>
 
       {showSidebar && (

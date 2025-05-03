@@ -130,8 +130,12 @@ export default function HistoryScreen() {
     try {
       const user = auth.currentUser;
       if (!user) {
-        console.error('Aucun utilisateur connecté');
-        return null;
+        throw new Error('Aucun utilisateur connecté');
+      }
+
+      // Vérifier que l'utilisateur est bien authentifié
+      if (!user.emailVerified) {
+        throw new Error('Veuillez vérifier votre email avant de continuer');
       }
 
       // Convertir le base64 en blob
@@ -139,11 +143,17 @@ export default function HistoryScreen() {
       const blob = await response.blob();
       
       // Créer un nom de fichier unique avec l'ID du thread
-      const filename = `threads/${threadId}/photos/${Date.now()}.jpg`;
+      const filename = `threads/${user.uid}/${threadId}/photos/${Date.now()}.jpg`;
       const storageRef = ref(storage, filename);
       
-      // Upload le blob
-      await uploadBytes(storageRef, blob);
+      // Upload le blob avec les métadonnées de l'utilisateur
+      await uploadBytes(storageRef, blob, {
+        customMetadata: {
+          userId: user.uid,
+          threadId: threadId as string,
+          timestamp: Date.now().toString()
+        }
+      });
       
       // Obtenir l'URL publique
       const downloadURL = await getDownloadURL(storageRef);
@@ -237,9 +247,13 @@ export default function HistoryScreen() {
       ? 'IMPORTANT: j\'aimerais que les formules soient au format latex. Réponds uniquement en JSON valide avec le format suivant, sans texte supplémentaire.'
       : '';
 
+    const resolutionInstruction = hasImage ? `IMPORTANT: Je veux que tu accompagnes l'élève dans la résolution du problème mais sans jamais donner la réponse.` : `IMPORTANT: Je veux que tu accompagnes l'élève`  ;
+
     // Structure JSON différente selon que l'utilisateur envoie une image ou non
     const jsonStructure = subject === 'Mathématiques'
-      ? `IMPORTANT: les formules mathematiques doivent etre au format latex, il faut que le format soit correcte pour etre pris en compte par katex.
+      ? `IMPORTANT: les formules mathematiques doivent etre au format latex, il faut que le format soit correcte pour etre pris en compte par katex. 
+        IMPORTANT: les formules doivent etre au format suivant : $\\frac{a}{b}$ 
+        IMPORTANT: les formules doivent etre entre les balises $$.r
       {
               "message": "ton message principal",
               "steps": [
@@ -265,7 +279,7 @@ export default function HistoryScreen() {
             }`;
 
     return `${baseMessage} Dans le contexte de la matière "${subject}", je ne veux pas que tu donnes la solution aux problèmes. 
-            Je veux que tu accompagnes l'élève dans la résolution du problème mais sans jamais donner la réponse. ${scientificInstruction}
+            ${resolutionInstruction} ${scientificInstruction}
             IMPORTANT: Ta réponse doit être au format JSON avec la structure suivante ${jsonStructure}
             TRÈS IMPORTANT: Ne mets pas de texte avant ou après le JSON. Ta réponse doit être UNIQUEMENT le JSON, sans aucun texte supplémentaire.`;
   };

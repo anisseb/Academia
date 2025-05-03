@@ -78,7 +78,8 @@
           "androidAppId": "ca-app-pub-9849575862637315~4909955983",
           "iosAppId": "ca-app-pub-9849575862637315~3948002761"
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true
