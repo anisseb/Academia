@@ -342,6 +342,7 @@ export default function TabLayout() {
           [`threads.${newThreadId}`]: {
             title: 'Nouvelle conversation',
             timestamp: new Date(),
+            aiProfile: 'professeur',
             messages: []
           }
         });
@@ -451,6 +452,13 @@ export default function TabLayout() {
             title: 'Amis',
           }}
         />
+
+        <Stack.Screen
+          name="success"
+          options={{
+            title: 'Succès',
+          }}
+        />
       </Stack>
       </Animated.View>
 
@@ -549,8 +557,19 @@ export default function TabLayout() {
               toggleSidebar();
             }}
           >
-            <Feather name="award" size={20} color={themeColors.icon} />
+            <Feather name="bar-chart-2" size={20} color={themeColors.icon} />
             <Text style={[styles.navigationText, { color: themeColors.text }]}>Classement</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.navigationItem}
+            onPress={() => {
+              router.push('/(tabs)/success');
+              toggleSidebar();
+            }}
+          >
+            <Feather name="award" size={20} color={themeColors.icon} />
+            <Text style={[styles.navigationText, { color: themeColors.text }]}>Succès</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 

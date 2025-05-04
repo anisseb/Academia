@@ -6,6 +6,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { parseGradient } from '../utils/subjectGradients';
+import React from 'react';
 
 interface SubjectStats {
   averageScore: number;
@@ -194,7 +195,6 @@ export default function HomeScreen() {
         return academiaData.classes[classe].matieres[subjectId];
       }
 
-
     } catch (error) {
       console.error('Erreur lors de la récupération des informations de la matière:', error);
       return null;
@@ -315,12 +315,14 @@ export default function HomeScreen() {
             <View style={styles.loadingContainer}>
               <Text style={[styles.loadingText, { color: themeColors.text }]}>
                 Chargement des statistiques...
-          </Text>
+              </Text>
             </View>
           ) : (
-            Object.entries(stats).map(([subject, subjectStats]) => 
-              renderSubjectStats(subject, subjectStats)
-            )
+            <>
+              {Object.entries(stats).map(([subject, subjectStats]) => 
+                renderSubjectStats(subject, subjectStats)
+              )}
+            </>
           )}
         </View>
       )}

@@ -8,12 +8,21 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
+  Image,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { 
+  COURSE_PROGRESSION_ACHIEVEMENTS, 
+  EXERCISE_ACHIEVEMENTS, 
+  IA_ACHIEVEMENTS, 
+  SPECIAL_BADGES_ACHIEVEMENTS 
+} from '../constants/achievements';
+
+import { getSchoolTypeName, getClasseName } from '../utils/getLabelFromData';
 
 interface UserRanking {
   id: string;
@@ -21,6 +30,10 @@ interface UserRanking {
   name: string;
   score: number;
   rank: number;
+  schoolType?: string;
+  class?: string;
+  completedAchievements?: string[];
+  displayedAchievements?: string[];
 }
 
 interface ExerciseData {
@@ -49,6 +62,10 @@ export default function ClassementScreen() {
   const ITEMS_PER_PAGE = 8;
   const [currentPage, setCurrentPage] = useState(1);
   const [userRank, setUserRank] = useState<number | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserRanking | null>(null);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [schoolTypeName, setSchoolTypeName] = useState<string>('');
+  const [className, setClassName] = useState<string>('');
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -253,6 +270,62 @@ export default function ClassementScreen() {
       textAlign: 'center',
       opacity: 0.7,
     },
+    userModalContent: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      height: '80%',
+      padding: 20,
+    },
+    userInfoSection: {
+      padding: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: themeColors.border,
+      marginBottom: 3,
+    },
+    userInfoLabel: {
+      fontSize: 14,
+      opacity: 0.7,
+      marginBottom: 8,
+    },
+    userInfoValue: {
+      fontSize: 16,
+      fontWeight: '500',
+    },
+    achievementsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+      marginTop: 12,
+    },
+    achievementCard: {
+      width: '48%',
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 3,
+      alignItems: 'center',
+      backgroundColor: themeColors.card,
+    },
+    achievementImage: {
+      width: 48,
+      height: 48,
+      marginBottom: 12,
+      borderRadius: 24,
+      borderWidth: 2,
+      borderColor: '#ffffff',
+    },
+    achievementIcon: {
+      fontSize: 28,
+      marginBottom: 12,
+    },
+    achievementTitle: {
+      fontSize: 14,
+      textAlign: 'center',
+      fontWeight: '500',
+    },
   });
 
   const calculateTotalScore = (profile: any, subjectId?: string): number => {
@@ -379,7 +452,6 @@ export default function ClassementScreen() {
         if (data.profile) {
           const totalScore = calculateTotalScore(data.profile, selectedSubject || undefined);
           
-          // Si on est dans l'onglet amis, on garde les amis ET l'utilisateur actuel
           if (activeTab === 'friends' && !friends.includes(doc.id) && doc.id !== currentUserId) return;
           
           rankings.push({
@@ -388,6 +460,10 @@ export default function ClassementScreen() {
             name: data.profile.name,
             score: totalScore,
             rank: 0,
+            schoolType: data.profile.schoolType,
+            class: data.profile.class,
+            completedAchievements: data.profile.completedAchievements || [],
+            displayedAchievements: data.profile.displayedAchievements || [],
           });
         }
       });
@@ -432,6 +508,20 @@ export default function ClassementScreen() {
     loadRankings();
   }, [activeTab, selectedSubject]);
 
+  useEffect(() => {
+    const loadNames = async () => {
+      if (selectedUser?.schoolType) {
+        const schoolName = await getSchoolTypeName(selectedUser.schoolType);
+        setSchoolTypeName(schoolName);
+      }
+      if (selectedUser?.schoolType && selectedUser?.class) {
+        const classLabel = await getClasseName(selectedUser.schoolType, selectedUser.class);
+        setClassName(classLabel);
+      }
+    };
+    loadNames();
+  }, [selectedUser]);
+
   const renderTab = (title: string, type: TabType) => (
     <TouchableOpacity
       style={[
@@ -454,48 +544,135 @@ export default function ClassementScreen() {
     </TouchableOpacity>
   );
 
+  const renderUserModal = () => {
+    if (!selectedUser) return null;
+
+    return (
+      <Modal
+        visible={showUserModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowUserModal(false)}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
+          <View style={[styles.userModalContent, { backgroundColor: themeColors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: themeColors.text }]}>
+                Profil de {selectedUser.name}
+              </Text>
+              <TouchableOpacity onPress={() => setShowUserModal(false)}>
+                <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScrollView}>
+              <View style={styles.userInfoSection}>
+                <Text style={[styles.userInfoLabel, { color: themeColors.text }]}>Pseudo</Text>
+                <Text style={[styles.userInfoValue, { color: themeColors.text }]}>
+                  @{selectedUser.username}
+                </Text>
+              </View>
+
+              <View style={styles.userInfoSection}>
+                <Text style={[styles.userInfoLabel, { color: themeColors.text }]}>Établissement</Text>
+                <Text style={[styles.userInfoValue, { color: themeColors.text }]}>
+                  {schoolTypeName || 'Non spécifié'}
+                </Text>
+              </View>
+
+              <View style={styles.userInfoSection}>
+                <Text style={[styles.userInfoLabel, { color: themeColors.text }]}>Classe</Text>
+                <Text style={[styles.userInfoValue, { color: themeColors.text }]}>
+                  {className || 'Non spécifiée'}
+                </Text>
+              </View>
+
+              <View style={styles.userInfoSection}>
+                <Text style={[styles.userInfoLabel, { color: themeColors.text }]}>Succès complétés</Text>
+                <View style={styles.achievementsGrid}>
+                  {selectedUser.completedAchievements
+                    ?.filter(achievementId => selectedUser.displayedAchievements?.includes(achievementId))
+                    .map((achievementId) => {
+                    const achievement = [...COURSE_PROGRESSION_ACHIEVEMENTS, ...EXERCISE_ACHIEVEMENTS, ...IA_ACHIEVEMENTS, ...SPECIAL_BADGES_ACHIEVEMENTS]
+                      .find(a => a.id === achievementId);
+                    
+                    if (!achievement) return null;
+
+                    return (
+                      <View key={achievementId} style={[styles.achievementCard, { borderColor: themeColors.border }]}>
+                        {achievement.imagePath ? (
+                          <Image
+                            source={achievement.imagePath}
+                            style={styles.achievementImage}
+                            resizeMode="contain"
+                          />
+                        ) : (
+                          <Text style={styles.achievementIcon}>{achievement.icon}</Text>
+                        )}
+                        <Text style={[styles.achievementTitle, { color: themeColors.text }]}>
+                          {achievement.title}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
   const renderRankingItem = ({ item }: { item: UserRanking }) => {
     const isCurrentUser = item.id === auth.currentUser?.uid;
     
     return (
-      <View style={[styles.rankingItem, { backgroundColor: themeColors.card }]}>
-        <View style={styles.rankContainer}>
-          {item.rank <= 3 ? (
-            <LinearGradient
-              colors={
-                item.rank === 1 ? medalColors.gold : 
-                item.rank === 2 ? medalColors.silver : 
-                medalColors.bronze
-              }
-              style={styles.rankBadge}
-            >
-              <Text style={styles.rankText}>{item.rank}</Text>
-            </LinearGradient>
-          ) : (
-            <View style={[styles.rankBadge, { backgroundColor: themeColors.border }]}>
-              <Text style={[styles.rankText, { color: themeColors.text }]}>{item.rank}</Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.userInfo}>
-          <View style={styles.nameContainer}>
-            <Text style={[styles.userName, { color: themeColors.text }]}>{item.name}</Text>
-            {isCurrentUser && (
-              <MaterialCommunityIcons 
-                name="account" 
-                size={16} 
-                color="#60a5fa" 
-                style={styles.userIcon}
-              />
+      <TouchableOpacity
+        onPress={() => {
+          setSelectedUser(item);
+          setShowUserModal(true);
+        }}
+      >
+        <View style={[styles.rankingItem, { backgroundColor: themeColors.card }]}>
+          <View style={styles.rankContainer}>
+            {item.rank <= 3 ? (
+              <LinearGradient
+                colors={
+                  item.rank === 1 ? medalColors.gold : 
+                  item.rank === 2 ? medalColors.silver : 
+                  medalColors.bronze
+                }
+                style={styles.rankBadge}
+              >
+                <Text style={styles.rankText}>{item.rank}</Text>
+              </LinearGradient>
+            ) : (
+              <View style={[styles.rankBadge, { backgroundColor: themeColors.border }]}>
+                <Text style={[styles.rankText, { color: themeColors.text }]}>{item.rank}</Text>
+              </View>
             )}
           </View>
-          <Text style={[styles.username, { color: themeColors.text }]}>@{item.username}</Text>
+          <View style={styles.userInfo}>
+            <View style={styles.nameContainer}>
+              <Text style={[styles.userName, { color: themeColors.text }]}>{item.name}</Text>
+              {isCurrentUser && (
+                <MaterialCommunityIcons 
+                  name="account" 
+                  size={16} 
+                  color="#60a5fa" 
+                  style={styles.userIcon}
+                />
+              )}
+            </View>
+            <Text style={[styles.username, { color: themeColors.text }]}>@{item.username}</Text>
+          </View>
+          <View style={styles.scoreContainer}>
+            <Text style={[styles.score, { color: themeColors.text }]}>{item.score}</Text>
+            <Text style={[styles.scoreLabel, { color: themeColors.text }]}>points</Text>
+          </View>
         </View>
-        <View style={styles.scoreContainer}>
-          <Text style={[styles.score, { color: themeColors.text }]}>{item.score}</Text>
-          <Text style={[styles.scoreLabel, { color: themeColors.text }]}>points</Text>
-        </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -631,6 +808,7 @@ export default function ClassementScreen() {
           </TouchableOpacity>
         </View>
       )}
+      {renderUserModal()}
     </View>
   );
 }

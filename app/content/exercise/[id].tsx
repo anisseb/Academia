@@ -28,6 +28,7 @@ interface CompletedExercise {
   completedAt: string;
   done: boolean;
   score: number;
+  difficulty: string;
 }
 
 interface ExercisesStructure {
@@ -48,13 +49,14 @@ interface UserProfile {
 }
 
 export default function ExercisePage() {
-  const { exerciseId, schoolType, classe, subject, chapterIndex, contentId } = useLocalSearchParams<{
+  const { exerciseId, schoolType, classe, subject, chapterIndex, contentId, difficulty } = useLocalSearchParams<{
     exerciseId: string;
     schoolType: string;
     classe: string;
     subject: string;
     chapterIndex: string;
     contentId: string;
+    difficulty: string;
   }>();
   const router = useRouter();
   const { isDarkMode } = useTheme();
@@ -72,10 +74,12 @@ export default function ExercisePage() {
     contentId: string;
     done: boolean;
     score: number;
+    difficulty: string;
     completedAt: string;
   }>>([]);
   const [interstitialAd, setInterstitialAd] = useState<InterstitialAd | null>(null);
   const [adLoaded, setAdLoaded] = useState(false);
+  const [currentScore, setCurrentScore] = useState<number | null>(null);
 
   // Obtenir la hauteur de la barre de statut
   const statusBarHeight = StatusBar.currentHeight || 0;
@@ -182,7 +186,6 @@ export default function ExercisePage() {
     });
 
     const unsubscribeClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
-      setShowResults(true);
       setAdLoaded(false);
       // Recharger une nouvelle annonce
       ad.load();
@@ -225,24 +228,27 @@ export default function ExercisePage() {
     }
   };
 
-  const handleNextQuestion = () => {
+  const handleNextQuestion = async () => {
     if (currentQuestionIndex < exercise!.questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       setHasAnswered(false);
       setShowExplanation(false);
     } else {
-      // Au lieu d'afficher directement les résultats, on montre l'annonce
+      // Calculer le score avant d'afficher l'annonce
+      const score = calculateScore();
+      setCurrentScore(score);
+      
+      // Si c'est la dernière question, on affiche directement les résultats
+      setShowResults(true);
+      await handleExerciseComplete(score);
+      
+      // Puis on montre l'annonce
       if (interstitialAd && adLoaded) {
         try {
           interstitialAd.show();
         } catch (error) {
           console.error('Erreur lors de l\'affichage de l\'annonce:', error);
-          setShowResults(true);
-          handleExerciseComplete(calculateScore());
         }
-      } else {
-        setShowResults(true);
-        handleExerciseComplete(calculateScore());
       }
     }
   };
@@ -295,7 +301,8 @@ export default function ExercisePage() {
         exerciceId: exerciseId,
         completedAt: new Date().toISOString(),
         done: true,
-        score: score
+        score: score,
+        difficulty: difficulty || 'facile'
       };
 
       // Vérifier et initialiser la structure de manière sécurisée
@@ -316,6 +323,7 @@ export default function ExercisePage() {
         contentExercises[existingExerciseIndex] = {
           ...contentExercises[existingExerciseIndex],
           score: score,
+          difficulty: difficulty || 'facile',
           completedAt: completedExercise.completedAt
         };
       } else {
@@ -353,7 +361,7 @@ export default function ExercisePage() {
       setExercises(prevExercises => 
         prevExercises.map(ex => 
           ex.exerciceId === exerciseId 
-            ? { ...ex, completed: true, score: score }
+            ? { ...ex, completed: true, score: score, difficulty: difficulty || 'facile' }
             : ex
         )
       );

@@ -164,6 +164,7 @@ export default function FavorisScreen() {
       params: {
         subject: course.subject as string,
         subjectLabel: course.subjectLabel as string,
+        classe: userClass as string,
         chapter: course.chapter as string,
         chapterLabel: course.chapterLabel as string,
         contentId: course.contentId as string,
