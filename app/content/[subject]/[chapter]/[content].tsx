@@ -5,7 +5,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { ChapterContent } from '../../../constants/programme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Exercise } from '../../../types/exercise';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayUnion, setDoc } from 'firebase/firestore';
 import { db, auth } from '../../../../firebaseConfig';
 import * as Haptics from 'expo-haptics';
 
@@ -147,7 +147,8 @@ export default function ContentPage() {
         contentId: String(contentId),
         contentLabel: String(contentLabel),
         exerciseId: exercise.id,
-        exercice: exercise
+        exercice: exercise,
+        difficulty: exercise.difficulty
       }
     } as any);
   };
@@ -158,7 +159,7 @@ export default function ContentPage() {
       params: {
         subject: subject as string,
         subjectLabel: subjectLabel as string,
-        classe: classe as string,
+        classe: userClass as string,
         classeLabel: classeLabel as string,
         chapter: chapterIndex.toString(),
         chapterLabel: chapterLabel as string,

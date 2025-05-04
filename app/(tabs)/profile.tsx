@@ -9,6 +9,7 @@ import {
   Animated,
   Platform,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
@@ -20,6 +21,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { showErrorAlert, showSuccessAlert } from '../utils/alerts';
 import { parseGradient } from '../utils/subjectGradients';
 import { validateUsername } from '../utils/usernameValidation';
+import { COURSE_PROGRESSION_ACHIEVEMENTS, EXERCISE_ACHIEVEMENTS, IA_ACHIEVEMENTS, SPECIAL_BADGES_ACHIEVEMENTS } from '../constants/achievements';
+import { router } from 'expo-router';
 
 interface Section {
   id: string;
@@ -70,6 +73,8 @@ type ProfileData = {
   class?: string;
   section?: string;
   subjects: SubjectData[];
+  displayedAchievements?: string[];
+  completedAchievements?: string[];
 };
 
 export default function ProfileScreen() {
@@ -124,6 +129,8 @@ export default function ProfileScreen() {
           class: profile.class || '',
           section: profile.section || '',
           subjects: profile.subjects || [],
+          displayedAchievements: profile.displayedAchievements || [],
+          completedAchievements: profile.completedAchievements || [],
         });
       }
     } catch (error) {
@@ -461,6 +468,96 @@ export default function ProfileScreen() {
     );
   };
 
+  const renderAchievementsSection = () => {
+    const allAchievements = [
+      ...COURSE_PROGRESSION_ACHIEVEMENTS,
+      ...EXERCISE_ACHIEVEMENTS,
+      ...IA_ACHIEVEMENTS,
+      ...SPECIAL_BADGES_ACHIEVEMENTS,
+    ];
+
+    // Filtrer les succès qui sont dans completedAchievements
+    const completedAchievements = allAchievements.filter(achievement => 
+      profileData.completedAchievements?.includes(achievement.id)
+    );
+
+    if (completedAchievements.length === 0) {
+      return (
+        <View style={[styles.section, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Succès affichés</Text>
+          <Text style={[styles.sectionDescription, { color: themeColors.text }]}>
+            Aucun succès complété à 100% pour le moment
+          </Text>
+          <TouchableOpacity 
+            style={styles.redirectButton}
+            onPress={() => {
+              router.push('/(tabs)/success');
+            }}
+          >
+            <Text style={[styles.sectionDescription, { color: themeColors.text }]}>
+              Voir la liste des succès
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={[styles.section, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+        <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Succès affichés</Text>
+        <Text style={[styles.sectionDescription, { color: themeColors.text }]}>
+          Choisissez les succès que vous souhaitez afficher dans votre profil
+        </Text>
+        <View style={styles.achievementsGrid}>
+          {completedAchievements.map((achievement) => {
+            const isSelected = profileData.displayedAchievements?.includes(achievement.id);
+            return (
+              <TouchableOpacity
+                key={achievement.id}
+                style={[
+                  styles.achievementCard,
+                  { borderColor: isSelected ? '#60a5fa' : themeColors.border }
+                ]}
+                onPress={() => toggleAchievement(achievement.id)}
+              >
+                {achievement.imagePath ? (
+                  <Image
+                    source={achievement.imagePath}
+                    style={styles.achievementImage}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <Text style={styles.achievementIcon}>{achievement.icon}</Text>
+                )}
+                <Text style={[styles.achievementTitle, { color: themeColors.text }]}>
+                  {achievement.title}
+                </Text>
+                {isSelected && (
+                  <View style={styles.selectedBadge}>
+                    <MaterialCommunityIcons
+                      name="check-circle"
+                      size={18}
+                      color="#22c55e"
+                    />
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
+  const toggleAchievement = (achievementId: string) => {
+    setProfileData(prev => ({
+      ...prev,
+      displayedAchievements: prev.displayedAchievements?.includes(achievementId)
+        ? prev.displayedAchievements.filter(id => id !== achievementId)
+        : [...(prev.displayedAchievements || []), achievementId],
+    }));
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -538,6 +635,7 @@ export default function ProfileScreen() {
             )}
           </View>
           {renderSubjectSelector()}
+          {renderAchievementsSection()}
         </Animated.View>
       </ScrollView>
 
@@ -775,5 +873,47 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: '#ff3b30',
+  },
+  sectionDescription: {
+    fontSize: 14,
+    marginBottom: 16,
+    opacity: 0.7,
+  },
+  achievementsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  achievementCard: {
+    width: '48%',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  achievementImage: {
+    width: 48,
+    height: 48,
+    marginBottom: 12,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+  achievementIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  achievementTitle: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  redirectButton: {
+    marginTop: 16,
+    backgroundColor: '#60a5fa',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
   },
 }); 

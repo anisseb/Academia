@@ -199,7 +199,7 @@ export default function CameraScreen() {
         {!photo ? (
         <>
           <View style={styles.headerContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backButton}
               onPress={() => router.back()}
           >

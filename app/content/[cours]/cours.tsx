@@ -15,7 +15,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth, db } from '../../../firebaseConfig';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { renderMathText as MathText } from '../../utils/mathRenderer';
 import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
 import * as Print from 'expo-print';
@@ -61,9 +61,49 @@ export default function CoursScreen() {
   const [adLoaded, setAdLoaded] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
 
+  const setDetails = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    // Création de l'identifiant unique
+    const uniqueId = `${params.classe}_${params.subject}_${params.chapter}_${params.contentId}`;
+
+    const userDocRef = doc(db, 'users', user.uid);
+    const userDoc = await getDoc(userDocRef);
+    
+    if (!userDoc.exists()) {
+      // Créer le document utilisateur s'il n'existe pas
+      await setDoc(userDocRef, {
+        success: {
+          cours: {
+            [uniqueId]: {
+              timestamp: new Date().toISOString(),
+              count: 1,
+              pdfExported: 0
+            }
+          }
+        }
+      });
+    } else {
+      // Mettre à jour le document existant
+      const userData = userDoc.data();
+      const currentSuccess = userData.success.cours || {};
+      const currentContent = currentSuccess[uniqueId] || { count: 0, pdfExported: 0 };
+
+      await updateDoc(userDocRef, {
+        [`success.cours.${uniqueId}`]: {
+          timestamp: new Date().toISOString(),
+          count: currentContent.count + 1,
+          pdfExported: currentContent.pdfExported || 0
+        }
+      });
+    }
+  };
+
   useEffect(() => {
     loadUserData();
     checkIfFavorite();
+    setDetails();
     // Initialiser l'annonce
     const ad = InterstitialAd.createForAdRequest(TestIds.INTERSTITIAL, {
       requestNonPersonalizedAdsOnly: true,
@@ -501,6 +541,24 @@ export default function CoursScreen() {
           mimeType: 'application/pdf',
           dialogTitle: 'Exporter le cours',
         });
+
+        // Incrémenter le compteur d'export PDF
+        const user = auth.currentUser;
+        if (!user) return;
+
+        const uniqueId = `${params.classe}_${params.subject}_${params.chapter}_${params.contentId}`;
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          const currentSuccess = userData.success.cours || {};
+          const currentContent = currentSuccess[uniqueId] || { pdfExported: 0 };
+
+          await updateDoc(userDocRef, {
+            [`success.cours.${uniqueId}.pdfExported`]: (currentContent.pdfExported || 0) + 1
+          });
+        }
       }
     } catch (error) {
       console.error('Erreur lors de l\'exportation du PDF:', error);

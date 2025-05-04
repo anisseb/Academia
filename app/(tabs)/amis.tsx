@@ -8,6 +8,8 @@ import {
   ScrollView,
   ActivityIndicator,
   FlatList,
+  Modal,
+  Image,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { 
@@ -16,7 +18,7 @@ import {
   updateDoc, 
   arrayUnion, 
   arrayRemove, 
-  collection, 
+  collection,
   query as firestoreQuery, 
   where, 
   getDocs, 
@@ -27,6 +29,13 @@ import { db, auth } from '../../firebaseConfig';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { showConfirmAlert } from '../utils/alerts';
 import { sendFriendRequestNotification } from '../utils/notifications';
+import { 
+  COURSE_PROGRESSION_ACHIEVEMENTS, 
+  EXERCISE_ACHIEVEMENTS, 
+  IA_ACHIEVEMENTS, 
+  SPECIAL_BADGES_ACHIEVEMENTS 
+} from '../constants/achievements';
+import { getSchoolTypeName, getClasseName } from '../utils/getLabelFromData';
 
 interface Friend {
   id: string;
@@ -34,6 +43,10 @@ interface Friend {
   name: string;
   status: 'accepted' | 'pending' | 'sent' | 'search';
   key: string;
+  schoolType?: string;
+  class?: string;
+  completedAchievements?: string[];
+  displayedAchievements?: string[];
 }
 
 export default function AmisScreen() {
@@ -46,6 +59,10 @@ export default function AmisScreen() {
   const [loading, setLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const searchTimeout = useRef<NodeJS.Timeout>();
+  const [selectedUser, setSelectedUser] = useState<Friend | null>(null);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [schoolTypeName, setSchoolTypeName] = useState<string>('');
+  const [className, setClassName] = useState<string>('');
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -54,6 +71,149 @@ export default function AmisScreen() {
     border: isDarkMode ? '#333333' : '#e0e0e0',
     inputBackground: isDarkMode ? '#2d2d2d' : '#f5f5f5',
   };
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    searchContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 16,
+      margin: 16,
+      borderRadius: 12,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: 16,
+      marginRight: 8,
+    },
+    content: {
+      flex: 1,
+    },
+    section: {
+      marginBottom: 24,
+      paddingHorizontal: 16,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      marginBottom: 16,
+    },
+    friendItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 16,
+      borderRadius: 12,
+      marginBottom: 8,
+    },
+    friendInfo: {
+      flex: 1,
+    },
+    friendName: {
+      fontSize: 16,
+      fontWeight: '500',
+    },
+    friendUsername: {
+      fontSize: 14,
+      opacity: 0.7,
+    },
+    actionButtons: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    actionButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 8,
+    },
+    addButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
+    },
+    userModalContent: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      height: '80%',
+      padding: 20,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+    },
+    modalScrollView: {
+      maxHeight: '100%',
+      paddingBottom: 20,
+    },
+    userInfoSection: {
+      padding: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: themeColors.border,
+      marginBottom: 3,
+    },
+    userInfoLabel: {
+      fontSize: 14,
+      opacity: 0.7,
+      marginBottom: 8,
+    },
+    userInfoValue: {
+      fontSize: 16,
+      fontWeight: '500',
+    },
+    achievementsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+      marginTop: 12,
+    },
+    achievementCard: {
+      width: '48%',
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 3,
+      alignItems: 'center',
+      backgroundColor: themeColors.card,
+    },
+    achievementImage: {
+      width: 48,
+      height: 48,
+      marginBottom: 12,
+      borderRadius: 24,
+      borderWidth: 2,
+      borderColor: '#ffffff',
+    },
+    achievementIcon: {
+      fontSize: 28,
+      marginBottom: 12,
+    },
+    achievementTitle: {
+      fontSize: 14,
+      textAlign: 'center',
+      fontWeight: '500',
+    },
+  });
 
   const loadFriends = async () => {
     try {
@@ -79,7 +239,11 @@ export default function AmisScreen() {
               username: friendData.profile.username,
               name: friendData.profile.name,
               status: 'accepted' as const,
-              key: `friend-${friendId}`
+              key: `friend-${friendId}`,
+              schoolType: friendData.profile.schoolType,
+              class: friendData.profile.class,
+              completedAchievements: friendData.profile.completedAchievements,
+              displayedAchievements: friendData.profile.displayedAchievements
             };
           }
           return null;
@@ -97,7 +261,11 @@ export default function AmisScreen() {
               username: friendData.profile.username,
               name: friendData.profile.name,
               status: 'pending' as const,
-              key: `pending-${friendId}`
+              key: `pending-${friendId}`,
+              schoolType: friendData.profile.schoolType,
+              class: friendData.profile.class,
+              completedAchievements: friendData.profile.completedAchievements,
+              displayedAchievements: friendData.profile.displayedAchievements
             };
           }
           return null;
@@ -115,7 +283,11 @@ export default function AmisScreen() {
               username: friendData.profile.username,
               name: friendData.profile.name,
               status: 'sent' as const,
-              key: `sent-${friendId}`
+              key: `sent-${friendId}`,
+              schoolType: friendData.profile.schoolType,
+              class: friendData.profile.class,
+              completedAchievements: friendData.profile.completedAchievements,
+              displayedAchievements: friendData.profile.displayedAchievements
             };
           }
           return null;
@@ -135,6 +307,20 @@ export default function AmisScreen() {
   useEffect(() => {
     loadFriends();
   }, [friends, pendingRequests, sentRequests]);
+
+  useEffect(() => {
+    const loadNames = async () => {
+      if (selectedUser?.schoolType) {
+        const schoolName = await getSchoolTypeName(selectedUser.schoolType);
+        setSchoolTypeName(schoolName);
+      }
+      if (selectedUser?.schoolType && selectedUser?.class) {
+        const classLabel = await getClasseName(selectedUser.schoolType, selectedUser.class);
+        setClassName(classLabel);
+      }
+    };
+    loadNames();
+  }, [selectedUser]);
 
   const performSearch = async (query: string) => {
     if (!query.trim()) {
@@ -161,7 +347,11 @@ export default function AmisScreen() {
             username: data.profile.username,
             name: data.profile.name,
             status: 'search' as const,
-            key: `search-${doc.id}`
+            key: `search-${doc.id}`,
+            schoolType: data.profile.schoolType,
+            class: data.profile.class,
+            completedAchievements: data.profile.completedAchievements,
+            displayedAchievements: data.profile.displayedAchievements
           };
         });
 
@@ -238,7 +428,11 @@ export default function AmisScreen() {
           username: friendData.profile.username,
           name: friendData.profile.name,
           status: 'sent',
-          key: `sent-${friendId}-${Date.now()}`
+          key: `sent-${friendId}-${Date.now()}`,
+          schoolType: friendData.profile.schoolType,
+          class: friendData.profile.class,
+          completedAchievements: friendData.profile.completedAchievements,
+          displayedAchievements: friendData.profile.displayedAchievements
         }];
       });
 
@@ -294,7 +488,11 @@ export default function AmisScreen() {
           username: friendData.profile.username,
           name: friendData.profile.name,
           status: 'accepted',
-          key: `friend-${friendId}`
+          key: `friend-${friendId}`,
+          schoolType: friendData.profile.schoolType,
+          class: friendData.profile.class,
+          completedAchievements: friendData.profile.completedAchievements,
+          displayedAchievements: friendData.profile.displayedAchievements
         }]);
         setPendingRequests(prev => prev.filter(f => f.id !== friendId));
       }
@@ -390,45 +588,132 @@ export default function AmisScreen() {
     );
   };
 
+  const renderUserModal = () => {
+    if (!selectedUser) return null;
+
+    return (
+      <Modal
+        visible={showUserModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowUserModal(false)}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
+          <View style={[styles.userModalContent, { backgroundColor: themeColors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: themeColors.text }]}>
+                Profil de {selectedUser.name}
+              </Text>
+              <TouchableOpacity onPress={() => setShowUserModal(false)}>
+                <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScrollView}>
+              <View style={styles.userInfoSection}>
+                <Text style={[styles.userInfoLabel, { color: themeColors.text }]}>Pseudo</Text>
+                <Text style={[styles.userInfoValue, { color: themeColors.text }]}>
+                  @{selectedUser.username}
+                </Text>
+              </View>
+
+              <View style={styles.userInfoSection}>
+                <Text style={[styles.userInfoLabel, { color: themeColors.text }]}>Établissement</Text>
+                <Text style={[styles.userInfoValue, { color: themeColors.text }]}>
+                  {schoolTypeName || 'Non spécifié'}
+                </Text>
+              </View>
+
+              <View style={styles.userInfoSection}>
+                <Text style={[styles.userInfoLabel, { color: themeColors.text }]}>Classe</Text>
+                <Text style={[styles.userInfoValue, { color: themeColors.text }]}>
+                  {className || 'Non spécifiée'}
+                </Text>
+              </View>
+
+              <View style={styles.userInfoSection}>
+                <Text style={[styles.userInfoLabel, { color: themeColors.text }]}>Succès complétés</Text>
+                <View style={styles.achievementsGrid}>
+                  {selectedUser.completedAchievements
+                    ?.filter(achievementId => selectedUser.displayedAchievements?.includes(achievementId))
+                    .map((achievementId) => {
+                    const achievement = [...COURSE_PROGRESSION_ACHIEVEMENTS, ...EXERCISE_ACHIEVEMENTS, ...IA_ACHIEVEMENTS, ...SPECIAL_BADGES_ACHIEVEMENTS]
+                      .find(a => a.id === achievementId);
+                    
+                    if (!achievement) return null;
+
+                    return (
+                      <View key={achievementId} style={[styles.achievementCard, { borderColor: themeColors.border }]}>
+                        {achievement.imagePath ? (
+                          <Image
+                            source={achievement.imagePath}
+                            style={styles.achievementImage}
+                            resizeMode="contain"
+                          />
+                        ) : (
+                          <Text style={styles.achievementIcon}>{achievement.icon}</Text>
+                        )}
+                        <Text style={[styles.achievementTitle, { color: themeColors.text }]}>
+                          {achievement.title}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
   const renderFriendItem = ({ item }: { item: Friend }) => (
-    <View style={[styles.friendItem, { backgroundColor: themeColors.card }]}>
-      <View style={styles.friendInfo}>
-        <Text style={[styles.friendName, { color: themeColors.text }]}>{item.name}</Text>
-        <Text style={[styles.friendUsername, { color: themeColors.text }]}>@{item.username}</Text>
-      </View>
-      {item.status === 'pending' && (
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#22c55e' }]}
-            onPress={() => acceptFriendRequest(item.id)}
-          >
-            <MaterialCommunityIcons name="check" size={20} color="#ffffff" />
-          </TouchableOpacity>
+    <TouchableOpacity
+      onPress={() => {
+        setSelectedUser(item);
+        setShowUserModal(true);
+      }}
+    >
+      <View style={[styles.friendItem, { backgroundColor: themeColors.card }]}>
+        <View style={styles.friendInfo}>
+          <Text style={[styles.friendName, { color: themeColors.text }]}>{item.name}</Text>
+          <Text style={[styles.friendUsername, { color: themeColors.text }]}>@{item.username}</Text>
+        </View>
+        {item.status === 'pending' && (
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: '#22c55e' }]}
+              onPress={() => acceptFriendRequest(item.id)}
+            >
+              <MaterialCommunityIcons name="check" size={20} color="#ffffff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: '#ef4444' }]}
+              onPress={() => rejectFriendRequest(item.id)}
+            >
+              <MaterialCommunityIcons name="close" size={20} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+        )}
+        {item.status === 'accepted' && (
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: '#ef4444' }]}
-            onPress={() => rejectFriendRequest(item.id)}
+            onPress={() => removeFriend(item.id)}
+          >
+            <MaterialCommunityIcons name="account-remove" size={20} color="#ffffff" />
+          </TouchableOpacity>
+        )}
+        {item.status === 'sent' && (
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#ef4444' }]}
+            onPress={() => cancelFriendRequest(item.id)}
           >
             <MaterialCommunityIcons name="close" size={20} color="#ffffff" />
           </TouchableOpacity>
-        </View>
-      )}
-      {item.status === 'accepted' && (
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: '#ef4444' }]}
-          onPress={() => removeFriend(item.id)}
-        >
-          <MaterialCommunityIcons name="account-remove" size={20} color="#ffffff" />
-        </TouchableOpacity>
-      )}
-      {item.status === 'sent' && (
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: '#ef4444' }]}
-          onPress={() => cancelFriendRequest(item.id)}
-        >
-          <MaterialCommunityIcons name="close" size={20} color="#ffffff" />
-        </TouchableOpacity>
-      )}
-    </View>
+        )}
+      </View>
+    </TouchableOpacity>
   );
 
   const renderSearchItem = ({ item }: { item: Friend }) => (
@@ -526,74 +811,8 @@ export default function AmisScreen() {
           </>
         )}
       </ScrollView>
+      {renderUserModal()}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    margin: 16,
-    borderRadius: 12,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    marginRight: 8,
-  },
-  content: {
-    flex: 1,
-  },
-  section: {
-    marginBottom: 24,
-    paddingHorizontal: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  friendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  friendInfo: {
-    flex: 1,
-  },
-  friendName: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  friendUsername: {
-    fontSize: 14,
-    opacity: 0.7,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

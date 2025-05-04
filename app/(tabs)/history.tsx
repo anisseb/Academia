@@ -325,6 +325,12 @@ export default function HistoryScreen() {
           throw new Error('Conversation non trouvée');
         }
 
+        if(imageUrl) {
+          await updateDoc(userRef, {
+            [`threads.${threadId}.cameraCount`]: (userData.threads?.[threadId as string]?.cameraCount || 0) + 1
+          });
+        }
+
         const updatedMessages = [...(currentThread.messages || []), userMessage];
 
         await updateDoc(userRef, {
