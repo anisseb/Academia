@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   FlatList,
   Modal,
-  Image,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { 
@@ -36,6 +35,7 @@ import {
   SPECIAL_BADGES_ACHIEVEMENTS 
 } from '../constants/achievements';
 import { getSchoolTypeName, getClasseName } from '../utils/getLabelFromData';
+import { Image } from 'expo-image';
 
 interface Friend {
   id: string;
@@ -649,6 +649,7 @@ export default function AmisScreen() {
                             source={achievement.imagePath}
                             style={styles.achievementImage}
                             resizeMode="contain"
+                            cachePolicy="memory-disk"
                           />
                         ) : (
                           <Text style={styles.achievementIcon}>{achievement.icon}</Text>

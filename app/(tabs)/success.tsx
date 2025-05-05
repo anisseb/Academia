@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useState, useEffect } from 'react';
 import { 
@@ -29,6 +29,7 @@ import { checkSuggester } from '../success/badges/suggester';
 import { checkSatisfaction } from '../success/badges/satisfaction';
 import { auth, db } from '../../firebaseConfig';
 import { getDoc, doc, updateDoc } from 'firebase/firestore';
+import { Image } from 'expo-image';
 
 export default function SuccessScreen() {
   const { isDarkMode } = useTheme();
@@ -182,7 +183,8 @@ export default function SuccessScreen() {
                   <Image 
                     source={achievement.imagePath} 
                     style={styles.achievementImage}
-                    resizeMode="contain"
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
                   />
                 ) : (
                   <Text style={styles.achievementIcon}>{achievement.icon}</Text>
@@ -232,7 +234,7 @@ export default function SuccessScreen() {
       contentContainerStyle={{ padding: 16 }}
     >
       <Text style={[styles.title, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
-        Vos succès
+        Vos trophées
       </Text>
       
       {/* Barre de progression globale */}
@@ -268,6 +270,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
+    textAlign: 'center',
     marginBottom: 24,
   },
   achievementCategory: {

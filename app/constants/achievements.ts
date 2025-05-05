@@ -157,7 +157,7 @@ export const SPECIAL_BADGES_ACHIEVEMENTS: Achievement[] = [
   {
     id: 'analyst',
     title: 'Analyste',
-    description: 'Consulter son tableau de progression chaque semaine',
+    description: 'Consulter son tableau de progression chaque semaine durant 5 semaines',
     icon: '📊',
     category: 'Badges spéciaux',
     maxProgress: 1,

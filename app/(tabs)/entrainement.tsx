@@ -6,13 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Dimensions,
-  useWindowDimensions,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
-import { getSubjectInfo } from '../constants/education';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';

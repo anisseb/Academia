@@ -9,7 +9,6 @@ import {
   Animated,
   Platform,
   ActivityIndicator,
-  Image,
 } from 'react-native';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
@@ -23,6 +22,7 @@ import { parseGradient } from '../utils/subjectGradients';
 import { validateUsername } from '../utils/usernameValidation';
 import { COURSE_PROGRESSION_ACHIEVEMENTS, EXERCISE_ACHIEVEMENTS, IA_ACHIEVEMENTS, SPECIAL_BADGES_ACHIEVEMENTS } from '../constants/achievements';
 import { router } from 'expo-router';
+import { Image } from 'expo-image';
 
 interface Section {
   id: string;
@@ -524,7 +524,8 @@ export default function ProfileScreen() {
                   <Image
                     source={achievement.imagePath}
                     style={styles.achievementImage}
-                    resizeMode="contain"
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
                   />
                 ) : (
                   <Text style={styles.achievementIcon}>{achievement.icon}</Text>

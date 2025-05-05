@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Image } from 'expo-image';
 
 export type AIProfile = 'professeur' | 'tuteur' | 'ami';
 
@@ -94,7 +95,8 @@ export default function AIProfileSelector({
                     <Image 
                       source={profile.image} 
                       style={styles.profileImage} 
-                      resizeMode="contain"
+                      contentFit="contain"
+                      cachePolicy="memory-disk"
                     />
                     <View style={styles.profileTextContainer}>
                       <Text style={[styles.profileButtonText, { color: themeColors.text }]}>
