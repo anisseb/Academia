@@ -18,7 +18,6 @@ import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../../firebaseConfig';
 import { ExerciseResults } from '../../components/ExerciseResults';
 import { Ionicons } from '@expo/vector-icons';
-import { programmes } from '../../constants/programme';
 import { renderMathText as MathText } from '../../utils/mathRenderer';
 import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
 import { adUnitIds } from '../../config/admob';
@@ -406,22 +405,6 @@ export default function ExercisePage() {
       </SafeAreaView>
     );
   }
-
-  const findContentLabel = (exercise: any) => {
-    const program = programmes.find(p => 
-      p.class === exercise.classe && 
-      p.subject === exercise.subject
-    );
-
-    if (!program) return '';
-
-    const chapter = program.chapters.find(c => c.id === exercise.metadata.chapter);
-    if (!chapter) return '';
-
-    const content = chapter.content.find(c => c.id === exercise.metadata.content);
-    return content ? content.content : '';
-  };
-
   // Ajoutez cette fonction pour obtenir la couleur selon la difficulté
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty.toLowerCase()) {

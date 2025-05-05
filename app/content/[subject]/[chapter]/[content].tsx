@@ -2,12 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, SafeAreaView, RefreshControl, Platform, StatusBar } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
-import { ChapterContent } from '../../../constants/programme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Exercise } from '../../../types/exercise';
-import { doc, getDoc, updateDoc, arrayUnion, setDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../../../firebaseConfig';
 import * as Haptics from 'expo-haptics';
+
+interface ChapterContent {
+  id: string;
+  content: string;
+}
 
 export default function ContentPage() {
   const { 

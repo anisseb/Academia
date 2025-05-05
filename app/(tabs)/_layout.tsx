@@ -188,6 +188,37 @@ const MenuButton = ({ onPress, color }: { onPress: () => void, color: string }) 
   );
 };
 
+const getWeekNumber = (date: Date): number => {
+  const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+  const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000;
+  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+};
+
+export const setSuccessStats = async () => {
+  try {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    if (!userDoc.exists()) return;
+
+    const userData = userDoc.data();
+    const currentDate = new Date();
+    const currentWeek = currentDate.getFullYear() + '-' + getWeekNumber(currentDate);
+    
+    // Vérifier si l'utilisateur a déjà consulté les stats cette semaine
+    const progressionViews = userData.progressionViews || {};
+    if (progressionViews[currentWeek]) return;
+
+    // Enregistrer la consultation de cette semaine
+    await updateDoc(doc(db, 'users', user.uid), {
+      [`success.progressionViews.${currentWeek}`]: currentDate.getTime()
+    });
+  } catch (error) {
+    console.error('Erreur lors de l\'enregistrement des statistiques:', error);
+  }
+};
+
 export default function TabLayout() {
   const { isDarkMode } = useTheme();
   const [showSidebar, setShowSidebar] = useState(false);
@@ -399,7 +430,7 @@ export default function TabLayout() {
         <Stack.Screen
           name="index"
           options={{
-            title: 'Statistiques',
+            title: '',
           }}
         />
         <Stack.Screen 
@@ -425,7 +456,7 @@ export default function TabLayout() {
         <Stack.Screen
           name="profile"
           options={{
-            title: 'Profil',
+            title: '',
           }}
         />
         <Stack.Screen name="settings" options={{ title: 'Paramètres' }} />
@@ -447,6 +478,27 @@ export default function TabLayout() {
         />
 
         <Stack.Screen
+          name="statistiques"
+          options={{
+            title: '',
+          }}
+        />
+
+        <Stack.Screen
+          name="favoris"
+          options={{
+            title: 'Favoris',
+          }}
+        />
+
+        <Stack.Screen
+          name="avatar"
+          options={{
+            title: '',
+          }}
+        />
+
+        <Stack.Screen
           name="amis"
           options={{
             title: 'Amis',
@@ -456,7 +508,7 @@ export default function TabLayout() {
         <Stack.Screen
           name="success"
           options={{
-            title: 'Succès',
+            title: '',
           }}
         />
       </Stack>
@@ -517,37 +569,20 @@ export default function TabLayout() {
               toggleSidebar();
             }}
           >
+            <Feather name="home" size={20} color={themeColors.icon} />
+            <Text style={[styles.navigationText, { color: themeColors.text }]}>Accueil</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.navigationItem}
+            onPress={() => {
+              router.push('/(tabs)/statistiques');
+              toggleSidebar();
+              setSuccessStats();
+            }}
+          >
             <Feather name="pie-chart" size={20} color={themeColors.icon} />
             <Text style={[styles.navigationText, { color: themeColors.text }]}>Statistiques</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.navigationItem}
-            onPress={() => {
-              router.push('/(tabs)/avatar');
-              toggleSidebar();
-            }}
-          >
-            <Feather name="smile" size={20} color={themeColors.icon} />
-            <Text style={[styles.navigationText, { color: themeColors.text }]}>Avatar</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.navigationItem}
-            onPress={() => {
-              router.push('/(tabs)/amis');
-              toggleSidebar();
-            }}
-          >
-            <View style={styles.navigationIconContainer}>
-            <Feather name="users" size={20} color={themeColors.icon} />
-              {pendingRequests > 0 && (
-                <View style={[styles.badge, { backgroundColor: '#ef4444' }]}>
-                  <Text style={styles.badgeText}>{pendingRequests}</Text>
-                </View>
-              )}
-            </View>
-            <Text style={[styles.navigationText, { color: themeColors.text }]}>Amis</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -575,6 +610,24 @@ export default function TabLayout() {
           <TouchableOpacity 
             style={styles.navigationItem}
             onPress={() => {
+              router.push('/(tabs)/amis');
+              toggleSidebar();
+            }}
+          >
+            <View style={styles.navigationIconContainer}>
+            <Feather name="users" size={20} color={themeColors.icon} />
+              {pendingRequests > 0 && (
+                <View style={[styles.badge, { backgroundColor: '#ef4444' }]}>
+                  <Text style={styles.badgeText}>{pendingRequests}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={[styles.navigationText, { color: themeColors.text }]}>Amis</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.navigationItem}
+            onPress={() => {
               router.push('/(tabs)/entrainement');
               toggleSidebar();
             }}
@@ -592,6 +645,17 @@ export default function TabLayout() {
           >
             <Feather name="star" size={20} color={themeColors.icon} />
             <Text style={[styles.navigationText, { color: themeColors.text }]}>Favoris</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.navigationItem}
+            onPress={() => {
+              router.push('/(tabs)/avatar');
+              toggleSidebar();
+            }}
+          >
+            <Feather name="smile" size={20} color={themeColors.icon} />
+            <Text style={[styles.navigationText, { color: themeColors.text }]}>Avatar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 

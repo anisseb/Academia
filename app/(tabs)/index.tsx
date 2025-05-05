@@ -1,12 +1,14 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
-import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { parseGradient } from '../utils/subjectGradients';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import { generateDailyExpression } from '../services/generateDailyExpression';
 import React from 'react';
+import { getClasseName, getSchoolTypeName } from '../utils/getLabelFromData';
 
 interface SubjectStats {
   averageScore: number;
@@ -17,23 +19,108 @@ interface SubjectStats {
   precision: number;
 }
 
+interface ExerciseData {
+  completedAt: string;
+  done: boolean;
+  exerciceId: string;
+  score: number;
+}
+
+type QuickActionProps = {
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  title: string;
+  onPress: () => void;
+  backgroundColor: string;
+  color: string;
+  description: string;
+};
+
+const QuickAction = ({ icon, title, onPress, backgroundColor, color, description }: QuickActionProps) => (
+  <TouchableOpacity 
+    style={[styles.quickAction, { backgroundColor: backgroundColor + '30' }]} 
+    onPress={onPress}
+    activeOpacity={0.8}
+  >
+    <View style={[styles.quickActionIcon, { backgroundColor: backgroundColor + '40' }]}>
+      <MaterialCommunityIcons name={icon} size={28} color={backgroundColor} />
+    </View>
+    <Text style={[styles.quickActionText, { color }]}>{title}</Text>
+    <Text style={[styles.quickActionDescription, { color }]}>{description}</Text>
+  </TouchableOpacity>
+);
+
+type StatCardProps = {
+  title: string;
+  value: number;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  color: string;
+  colorText: string;
+  trend?: number;
+};
+
+const StatCard = ({ title, value, icon, color, colorText, trend }: StatCardProps) => (
+  <View style={[styles.statCard, { backgroundColor: color + '30' }]}>
+    <View style={styles.statHeader}>
+      <MaterialCommunityIcons name={icon} size={24} color={color} />
+      {trend !== undefined && (
+        <View style={[styles.trendContainer, { backgroundColor: trend > 0 ? '#4CAF50' + '40' : '#ef4444' + '40' }]}>
+          <MaterialCommunityIcons 
+            name={trend > 0 ? 'trending-up' : 'trending-down'} 
+            size={16} 
+            color={trend > 0 ? '#4CAF50' : '#ef4444'} 
+          />
+          <Text style={[styles.trendText, { color: trend > 0 ? '#4CAF50' : '#ef4444' }]}>
+            {Math.abs(trend)}%
+          </Text>
+        </View>
+      )}
+    </View>
+    <Text style={[styles.statValue, { color }]}>{value}</Text>
+    <Text style={[styles.statTitle, { color: colorText }]}>{title}</Text>
+  </View>
+);
+
 export default function HomeScreen() {
   const { isDarkMode } = useTheme();
   const [stats, setStats] = useState<Record<string, SubjectStats>>({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [profileData, setProfileData] = useState<any>(null);
   const [subjectInfos, setSubjectInfos] = useState<Record<string, any>>({});
   const [isLoadingSubjects, setIsLoadingSubjects] = useState(false);
+  const [userStats, setUserStats] = useState({
+    completedCourses: 0,
+    completedExercises: 0,
+    totalPoints: 0,
+    achievements: 0
+  });
+  const [userName, setUserName] = useState('');
+  const [dailyExpression, setDailyExpression] = useState<{ title: string; message: string } | null>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
     text: isDarkMode ? '#ffffff' : '#000000',
     card: isDarkMode ? '#2d2d2d' : '#f5f5f5',
     primary: '#60a5fa',
+    secondary: '#4CAF50',
+    accent: '#FFD700',
+    danger: '#ef4444'
   };
-  
+
+  const headerHeight = scrollY.interpolate({
+    inputRange: [0, 50],
+    outputRange: [100, 0],
+    extrapolate: 'clamp',
+  });
+
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 50],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
   useEffect(() => {
     loadUserStats();
+    loadUserName();
+    loadDailyExpression();
   }, []);
 
   useEffect(() => {
@@ -43,6 +130,8 @@ export default function HomeScreen() {
   const loadUserStats = async () => {
     try {
       const user = auth.currentUser;
+      let totalScore = 0;
+      let countExercises = 0;
       if (!user) return;
 
       const userDoc = await getDoc(doc(db, 'users', user.uid));
@@ -50,122 +139,55 @@ export default function HomeScreen() {
 
       const userData = userDoc.data();
       const profile = userData.profile || {};
-      setProfileData(profile);
-      
-      // Récupérer tous les exercices complétés de la nouvelle structure
-      const exercises = profile.exercises || {};
-      const completedExercises: any[] = [];
+      const cours = userData.success.cours || {};
+      const completedAchievements = profile.completedAchievements || [];
+      const completedCourses = Object.keys(cours).length;
 
-      // Parcourir la structure imbriquée pour extraire tous les exercices
-      Object.entries(exercises).forEach(([schoolType, schoolTypeData]) => {
-        if (typeof schoolTypeData === 'object' && schoolTypeData !== null) {
-          Object.entries(schoolTypeData).forEach(([classe, classeData]) => {
-            if (typeof classeData === 'object' && classeData !== null) {
-              Object.entries(classeData).forEach(([subject, subjectData]) => {
-                if (typeof subjectData === 'object' && subjectData !== null) {
-                  Object.entries(subjectData).forEach(([chapterId, chapterData]) => {
-                    if (typeof chapterData === 'object' && chapterData !== null) {
-                      Object.entries(chapterData).forEach(([contentId, contentExercises]) => {
-                        if (Array.isArray(contentExercises)) {
-                          contentExercises.forEach((exercise: any) => {
-                            completedExercises.push({
-                              ...exercise,
-                              subject,
-                              chapterId,
-                              contentId
-                            });
-                          });
-                        }
-                      });
+      Object.values(profile.exercises || {}).forEach((schoolType: any) => {
+        Object.values(schoolType || {}).forEach((classData: any) => {
+          Object.values(classData || {}).forEach((subject: any) => {
+            Object.values(subject || {}).forEach((theme: any) => {
+              Object.values(theme || {}).forEach((chapter: any) => {
+                if (Array.isArray(chapter)) {
+                  chapter.forEach((exercise: unknown) => {
+                    const exerciseData = exercise as ExerciseData;
+                    if (exerciseData.done) {
+                      totalScore += exerciseData.score;
+                      countExercises++;
                     }
                   });
                 }
               });
-            }
+            });
           });
-        }
-      });
-      
-      // Regrouper les exercices par matière
-      const exercisesBySubject: Record<string, any[]> = {};
-      
-      completedExercises.forEach((exercise: any) => {
-        const subject = exercise.subject;
-        if (!exercisesBySubject[subject]) {
-          exercisesBySubject[subject] = [];
-        }
-        exercisesBySubject[subject].push(exercise);
-      });
-      
-      // Calculer les statistiques pour chaque matière
-      const newStats: Record<string, SubjectStats> = {};
-      
-      Object.entries(exercisesBySubject).forEach(([subject, subjectExercises]) => {
-        // Calculer les statistiques pour cette matière
-        const totalExercises = subjectExercises.length;
-        const validExercises = subjectExercises.filter(ex => ex.score !== undefined && ex.score !== null);
-        
-        const totalScore = validExercises.reduce((sum, ex) => {
-          return sum + (ex.score || 0);
-        }, 0);
-        
-        const averageScore = validExercises.length > 0 ? totalScore / validExercises.length : 0;
-        
-        // Calculer les jours consécutifs
-        const dates = subjectExercises
-          .map(ex => new Date(ex.completedAt).toDateString())
-          .sort()
-          .filter((date, index, array) => array.indexOf(date) === index);
-        
-        // Calculer les réponses correctes/incorrectes basées sur le score
-        const correctAnswers = validExercises.reduce((sum, ex) => {
-          return sum + Math.round(((ex.score || 0) / 100) * 10);
-        }, 0);
-        
-        const incorrectAnswers = validExercises.reduce((sum, ex) => {
-          return sum + (10 - Math.round(((ex.score || 0) / 100) * 10));
-        }, 0);
-        
-        newStats[subject] = {
-          averageScore: Math.round(averageScore),
-          completedExercises: totalExercises,
-          consecutiveDays: calculateConsecutiveDays(dates),
-          correctAnswers,
-          incorrectAnswers,
-          precision: correctAnswers + incorrectAnswers > 0 
-            ? Math.round((correctAnswers / (correctAnswers + incorrectAnswers)) * 100) 
-            : 0
-        };
+        });
       });
 
-      setStats(newStats);
+      setUserStats({
+        completedCourses,
+        completedExercises: countExercises,
+        totalPoints: totalScore,
+        achievements: completedAchievements.length
+      });
     } catch (error) {
-      console.error('Erreur lors du chargement des stats:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Erreur lors du chargement des statistiques:', error);
     }
   };
 
-  const calculateConsecutiveDays = (dates: string[]) => {
-    if (dates.length === 0) return 0;
-    
-    let consecutiveDays = 1;
-    let currentDate = new Date(dates[0]);
-    
-    for (let i = 1; i < dates.length; i++) {
-      const nextDate = new Date(dates[i]);
-      const diffTime = Math.abs(currentDate.getTime() - nextDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays === 1) {
-        consecutiveDays++;
-        currentDate = nextDate;
-      } else {
-        break;
-      }
+  const loadUserName = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) return;
+
+      const userData = userDoc.data();
+      const profile = userData.profile || {};
+      setUserName(profile.name || '');
+    } catch (error) {
+      console.error('Erreur lors du chargement du prénom:', error);
     }
-    
-    return consecutiveDays;
   };
 
   const getSubjectInfo = async (subjectId: string) => {
@@ -219,144 +241,306 @@ export default function HomeScreen() {
     }
   };
 
-  const renderSubjectStats = (subject: string, stats: SubjectStats) => {
-    const subjectInfo = subjectInfos[subject];
-    if (!subjectInfo) return null;
-    
-    const cardsColors = 'rgba(13, 103, 172, 0.56)';
+  const loadDailyExpression = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
 
-    return (
-      <View key={subject} style={[styles.statsCard, { backgroundColor: 'rgba(234, 232, 232, 0.78)' }]}>
-        <View style={styles.subjectHeader}>
-          <MaterialCommunityIcons 
-            name={subjectInfo.icon || 'book-open-variant'} 
-            size={24} 
-            color={parseGradient(subjectInfo.gradient)[0]} 
-          />
-          <Text style={[styles.subjectTitle, { color: themeColors.text }]}>
-            {subjectInfo.label}
-          </Text>
-        </View>
-        
-        <View style={[styles.mainStatCard, { backgroundColor: cardsColors }]}>
-          <Ionicons name="trophy" size={24} color="#FFD700" />
-          <Text style={[styles.scoreText, { color: themeColors.text }]}>
-            {stats.averageScore}%
-          </Text>
-          <Text style={styles.scoreLabel}>Score moyen</Text>
-        </View>
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) return;
 
-        <View style={styles.statsGrid}>
-          <View style={[styles.statItem, { backgroundColor: cardsColors }]}>
-            <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-            <Text style={[styles.statValue, { color: themeColors.text }]}>{stats.completedExercises}</Text>
-            <Text style={styles.statLabel}>Quiz terminés</Text>
-          </View>
+      const userData = userDoc.data();
+      const profile = userData.profile || {};
+      const schoolType = profile.schoolType;
+      const level = profile.class;
 
-          <View style={[styles.statItem, { backgroundColor: cardsColors }]}>
-            <Ionicons name="time" size={20} color="#2196F3" />
-            <Text style={[styles.statValue, { color: themeColors.text }]}>{stats.consecutiveDays}</Text>
-            <Text style={styles.statLabel}>Jours consécutifs</Text>
-          </View>
+      if (!schoolType || !level) return;
 
-          <View style={[styles.statItem, { backgroundColor: cardsColors }]}>
-            <Ionicons name="checkmark" size={20} color="#4CAF50" />
-            <Text style={[styles.statValue, { color: themeColors.text }]}>{stats.correctAnswers}</Text>
-            <Text style={styles.statLabel}>Réponses correctes</Text>
-          </View>
-
-          <View style={[styles.statItem, { backgroundColor: cardsColors }]}>
-            <Ionicons name="close" size={20} color="#F44336" />
-            <Text style={[styles.statValue, { color: themeColors.text }]}>{stats.incorrectAnswers}</Text>
-            <Text style={styles.statLabel}>Réponses incorrectes</Text>
-          </View>
-        </View>
-
-        <View style={[styles.precisionContainer]}>
-          <View style={styles.precisionBar}>
-            <View style={[styles.precisionFill, { 
-              width: `${stats.precision}%`,
-              backgroundColor: parseGradient(subjectInfo.gradient)[0]
-            }]} />
-            <Text style={styles.precisionText}>{stats.precision}% de précision</Text>
-          </View>
-        </View>
-      </View>
-    );
+      const expression = await generateDailyExpression(await getSchoolTypeName(schoolType), await getClasseName(schoolType, level));
+      setDailyExpression(expression);
+    } catch (error) {
+      console.error('Erreur lors du chargement du proverbe:', error);
+    }
   };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: themeColors.background }]}
-      contentContainerStyle={{ paddingBottom: 40 }}
-    >
-      {Object.keys(stats).length === 0 ? (
-        <View style={styles.emptyStatsContainer}>
-          <MaterialCommunityIcons 
-            name="chart-line" 
-            size={48} 
-            color={themeColors.text} 
-            style={styles.emptyStatsIcon}
+    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+      <Animated.View style={[styles.header, { height: headerHeight }]}>
+        <LinearGradient
+          colors={['#60a5fa', '#3b82f6']}
+          style={styles.headerGradient}
+        >
+          <Animated.View style={{ opacity: headerOpacity }}>
+            <Text style={styles.welcomeText}>Bienvenue {userName} !</Text>
+          </Animated.View>
+        </LinearGradient>
+      </Animated.View>
+
+      <Animated.ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
+      >
+        {/* Proverbe du jour */}
+        {dailyExpression && (
+          <View style={[styles.dailyExpression, { backgroundColor: themeColors.card }]}>
+            <MaterialCommunityIcons
+              name="lightbulb-on" 
+              size={24} 
+              color={themeColors.accent} 
+              style={styles.dailyExpressionIcon}
+            />
+            <Text style={[styles.dailyExpressionTitle, { color: themeColors.text }]}>
+              {dailyExpression.title}
+            </Text>
+            <Text style={[styles.dailyExpressionMessage, { color: themeColors.text }]}>
+              {dailyExpression.message}
+            </Text>
+          </View>
+        )}
+
+        {/* Actions rapides */}
+        <View style={[styles.quickActionsContainer, { backgroundColor: themeColors.background }]}>
+          <QuickAction
+            icon="account-group"
+            title="Amis"
+            description="Connectez-vous avec vos amis"
+            onPress={() => router.push('/(tabs)/amis')}
+            backgroundColor={themeColors.primary}
+            color={themeColors.text}
           />
-          <Text style={[styles.emptyStatsText, { color: themeColors.text }]}>
-            Vous n'avez pas encore de statistiques
-          </Text>
-          <Text style={[styles.emptyStatsSubtext, { color: themeColors.text }]}>
-            Commencez votre entraînement pour voir votre progression
-          </Text>
+          <QuickAction
+            icon="pencil"
+            title="Exercices"
+            description="Entraînez-vous"
+            onPress={() => router.push('/entrainement')}
+            backgroundColor={themeColors.secondary}
+            color={themeColors.text}
+          />
+          <QuickAction
+            icon="trophy"
+            title="Succès"
+            description="Débloquez des récompenses"
+            onPress={() => router.push('/success')}
+            backgroundColor={themeColors.accent}
+            color={themeColors.text}
+          />
+          <QuickAction
+            icon="chart-bar"
+            title="Classement"
+            description="Comparez vos résultats"
+            onPress={() => router.push('/classement')}
+            backgroundColor={themeColors.danger}
+            color={themeColors.text}
+          />
         </View>
-      ) : (
-        <View>
-          <Text style={[styles.title, { color: themeColors.text }]}>Vos statistiques</Text>
-          <Text style={[styles.subtitle, { color: themeColors.text }]}>
-            Suivez votre progression et améliorez vos compétences
-          </Text>
-          {isLoadingSubjects ? (
-            <View style={styles.loadingContainer}>
-              <Text style={[styles.loadingText, { color: themeColors.text }]}>
-                Chargement des statistiques...
-              </Text>
-            </View>
-          ) : (
-            <>
-              {Object.entries(stats).map(([subject, subjectStats]) => 
-                renderSubjectStats(subject, subjectStats)
-              )}
-            </>
-          )}
+
+        {/* Statistiques */}
+        <View style={[styles.statsContainer, { backgroundColor: themeColors.background }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Vos statistiques</Text>
+          <View style={styles.statsGrid}>
+            <StatCard
+              title="Cours visonnés"
+              value={userStats.completedCourses}
+              icon="book-check"
+              color={themeColors.primary}
+              colorText={themeColors.text}
+            />
+            <StatCard
+              title="Exercices"
+              value={userStats.completedExercises}
+              icon="pencil"
+              color={themeColors.secondary}
+              colorText={themeColors.text}
+            />
+            <StatCard
+              title="Points"
+              value={userStats.totalPoints}
+              icon="star"
+              color={themeColors.danger}
+              colorText={themeColors.text}
+            />
+            <StatCard
+              title="Succès"
+              value={userStats.achievements}
+              icon="trophy"
+              color={themeColors.accent}
+              colorText={themeColors.text}
+            />
+          </View>
         </View>
-      )}
-    </ScrollView>
+
+        {/* Progression quotidienne */}
+        <View style={[styles.dailyProgress, { backgroundColor: themeColors.card }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Votre progression quotidienne</Text>
+          <View style={styles.progressBar}>
+            <View style={[styles.progressFill, { width: '75%', backgroundColor: themeColors.primary }]} />
+          </View>
+          <Text style={[styles.progressText, { color: themeColors.text }]}>75% de votre objectif quotidien atteint</Text>
+        </View>
+      </Animated.ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingBottom: 40,
   },
   header: {
-    padding: 24,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    overflow: 'hidden',
+    zIndex: 1,
   },
-  title: {
+  headerGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  welcomeText: {
     fontSize: 32,
     fontWeight: 'bold',
+    color: '#ffffff',
     marginBottom: 8,
-    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    textAlign: 'center',
-    opacity: 0.8,
+    color: '#ffffff',
+    opacity: 0.9,
+  },
+  quickActionsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginTop: 40,
+    marginBottom: 24,
+  },
+  quickAction: {
+    width: '48%',
+    borderRadius: 20,
+    padding: 16,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickActionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  quickActionText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#ffffff',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  quickActionDescription: {
+    fontSize: 12,
+    textAlign: 'center',
+    opacity: 0.7,
+  },
+  statsContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  statCard: {
+    width: '48%',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  trendContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  trendText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  statValue: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginVertical: 8,
+  },
+  statTitle: {
+    fontSize: 14,
+    color: '#ffffff',
+    opacity: 0.8,
+  },
+  dailyProgress: {
+    marginHorizontal: 20,
+    padding: 20,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    borderRadius: 4,
+    marginVertical: 12,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 14,
+    textAlign: 'center',
   },
   statsCard: {
     borderRadius: 20,
@@ -367,71 +551,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 5,
-  },
-  mainStatCard: {
-    alignItems: 'center',
-    marginBottom: 24,
-    padding: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 20,
-  },
-  statItem: {
-    width: '47%',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginVertical: 8,
-  },
-  statLabel: {
-    fontSize: 12,
-    opacity: 0.7,
-    color: 'rgba(255, 255, 255, 0.95)',
-    textAlign: 'center',
-  },
-  precisionContainer: {
-    padding: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.78)',
-    borderRadius: 16,
-  },
-  precisionBar: {
-    height: 24,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  precisionFill: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    bottom: 0,
-    backgroundColor: '#4CAF50',
-    borderRadius: 12,
-  },
-  precisionText: {
-    position: 'absolute',
-    width: '100%',
-    textAlign: 'center',
-    lineHeight: 20,
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
   },
   subjectHeader: {
     flexDirection: 'row',
@@ -483,5 +602,29 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  dailyExpression: {
+    marginHorizontal: 20,
+    marginTop: 140,
+    padding: 20,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  dailyExpressionIcon: {
+    marginBottom: 12,
+  },
+  dailyExpressionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  dailyExpressionMessage: {
+    fontSize: 14,
+    lineHeight: 20,
+    opacity: 0.9,
   },
 });

@@ -16,13 +16,27 @@ export const checkAnalyst = async (): Promise<number> => {
     if (!userDoc.exists()) return 0;
 
     const userData = userDoc.data();
-    const progressionViews = userData.progressionViews || {};
+    const progressionViews = userData.success.progressionViews || {};
     
-    // Vérifier si l'utilisateur a consulté son tableau de progression cette semaine
+    // Vérifier si l'utilisateur a consulté les stats toutes les semaines du mois
     const currentDate = new Date();
-    const currentWeek = currentDate.getFullYear() + '-' + getWeekNumber(currentDate);
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+    const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+    const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
     
-    return progressionViews[currentWeek] ? 1 : 0;
+    const weeksInMonth = [];
+    let currentWeekDate = new Date(firstDayOfMonth);
+    
+    while (currentWeekDate <= lastDayOfMonth) {
+      const weekNumber = getWeekNumber(currentWeekDate);
+      weeksInMonth.push(currentYear + '-' + weekNumber);
+      currentWeekDate.setDate(currentWeekDate.getDate() + 7);
+    }
+
+    const hasViewedAllWeeks = weeksInMonth.every(week => progressionViews[week]);
+    
+    return hasViewedAllWeeks ? 1 : 0;
   } catch (error) {
     console.error('Erreur lors de la vérification du succès Analyste:', error);
     return 0;

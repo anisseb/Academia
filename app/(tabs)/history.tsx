@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, KeyboardAvoidingView, Platform, TextInput, Alert, Animated, Keyboard, Platform as RNPlatform, AlertButton } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput, Alert, Animated, Keyboard, Platform as RNPlatform, AlertButton } from 'react-native';
 import { Mistral } from '@mistralai/mistralai';
 import { Camera as CameraIcon, X, Plus, Image as ImageIcon, FileText, Send } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -16,6 +16,7 @@ import AIProfileSelector, { AIProfile, AI_PROFILES } from '../components/AIProfi
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 const MISTRAL_API_KEY = '5YC1BWCbnpIqsViDDsK9zBbc1NgqjwAj';
 
 type Message = {
@@ -532,7 +533,8 @@ export default function HistoryScreen() {
               <View style={styles.profileContainer}>
                 <Image 
                   source={AI_PROFILES[selectedAIProfile].image} 
-                  style={styles.profileImage} 
+                  style={styles.profileImage}
+                  cachePolicy="memory-disk"
                 />
 
               </View>
