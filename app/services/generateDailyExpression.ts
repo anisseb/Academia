@@ -12,7 +12,7 @@ export async function generateDailyExpression(
     level: string
   ): Promise<DailyExpression> {
     const prompt = `Génère un proverbe de la journée pour un élève de ${level} de ${schoolType}.
-    Le proverbe doit suivre strictement ce format JSON :
+    IMPORTANT: Le proverbe doit suivre strictement ce format JSON, il ne doit pas contenir de texte supplémentaire :
     {
       "title": "Titre du proverbe",
       "message": "Message du proverbe",
@@ -22,7 +22,7 @@ export async function generateDailyExpression(
       const client = new Mistral({ apiKey: MISTRAL_API_KEY });
   
       const response = await client.chat.complete({
-          model: 'mistral-large-latest',
+          model: 'codestral-latest',
           messages: [
             {
               role: "user",
@@ -46,7 +46,7 @@ export async function generateDailyExpression(
       .replace(/```$/, '')
       .trim();
   
-      const dailyExpression = JSON.parse(cleanedContent.replace(/\\/g, '\\\\')) as DailyExpression;
+      const dailyExpression = JSON.parse(cleanedContent) as DailyExpression;
       return dailyExpression;
   
     } catch (error) {

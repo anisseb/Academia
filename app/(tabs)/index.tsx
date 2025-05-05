@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, ActivityIndicator } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useState, useEffect, useRef } from 'react';
 import { auth, db } from '../../firebaseConfig';
@@ -93,6 +93,7 @@ export default function HomeScreen() {
   });
   const [userName, setUserName] = useState('');
   const [dailyExpression, setDailyExpression] = useState<{ title: string; message: string } | null>(null);
+  const [isLoadingExpression, setIsLoadingExpression] = useState(true);
   const scrollY = useRef(new Animated.Value(0)).current;
 
   const themeColors = {
@@ -243,6 +244,7 @@ export default function HomeScreen() {
 
   const loadDailyExpression = async () => {
     try {
+      setIsLoadingExpression(true);
       const user = auth.currentUser;
       if (!user) return;
 
@@ -260,6 +262,8 @@ export default function HomeScreen() {
       setDailyExpression(expression);
     } catch (error) {
       console.error('Erreur lors du chargement du proverbe:', error);
+    } finally {
+      setIsLoadingExpression(false);
     }
   };
 
@@ -286,22 +290,35 @@ export default function HomeScreen() {
         scrollEventThrottle={16}
       >
         {/* Proverbe du jour */}
-        {dailyExpression && (
-          <View style={[styles.dailyExpression, { backgroundColor: themeColors.card }]}>
-            <MaterialCommunityIcons
-              name="lightbulb-on" 
-              size={24} 
-              color={themeColors.accent} 
-              style={styles.dailyExpressionIcon}
-            />
-            <Text style={[styles.dailyExpressionTitle, { color: themeColors.text }]}>
-              {dailyExpression.title}
-            </Text>
+        <View style={[styles.dailyExpression, { backgroundColor: themeColors.card }]}>
+          <MaterialCommunityIcons 
+            name="lightbulb-on" 
+            size={24} 
+            color={themeColors.accent} 
+            style={styles.dailyExpressionIcon}
+          />
+          {isLoadingExpression ? (
+            <View style={styles.loaderContainer}>
+              <ActivityIndicator size="small" color={themeColors.accent} />
+              <Text style={[styles.loadingText, { color: themeColors.text }]}>
+                Chargement du proverbe du jour...
+              </Text>
+            </View>
+          ) : dailyExpression ? (
+            <>
+              <Text style={[styles.dailyExpressionTitle, { color: themeColors.text }]}>
+                {dailyExpression.title}
+              </Text>
+              <Text style={[styles.dailyExpressionMessage, { color: themeColors.text }]}>
+                {dailyExpression.message}
+              </Text>
+            </>
+          ) : (
             <Text style={[styles.dailyExpressionMessage, { color: themeColors.text }]}>
-              {dailyExpression.message}
+              Impossible de charger le proverbe du jour.
             </Text>
-          </View>
-        )}
+          )}
+        </View>
 
         {/* Actions rapides */}
         <View style={[styles.quickActionsContainer, { backgroundColor: themeColors.background }]}>
@@ -600,8 +617,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    marginTop: 8,
+    fontSize: 14,
+    textAlign: 'center',
   },
   dailyExpression: {
     marginHorizontal: 20,
@@ -626,5 +644,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     opacity: 0.9,
+  },
+  loaderContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
   },
 });
