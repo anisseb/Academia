@@ -494,7 +494,7 @@ export default function ProfileScreen() {
               router.push('/(tabs)/success');
             }}
           >
-            <Text style={[styles.sectionDescription, { color: themeColors.text }]}>
+            <Text style={styles.btnVoirSucces}>
               Voir la liste des succès
             </Text>
           </TouchableOpacity>
@@ -879,6 +879,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 16,
     opacity: 0.7,
+    color: '#ffffff'
   },
   achievementsGrid: {
     flexDirection: 'row',
@@ -916,5 +917,10 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  btnVoirSucces: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 }); 

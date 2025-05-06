@@ -133,45 +133,74 @@ export default function HomeScreen() {
       const user = auth.currentUser;
       let totalScore = 0;
       let countExercises = 0;
-      if (!user) return;
+      let completedCourses = 0;
+      let completedAchievements = 0;
+
+      if (!user) {
+        setUserStats({
+          completedCourses: 0,
+          completedExercises: 0,
+          totalPoints: 0,
+          achievements: 0
+        });
+        return;
+      }
 
       const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (!userDoc.exists()) return;
+      if (!userDoc.exists()) {
+        setUserStats({
+          completedCourses: 0,
+          completedExercises: 0,
+          totalPoints: 0,
+          achievements: 0
+        });
+        return;
+      }
 
       const userData = userDoc.data();
       const profile = userData.profile || {};
-      const cours = userData.success.cours || {};
-      const completedAchievements = profile.completedAchievements || [];
-      const completedCourses = Object.keys(cours).length;
+      const cours = userData.success?.cours || {};
+      const achievements = profile.completedAchievements || [];
+      
+      completedCourses = Object.keys(cours).length;
+      completedAchievements = achievements.length;
 
-      Object.values(profile.exercises || {}).forEach((schoolType: any) => {
-        Object.values(schoolType || {}).forEach((classData: any) => {
-          Object.values(classData || {}).forEach((subject: any) => {
-            Object.values(subject || {}).forEach((theme: any) => {
-              Object.values(theme || {}).forEach((chapter: any) => {
-                if (Array.isArray(chapter)) {
-                  chapter.forEach((exercise: unknown) => {
-                    const exerciseData = exercise as ExerciseData;
-                    if (exerciseData.done) {
-                      totalScore += exerciseData.score;
-                      countExercises++;
-                    }
-                  });
-                }
+      if (profile.exercises) {
+        Object.values(profile.exercises).forEach((schoolType: any) => {
+          Object.values(schoolType || {}).forEach((classData: any) => {
+            Object.values(classData || {}).forEach((subject: any) => {
+              Object.values(subject || {}).forEach((theme: any) => {
+                Object.values(theme || {}).forEach((chapter: any) => {
+                  if (Array.isArray(chapter)) {
+                    chapter.forEach((exercise: unknown) => {
+                      const exerciseData = exercise as ExerciseData;
+                      if (exerciseData.done) {
+                        totalScore += exerciseData.score || 0;
+                        countExercises++;
+                      }
+                    });
+                  }
+                });
               });
             });
           });
         });
-      });
+      }
 
       setUserStats({
         completedCourses,
         completedExercises: countExercises,
         totalPoints: totalScore,
-        achievements: completedAchievements.length
+        achievements: completedAchievements
       });
     } catch (error) {
       console.error('Erreur lors du chargement des statistiques:', error);
+      setUserStats({
+        completedCourses: 0,
+        completedExercises: 0,
+        totalPoints: 0,
+        achievements: 0
+      });
     }
   };
 
