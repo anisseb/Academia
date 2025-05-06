@@ -35,9 +35,6 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-# android
-android/
-
 # secrets
 credentials/*.json
 

@@ -17,7 +17,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.anisse3000.academia",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSFaceIDUsageDescription": "Academia utilise Face ID pour vous permettre de vous connecter rapidement et de manière sécurisée à votre compte."
       }
     },
     "android": {
@@ -25,7 +26,9 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive_icon.png"
       },
-      "package": "com.anisse3000.academia"
+      "package": "com.anisse3000.academia",
+      "permissions": ["CAMERA"],
+      "privacyPolicy": "https://academiaforkids.com/politique-de-confidentialite-academia/"
     },
     "web": {
       "bundler": "metro",
@@ -55,9 +58,14 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash_icon.png",
-          "resizeMode": "native",
-          "enableFullScreenImage_legacy": true,
+          "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Autoriser $(PRODUCT_NAME) à utiliser Face ID."
         }
       ],
       [

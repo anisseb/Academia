@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -16,6 +16,9 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { showErrorAlert, showSuccessAlert } from './utils/alerts';
+import { Image } from 'expo-image';
+import * as LocalAuthentication from 'expo-local-authentication';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function AuthScreen() {
   const [email, setEmail] = useState('');
@@ -25,8 +28,88 @@ export default function AuthScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const router = useRouter();
   const auth = getAuth();
+
+  useEffect(() => {
+    checkBiometricSupport();
+    loadSavedCredentials();
+  }, []);
+
+  const checkBiometricSupport = async () => {
+    const compatible = await LocalAuthentication.hasHardwareAsync();
+    const enrolled = await LocalAuthentication.isEnrolledAsync();
+    setIsBiometricSupported(compatible && enrolled);
+  };
+
+  const loadSavedCredentials = async () => {
+    try {
+      const savedEmail = await AsyncStorage.getItem('userEmail');
+      const savedPassword = await AsyncStorage.getItem('userPassword');
+      if (savedEmail && savedPassword) {
+        setEmail(savedEmail);
+        setPassword(savedPassword);
+        // Proposer FaceID immédiatement si disponible
+        if (isBiometricSupported) {
+          handleBiometricAuth();
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des identifiants:', error);
+    }
+  };
+
+  const saveCredentials = async (email: string, password: string) => {
+    try {
+      await AsyncStorage.setItem('userEmail', email);
+      await AsyncStorage.setItem('userPassword', password);
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde des identifiants:', error);
+    }
+  };
+
+  const handleBiometricAuth = async () => {
+    try {
+      // Vérifier d'abord si FaceID est disponible
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      
+      if (!compatible || !enrolled) {
+        showErrorAlert('Erreur', 'Face ID n\'est pas disponible sur cet appareil');
+        return;
+      }
+
+      // Vérifier les types d'authentification supportés
+      const supportedTypes = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      const hasFaceID = supportedTypes.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION);
+
+      if (!hasFaceID) {
+        showErrorAlert('Erreur', 'Face ID n\'est pas disponible sur cet appareil');
+        return;
+      }
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Authentification avec Face ID',
+        fallbackLabel: 'Utiliser le mot de passe',
+        disableDeviceFallback: false,
+        cancelLabel: 'Annuler',
+        requireConfirmation: true
+      });
+
+      if (result.success) {
+        handleAuth();
+      } else if (result.error === 'user_cancel') {
+        // L'utilisateur a annulé l'authentification
+        return;
+      } else {
+        showErrorAlert('Erreur', 'L\'authentification Face ID a échoué');
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'authentification biométrique:', error);
+      showErrorAlert('Erreur', 'Une erreur est survenue lors de l\'authentification Face ID');
+    }
+  };
 
   // Fonction pour vérifier la complexité du mot de passe
   const isPasswordValid = (pass: string) => {
@@ -74,6 +157,9 @@ export default function AuthScreen() {
     try {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
+        if (isBiometricSupported) {
+          await saveCredentials(email, password);
+        }
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const userId = userCredential.user.uid;
@@ -187,12 +273,12 @@ export default function AuthScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Text style={styles.appTitle}>Academ<Text style={styles.highlightText}>IA</Text></Text>
+          <Image source={require('../assets/images/logo.png')} style={styles.logo} contentFit="cover" cachePolicy="memory-disk" />
           <Text style={styles.appSubtitle}>Ton assistant personnel d'apprentissage</Text>
         </View>
 
         <View style={styles.formContainer}>
-          <Text style={styles.title}>{isLogin ? '👋 Connexion' : '✨ Inscription'}</Text>
+          <Text style={styles.title}>{isLogin ? '👤 Connexion' : '✍️ Inscription'}</Text>
           
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>📧 Email</Text>
@@ -295,6 +381,23 @@ export default function AuthScreen() {
               </Text>
             )}
           </TouchableOpacity>
+
+          {isLogin && isBiometricSupported && (
+            <TouchableOpacity 
+              style={styles.biometricButton} 
+              onPress={handleBiometricAuth}
+              disabled={isLoading}
+            >
+              <MaterialCommunityIcons 
+                name={Platform.OS === 'ios' ? 'face-recognition' : 'fingerprint'} 
+                size={24} 
+                color="#60a5fa" 
+              />
+              <Text style={styles.biometricButtonText}>
+                {Platform.OS === 'ios' ? 'Se connecter avec Face ID' : 'Se connecter avec l\'empreinte'}
+              </Text>
+            </TouchableOpacity>
+          )}
           
           <TouchableOpacity 
             style={styles.switchButton} 
@@ -452,5 +555,25 @@ const styles = StyleSheet.create({
   forgotPasswordText: {
     color: '#60a5fa',
     fontSize: 14,
+  },
+  logo: {
+    width: 320,
+    height: 120,
+  },
+  biometricButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 15,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#60a5fa',
+  },
+  biometricButtonText: {
+    color: '#60a5fa',
+    marginLeft: 10,
+    fontSize: 14,
+    fontWeight: '600',
   },
 }); 
