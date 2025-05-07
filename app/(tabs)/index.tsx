@@ -2,13 +2,15 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated, ActivityIndicator }
 import { useTheme } from '../context/ThemeContext';
 import { useState, useEffect, useRef } from 'react';
 import { auth, db } from '../../firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { generateDailyExpression } from '../services/generateDailyExpression';
 import React from 'react';
 import { getClasseName, getSchoolTypeName } from '../utils/getLabelFromData';
+import { getAuth } from 'firebase/auth';
+import { setDoc } from 'firebase/firestore';
 
 interface SubjectStats {
   averageScore: number;
@@ -95,6 +97,12 @@ export default function HomeScreen() {
   const [dailyExpression, setDailyExpression] = useState<{ title: string; message: string } | null>(null);
   const [isLoadingExpression, setIsLoadingExpression] = useState(true);
   const scrollY = useRef(new Animated.Value(0)).current;
+  const [progress, setProgress] = useState(0);
+  const [todayExercisesCount, setTodayExercisesCount] = useState(0);
+  const [todayCourses, setTodayCourses] = useState<any[]>([]);
+  const [exerciseProgress, setExerciseProgress] = useState(0);
+  const [courseProgress, setCourseProgress] = useState(0);
+  const [totalProgress, setTotalProgress] = useState(0);
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -108,15 +116,34 @@ export default function HomeScreen() {
 
   const headerHeight = scrollY.interpolate({
     inputRange: [0, 50],
-    outputRange: [100, 0],
+    outputRange: [140, 0],
     extrapolate: 'clamp',
   });
 
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 50],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  });
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
 
   useEffect(() => {
     loadUserStats();
@@ -296,15 +323,209 @@ export default function HomeScreen() {
     }
   };
 
+  const evaluateDailyProgress = async () => {
+    try {
+      const auth = getAuth();
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Récupérer les données de l'utilisateur
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (!userDoc.exists()) return;
+
+      const userData = userDoc.data();
+      const profile = userData.profile || {};
+      const exercises = profile.exercises || {};
+      const courses = userData.success?.cours || {};
+
+      // Compter les exercices complétés aujourd'hui
+      let todayExercisesCount = 0;
+      Object.entries(exercises).forEach(([schoolType, schoolTypeData]) => {
+        if (typeof schoolTypeData === 'object' && schoolTypeData !== null) {
+          Object.entries(schoolTypeData).forEach(([classe, classeData]) => {
+            if (typeof classeData === 'object' && classeData !== null) {
+              Object.entries(classeData).forEach(([subject, subjectData]) => {
+                if (typeof subjectData === 'object' && subjectData !== null) {
+                  Object.entries(subjectData).forEach(([chapterId, chapterData]) => {
+                    if (typeof chapterData === 'object' && chapterData !== null) {
+                      Object.entries(chapterData).forEach(([contentId, contentData]) => {
+                        if (Array.isArray(contentData)) {
+                          contentData.forEach((exercise: any) => {
+                            if (exercise.completedAt) {
+                              const exDate = new Date(exercise.completedAt);
+                              exDate.setHours(0, 0, 0, 0);
+                              if (exDate.getTime() === today.getTime()) {
+                                todayExercisesCount++;
+                              }
+                            }
+                          });
+                        }
+                      });
+                    }
+                  });
+                }
+              });
+            }
+          });
+        }
+      });
+
+      // Filtrer les cours d'aujourd'hui
+      const todayCourses = Object.values(courses).filter((course: any) => {
+        const courseDate = new Date(course.timestamp);
+        courseDate.setHours(0, 0, 0, 0);
+        return courseDate.getTime() === today.getTime();
+      });
+
+      // Calculer la progression
+      const exerciseProgress = Math.min(todayExercisesCount / 3, 1); // 3 exercices = 100%
+      const courseProgress = todayCourses.length > 0 ? 1 : 0; // 1 cours = 100%
+      const totalProgress = Math.round((exerciseProgress + courseProgress) / 2 * 100);
+
+      // Mettre à jour les états
+      setTodayExercisesCount(todayExercisesCount);
+      setTodayCourses(todayCourses);
+      setExerciseProgress(exerciseProgress);
+      setCourseProgress(courseProgress);
+      setTotalProgress(totalProgress);
+
+      // Si la progression est de 100%, incrémenter le compteur dans l'objet success
+      if (totalProgress >= 100) {
+        const userRef = doc(db, 'users', userId);
+        const userData = await getDoc(userRef);
+        
+        if (userData.exists()) {
+          const currentData = userData.data();
+          const currentCount = currentData.success?.dailyProgress?.count || 0;
+          const lastUpdated = currentData.success?.dailyProgress?.lastUpdated?.toDate();
+          
+          // Vérifier si la dernière mise à jour date d'aujourd'hui
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          const lastUpdatedDate = lastUpdated ? new Date(lastUpdated) : null;
+          const isToday = lastUpdatedDate ? 
+            lastUpdatedDate.setHours(0, 0, 0, 0) === today.getTime() : 
+            false;
+          
+          // N'incrémenter que si la dernière mise à jour n'est pas d'aujourd'hui
+          if (!isToday) {
+            await updateDoc(userRef, {
+              'success.dailyProgress': {
+                count: currentCount + 1,
+                lastUpdated: new Date()
+              }
+            });
+          }
+        }
+      }
+
+      return totalProgress;
+    } catch (error) {
+      console.error('Erreur lors de l\'évaluation de la progression:', error);
+      setProgress(0);
+      return 0;
+    }
+  };
+
+  useEffect(() => {
+    const checkProgress = async () => {
+      await evaluateDailyProgress();
+    };
+    checkProgress();
+  }, []);
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <Animated.View style={[styles.header, { height: headerHeight }]}>
         <LinearGradient
-          colors={['#60a5fa', '#3b82f6']}
+          colors={['#0f172a', '#1e293b']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={styles.headerGradient}
         >
-          <Animated.View style={{ opacity: headerOpacity }}>
-            <Text style={styles.welcomeText}>Bienvenue {userName} !</Text>
+          <Animated.View 
+            style={[
+              styles.headerContent,
+              {
+                opacity: fadeAnim,
+                transform: [
+                  { translateY: slideAnim },
+                  { scale: scaleAnim }
+                ]
+              }
+            ]}
+          >
+            <View style={styles.headerTop}>
+              <View style={styles.welcomeContainer}>
+                <Animated.Text 
+                  style={[
+                    styles.welcomeText,
+                    {
+                      transform: [{
+                        scale: scrollY.interpolate({
+                          inputRange: [-50, 0, 50],
+                          outputRange: [1.1, 1, 0.9],
+                          extrapolate: 'clamp',
+                        })
+                      }]
+                    }
+                  ]}
+                >
+                  <Text style={styles.welcomePrefix}>Bienvenue</Text>
+                </Animated.Text>
+                <Animated.Text 
+                  style={[
+                    styles.welcomeName,
+                    {
+                      transform: [{
+                        translateX: scrollY.interpolate({
+                          inputRange: [-50, 0, 50],
+                          outputRange: [0, 0, -10],
+                          extrapolate: 'clamp',
+                        })
+                      }]
+                    }
+                  ]}
+                >
+                  {userName}
+                </Animated.Text>
+                <Animated.View 
+                  style={[
+                    styles.divider,
+                    {
+                      width: scrollY.interpolate({
+                        inputRange: [-50, 0, 50],
+                        outputRange: ['90%', '70%', '50%'],
+                        extrapolate: 'clamp',
+                      }),
+                      opacity: scrollY.interpolate({
+                        inputRange: [-50, 0, 50],
+                        outputRange: [1, 0.8, 0],
+                        extrapolate: 'clamp',
+                      })
+                    }
+                  ]}
+                />
+                <Animated.Text 
+                  style={[
+                    styles.headerSubtitle,
+                    {
+                      opacity: scrollY.interpolate({
+                        inputRange: [-50, 0, 50],
+                        outputRange: [1, 1, 0],
+                        extrapolate: 'clamp',
+                      })
+                    }
+                  ]}
+                >
+                  Prêt à explorer aujourd'hui ?
+                </Animated.Text>
+              </View>
+            </View>
           </Animated.View>
         </LinearGradient>
       </Animated.View>
@@ -319,7 +540,14 @@ export default function HomeScreen() {
         scrollEventThrottle={16}
       >
         {/* Proverbe du jour */}
-        <View style={[styles.dailyExpression, { backgroundColor: themeColors.card }]}>
+        <Animated.View style={[
+          styles.dailyExpression, 
+          { 
+            backgroundColor: themeColors.card,
+            marginTop: Animated.add(headerHeight, 30),
+            marginBottom: 30
+          }
+        ]}>
           <MaterialCommunityIcons 
             name="lightbulb-on" 
             size={24} 
@@ -347,42 +575,117 @@ export default function HomeScreen() {
               Impossible de charger le proverbe du jour.
             </Text>
           )}
+        </Animated.View>
+
+        {/* Progression quotidienne */}
+        <View style={[
+          styles.dailyProgress, 
+          { 
+            backgroundColor: totalProgress >= 100 ? themeColors.secondary + '20' : themeColors.card,
+            borderColor: totalProgress >= 100 ? themeColors.secondary + '40' : 'transparent',
+            borderWidth: totalProgress >= 100 ? 1 : 0
+          }
+        ]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Votre progression quotidienne</Text>
+          
+          {/* Barre de progression des exercices */}
+          <View style={styles.progressSection}>
+            <View style={styles.progressHeader}>
+              <Text style={[styles.progressLabel, { color: themeColors.text }]}>
+                Exercices ({todayExercisesCount}/3)
+              </Text>
+              <Text style={[styles.progressPercentage, { color: themeColors.text }]}>
+                {Math.round(exerciseProgress * 100)}%
+              </Text>
+            </View>
+            <View style={styles.progressBar}>
+              <View 
+                style={[
+                  styles.progressFill, 
+                  { 
+                    width: `${exerciseProgress * 100}%`, 
+                    backgroundColor: themeColors.secondary 
+                  }
+                ]} 
+              />
+            </View>
+          </View>
+
+          {/* Barre de progression des cours */}
+          <View style={styles.progressSection}>
+            <View style={styles.progressHeader}>
+              <Text style={[styles.progressLabel, { color: themeColors.text }]}>
+                Cours ({todayCourses.length}/1)
+              </Text>
+              <Text style={[styles.progressPercentage, { color: themeColors.text }]}>
+                {Math.round(courseProgress * 100)}%
+              </Text>
+            </View>
+            <View style={styles.progressBar}>
+              <View 
+                style={[
+                  styles.progressFill, 
+                  { 
+                    width: `${courseProgress * 100}%`, 
+                    backgroundColor: themeColors.secondary 
+                  }
+                ]} 
+              />
+            </View>
+          </View>
+
+          {/* Indicateur de validation */}
+          {totalProgress >= 100 && (
+            <View style={styles.validationContainer}>
+              <MaterialCommunityIcons 
+                name="check-circle" 
+                size={24} 
+                color={themeColors.secondary} 
+              />
+              <Text style={[styles.validationText, { color: themeColors.secondary }]}>
+                Objectif quotidien atteint !
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Actions rapides */}
         <View style={[styles.quickActionsContainer, { backgroundColor: themeColors.background }]}>
-          <QuickAction
-            icon="account-group"
-            title="Amis"
-            description="Connectez-vous avec vos amis"
-            onPress={() => router.push('/(tabs)/amis')}
-            backgroundColor={themeColors.primary}
-            color={themeColors.text}
-          />
-          <QuickAction
-            icon="pencil"
-            title="Exercices"
-            description="Entraînez-vous"
-            onPress={() => router.push('/entrainement')}
-            backgroundColor={themeColors.secondary}
-            color={themeColors.text}
-          />
-          <QuickAction
-            icon="trophy"
-            title="Succès"
-            description="Débloquez des récompenses"
-            onPress={() => router.push('/success')}
-            backgroundColor={themeColors.accent}
-            color={themeColors.text}
-          />
-          <QuickAction
-            icon="chart-bar"
-            title="Classement"
-            description="Comparez vos résultats"
-            onPress={() => router.push('/classement')}
-            backgroundColor={themeColors.danger}
-            color={themeColors.text}
-          />
+          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Accès rapide</Text>
+          <View style={styles.quickActionsGrid}>
+            <QuickAction
+              icon="account-group"
+              title="Amis"
+              description="Connectez-vous avec vos amis"
+              onPress={() => router.push('/(tabs)/amis')}
+              backgroundColor={themeColors.primary}
+              color={themeColors.text}
+            />
+            <QuickAction
+              icon="pencil"
+              title="Exercices"
+              description="Entraînez-vous"
+              onPress={() => router.push('/entrainement')}
+              backgroundColor={themeColors.secondary}
+              color={themeColors.text}
+            />
+            <QuickAction
+              icon="trophy"
+              title="Succès"
+              description="Débloquez des récompenses"
+              onPress={() => router.push('/success')}
+              backgroundColor={themeColors.accent}
+              color={themeColors.text}
+            />
+            <QuickAction
+              icon="chart-bar"
+              title="Classement"
+              description="Comparez vos résultats"
+              onPress={() => router.push('/classement')}
+              backgroundColor={themeColors.danger}
+              color={themeColors.text}
+            />
+          </View>
         </View>
 
         {/* Statistiques */}
@@ -419,15 +722,6 @@ export default function HomeScreen() {
             />
           </View>
         </View>
-
-        {/* Progression quotidienne */}
-        <View style={[styles.dailyProgress, { backgroundColor: themeColors.card }]}>
-          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Votre progression quotidienne</Text>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: '75%', backgroundColor: themeColors.primary }]} />
-          </View>
-          <Text style={[styles.progressText, { color: themeColors.text }]}>75% de votre objectif quotidien atteint</Text>
-        </View>
       </Animated.ScrollView>
     </View>
   );
@@ -453,27 +747,65 @@ const styles = StyleSheet.create({
   },
   headerGradient: {
     flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  headerContent: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeContainer: {
+    flex: 1,
+    alignItems: 'center',
+    paddingBottom: 10,
+  },
   welcomeText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#ffffff',
     marginBottom: 8,
   },
-  subtitle: {
-    fontSize: 16,
+  welcomePrefix: {
+    color: '#94a3b8',
+    fontSize: 22,
+    fontWeight: '500',
+    letterSpacing: 1,
+  },
+  welcomeName: {
     color: '#ffffff',
-    opacity: 0.9,
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    lineHeight: 28,
+  },
+  divider: {
+    height: 2,
+    backgroundColor: '#60a5fa',
+    marginBottom: 6,
+    borderRadius: 1,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: '#94a3b8',
+    fontWeight: '500',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    paddingBottom: 10,
   },
   quickActionsContainer: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  quickActionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginTop: 40,
-    marginBottom: 24,
   },
   quickAction: {
     width: '48%',
@@ -510,7 +842,6 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     paddingHorizontal: 20,
-    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 20,
@@ -574,85 +905,45 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
+  progressSection: {
+    marginBottom: 16,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  progressPercentage: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
   progressBar: {
     height: 8,
     backgroundColor: 'rgba(0,0,0,0.1)',
     borderRadius: 4,
-    marginVertical: 12,
   },
   progressFill: {
     height: '100%',
     borderRadius: 4,
   },
-  progressText: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  statsCard: {
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  subjectHeader: {
+  validationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginTop: 8,
     gap: 8,
   },
-  subjectTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  scoreText: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    marginVertical: 8,
-  },
-  scoreLabel: {
-    fontSize: 16,
-    opacity: 0.7,
-    color: 'rgba(255, 255, 255, 0.95)',
-  },
-  emptyStatsContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyStatsIcon: {
-    marginBottom: 16,
-    opacity: 0.5,
-  },
-  emptyStatsText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  emptyStatsSubtext: {
+  validationText: {
     fontSize: 14,
-    textAlign: 'center',
-    opacity: 0.7,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 8,
-    fontSize: 14,
-    textAlign: 'center',
+    fontWeight: '600',
   },
   dailyExpression: {
     marginHorizontal: 20,
-    marginTop: 140,
     padding: 20,
     borderRadius: 20,
     shadowColor: '#000',
@@ -678,5 +969,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
+  },
+  loadingText: {
+    marginTop: 8,
+    fontSize: 14,
+    textAlign: 'center',
   },
 });

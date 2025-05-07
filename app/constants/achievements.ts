@@ -137,6 +137,15 @@ export const IA_ACHIEVEMENTS: Achievement[] = [
 
 export const SPECIAL_BADGES_ACHIEVEMENTS: Achievement[] = [
   {
+    id: 'daily_quest_master',
+    title: 'Maître des quêtes',
+    description: 'Compléter 20 quêtes quotidiennes',
+    icon: '🎯',
+    category: 'Badges spéciaux',
+    maxProgress: 20,
+    imagePath: require('../../assets/images/success/special_badges/daily_quest_master.png')
+  },
+  {
     id: 'all_terrain',
     title: 'Tout-terrain',
     description: 'Faire un QCM dans 5 matières différentes',

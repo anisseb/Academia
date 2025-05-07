@@ -8,17 +8,19 @@
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/splash_icon.png",
-      "resizeMode": "cover",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anisse3000.academia",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSFaceIDUsageDescription": "Academia utilise Face ID pour vous permettre de vous connecter rapidement et de manière sécurisée à votre compte."
+        "NSFaceIDUsageDescription": "Academia utilise Face ID pour vous permettre de vous connecter rapidement et de manière sécurisée à votre compte.",
+        "FacebookAppID": "653735364141256",
+        "FacebookClientToken": "4a146c687260212ea9d812f5209cecc7",
+        "FacebookDisplayName": "AcademIA",
+        "LSApplicationQueriesSchemes": [
+          "fbapi",
+          "fb-messenger-share-api"
+        ]
       }
     },
     "android": {
@@ -27,8 +29,13 @@
         "foregroundImage": "./assets/images/adaptive_icon.png"
       },
       "package": "com.anisse3000.academia",
-      "permissions": ["CAMERA"],
-      "privacyPolicy": "https://academiaforkids.com/politique-de-confidentialite-academia/"
+      "permissions": [
+        "CAMERA"
+      ],
+      "privacyPolicy": "https://academiaforkids.com/politique-de-confidentialite-academia/",
+      "facebookScheme": "fb653735364141256",
+      "facebookAppId": "653735364141256",
+      "facebookClientToken": "4a146c687260212ea9d812f5209cecc7"
     },
     "web": {
       "bundler": "metro",
@@ -59,7 +66,8 @@
         {
           "image": "./assets/images/splash_icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#ffffff",
+          "enableFullScreenImage_legacy": true
         }
       ],
       [
@@ -87,7 +95,28 @@
           "iosAppId": "ca-app-pub-9849575862637315~3948002761"
         }
       ],
-      "expo-video"
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "653735364141256",
+          "clientToken": "4a146c687260212ea9d812f5209cecc7",
+          "displayName": "AcademIA",
+          "scheme": "fb653735364141256",
+          "advertiserIDCollectionEnabled": false,
+          "autoLogAppEventsEnabled": false,
+          "isAutoInitEnabled": true,
+          "iosUserTrackingPermission": "Nous utilisons cette autorisation pour vous proposer une expérience personnalisée."
+        }
+      ],
+      "expo-video",
+      "expo-tracking-transparency",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "Autoriser $(PRODUCT_NAME) à utiliser Face ID."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

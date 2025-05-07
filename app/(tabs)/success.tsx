@@ -27,6 +27,7 @@ import { checkAnalyst } from '../success/badges/analyst';
 import { checkSharer } from '../success/badges/sharer';
 import { checkSuggester } from '../success/badges/suggester';
 import { checkSatisfaction } from '../success/badges/satisfaction';
+import { checkDailyQuestMaster } from '../success/badges/dailyQuestMaster';
 import { auth, db } from '../../firebaseConfig';
 import { getDoc, doc, updateDoc } from 'firebase/firestore';
 import { Image } from 'expo-image';
@@ -161,6 +162,8 @@ export default function SuccessScreen() {
         return await checkSuggester();
       case 'satisfaction':
         return await checkSatisfaction();
+      case 'daily_quest_master':
+        return await checkDailyQuestMaster();
       default:
         return 0;
     }

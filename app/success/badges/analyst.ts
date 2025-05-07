@@ -16,7 +16,9 @@ export const checkAnalyst = async (): Promise<number> => {
     if (!userDoc.exists()) return 0;
 
     const userData = userDoc.data();
-    const progressionViews = userData.success.progressionViews || {};
+    // Vérifier si l'objet success existe, sinon l'initialiser
+    const success = userData.success || {};
+    const progressionViews = success.progressionViews || {};
     
     // Vérifier si l'utilisateur a consulté les stats toutes les semaines du mois
     const currentDate = new Date();

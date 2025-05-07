@@ -14,6 +14,8 @@ import { getAuth } from 'firebase/auth';
 import * as Haptics from 'expo-haptics';
 import { ref, listAll, deleteObject } from 'firebase/storage';
 import { storage } from '../../firebaseConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LoginManager } from 'react-native-fbsdk-next';
 
 type Thread = {
   id: string;
@@ -347,6 +349,17 @@ export default function TabLayout() {
 
   const handleLogout = async () => {
     try {
+      // Vérifier si l'utilisateur est connecté avec Facebook
+      const authMethod = await AsyncStorage.getItem('authMethod');
+      if (authMethod === 'facebook') {
+        // Déconnecter de Facebook
+        await LoginManager.logOut();
+        // Supprimer les identifiants sauvegardés
+        await AsyncStorage.removeItem('userEmail');
+        await AsyncStorage.removeItem('userPassword');
+        await AsyncStorage.removeItem('authMethod');
+      }
+      // Déconnecter de Firebase
       await auth.signOut();
       router.replace('/auth');
     } catch (error) {
