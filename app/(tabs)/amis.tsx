@@ -228,9 +228,24 @@ export default function AmisScreen() {
       const pendingList = userData.pendingRequests || [];
       const sentList = userData.sentRequests || [];
 
+      const validFriends = [];
+      for (const friendId of friendsList) {
+        const friendDoc = await getDoc(doc(db, 'users', friendId));
+        if (friendDoc.exists()) {
+          validFriends.push(friendId);
+        }
+      }
+
+      // Mettre à jour Firestore si des amis ont été supprimés
+      if (validFriends.length !== friendsList.length) {
+        await updateDoc(doc(db, 'users', user.uid), {
+          friends: validFriends
+        });
+      }
+
       // Charger les détails des amis
       const friendsDetails = await Promise.all(
-        friendsList.map(async (friendId: string) => {
+        validFriends.map(async (friendId: string) => {
           const friendDoc = await getDoc(doc(db, 'users', friendId));
           if (friendDoc.exists()) {
             const friendData = friendDoc.data();

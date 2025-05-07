@@ -8,17 +8,34 @@ import {
   KeyboardAvoidingView, 
   Platform,
   ScrollView,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  sendPasswordResetEmail,
+  FacebookAuthProvider,
+  signInWithCredential,
+} from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { showErrorAlert, showSuccessAlert } from './utils/alerts';
 import { Image } from 'expo-image';
 import * as LocalAuthentication from 'expo-local-authentication';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  AccessToken,
+  LoginButton,
+  Settings,
+  Profile,
+  LoginManager,
+} from "react-native-fbsdk-next";
+import * as TrackingTransparency from 'expo-tracking-transparency';
+import * as SecureStore from 'expo-secure-store';
 
 export default function AuthScreen() {
   const [email, setEmail] = useState('');
@@ -29,13 +46,39 @@ export default function AuthScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+  const [hasSavedCredentials, setHasSavedCredentials] = useState(false);
+  const [savedUserName, setSavedUserName] = useState('');
+  const [showFullForm, setShowFullForm] = useState(false);
+  const [hasTrackingPermission, setHasTrackingPermission] = useState(Platform.OS !== 'ios');
   const router = useRouter();
   const auth = getAuth();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    checkBiometricSupport();
-    loadSavedCredentials();
+    const initializeAuth = async () => {
+      await checkBiometricSupport();
+      await checkSavedCredentials();
+      if (Platform.OS === 'ios') {
+        await checkTrackingPermission();
+      }
+    };
+    initializeAuth();
   }, []);
+
+  const checkTrackingPermission = async () => {
+    try {
+      const { status } = await TrackingTransparency.requestTrackingPermissionsAsync();
+      if (status === 'granted') {
+        setHasTrackingPermission(true);
+        await Settings.setAdvertiserTrackingEnabled(true);
+      } else {
+        setHasTrackingPermission(false);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification des permissions de tracking:', error);
+      setHasTrackingPermission(false);
+    }
+  };
 
   const checkBiometricSupport = async () => {
     const compatible = await LocalAuthentication.hasHardwareAsync();
@@ -43,71 +86,88 @@ export default function AuthScreen() {
     setIsBiometricSupported(compatible && enrolled);
   };
 
-  const loadSavedCredentials = async () => {
+  const checkSavedCredentials = async () => {
     try {
-      const savedEmail = await AsyncStorage.getItem('userEmail');
-      const savedPassword = await AsyncStorage.getItem('userPassword');
-      if (savedEmail && savedPassword) {
-        setEmail(savedEmail);
-        setPassword(savedPassword);
-        // Proposer FaceID immédiatement si disponible
-        if (isBiometricSupported) {
-          handleBiometricAuth();
+      const savedEmail = await SecureStore.getItemAsync('userEmail');
+      const savedAuthMethod = await SecureStore.getItemAsync('authMethod');
+      const hasCredentials = !!(savedEmail && savedAuthMethod);
+      setHasSavedCredentials(hasCredentials);
+      
+      if (hasCredentials) {
+        const auth = getAuth();
+        try {
+          if (savedAuthMethod === 'facebook') {
+            const userDoc = await getDoc(doc(db, 'users', savedEmail));
+            if (userDoc.exists()) {
+              setSavedUserName(userDoc.data().profile.name || 'Utilisateur');
+            }
+          } else {
+            const savedPassword = await SecureStore.getItemAsync('userPassword');
+            if (savedPassword) {
+              const userCredential = await signInWithEmailAndPassword(auth, savedEmail, savedPassword);
+              const userId = userCredential.user.uid;
+              
+              const userDoc = await getDoc(doc(db, 'users', userId));
+              if (userDoc.exists()) {
+                setSavedUserName(userDoc.data().profile.name || 'Utilisateur');
+              }
+              
+              await auth.signOut();
+            }
+          }
+        } catch (error) {
+          console.error('Erreur lors de la récupération des informations utilisateur:', error);
+          await SecureStore.deleteItemAsync('userEmail');
+          await SecureStore.deleteItemAsync('userPassword');
+          await SecureStore.deleteItemAsync('authMethod');
+          setHasSavedCredentials(false);
         }
       }
     } catch (error) {
-      console.error('Erreur lors du chargement des identifiants:', error);
-    }
-  };
-
-  const saveCredentials = async (email: string, password: string) => {
-    try {
-      await AsyncStorage.setItem('userEmail', email);
-      await AsyncStorage.setItem('userPassword', password);
-    } catch (error) {
-      console.error('Erreur lors de la sauvegarde des identifiants:', error);
+      console.error('Erreur lors de la vérification des identifiants:', error);
     }
   };
 
   const handleBiometricAuth = async () => {
     try {
-      // Vérifier d'abord si FaceID est disponible
-      const compatible = await LocalAuthentication.hasHardwareAsync();
-      const enrolled = await LocalAuthentication.isEnrolledAsync();
-      
-      if (!compatible || !enrolled) {
-        showErrorAlert('Erreur', 'Face ID n\'est pas disponible sur cet appareil');
-        return;
-      }
-
-      // Vérifier les types d'authentification supportés
-      const supportedTypes = await LocalAuthentication.supportedAuthenticationTypesAsync();
-      const hasFaceID = supportedTypes.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION);
-
-      if (!hasFaceID) {
-        showErrorAlert('Erreur', 'Face ID n\'est pas disponible sur cet appareil');
-        return;
-      }
-
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Authentification avec Face ID',
         fallbackLabel: 'Utiliser le mot de passe',
         disableDeviceFallback: false,
-        cancelLabel: 'Annuler',
-        requireConfirmation: true
+        cancelLabel: 'Annuler'
       });
 
       if (result.success) {
-        handleAuth();
-      } else if (result.error === 'user_cancel') {
-        // L'utilisateur a annulé l'authentification
-        return;
-      } else {
-        showErrorAlert('Erreur', 'L\'authentification Face ID a échoué');
+        const savedEmail = await SecureStore.getItemAsync('userEmail');
+        const savedAuthMethod = await SecureStore.getItemAsync('authMethod');
+        
+        if (savedEmail && savedAuthMethod) {
+          setIsLoading(true);
+          try {
+            if (savedAuthMethod === 'facebook') {
+              const tokenData = await AccessToken.getCurrentAccessToken();
+              if (tokenData?.accessToken) {
+                await loginWithFacebook(tokenData.accessToken);
+              } else {
+                showErrorAlert('Erreur', 'Impossible de se connecter avec Facebook');
+              }
+            } else {
+              const savedPassword = await SecureStore.getItemAsync('userPassword');
+              if (savedPassword) {
+                await signInWithEmailAndPassword(auth, savedEmail, savedPassword);
+                router.replace('/onboarding');
+              }
+            }
+          } catch (error) {
+            console.error('Erreur lors de la connexion:', error);
+            showErrorAlert('Erreur', 'Échec de la connexion automatique');
+          } finally {
+            setIsLoading(false);
+          }
+        }
       }
     } catch (error) {
       console.error('Erreur lors de l\'authentification biométrique:', error);
-      showErrorAlert('Erreur', 'Une erreur est survenue lors de l\'authentification Face ID');
     }
   };
 
@@ -137,7 +197,6 @@ export default function AuthScreen() {
     }
 
     if (!isLogin) {
-      // Validation pour l'inscription
       if (password !== confirmPassword) {
         showErrorAlert('Erreur', 'Les mots de passe ne correspondent pas');
         return;
@@ -157,14 +216,36 @@ export default function AuthScreen() {
     try {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
-        if (isBiometricSupported) {
-          await saveCredentials(email, password);
+        
+        // Si c'est la première connexion réussie, proposer de sauvegarder les identifiants
+        if (!hasSavedCredentials && isBiometricSupported) {
+          const shouldSave = await new Promise((resolve) => {
+            Alert.alert(
+              'Sauvegarder les identifiants',
+              'Voulez-vous utiliser Face ID pour vous connecter plus rapidement ?',
+              [
+                {
+                  text: 'Non',
+                  onPress: () => resolve(false),
+                  style: 'cancel'
+                },
+                {
+                  text: 'Oui',
+                  onPress: () => resolve(true)
+                }
+              ]
+            );
+          });
+
+          if (shouldSave) {
+            await saveCredentials(email, password);
+            setHasSavedCredentials(true);
+          }
         }
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const userId = userCredential.user.uid;
         
-        // Créer le document profil
         await setDoc(doc(db, 'users', userId), {
           profile: {
             name: '',
@@ -263,28 +344,159 @@ export default function AuthScreen() {
     }
   };
 
+  const saveCredentials = async (email: string, password: string) => {
+    try {
+      await SecureStore.setItemAsync('userEmail', email);
+      await SecureStore.setItemAsync('userPassword', password);
+      await SecureStore.setItemAsync('authMethod', 'email');
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde des identifiants:', error);
+    }
+  };
+
+  const loginWithFacebook = async (accessToken: string) => {
+    try {
+      setIsLoading(true);
+
+      let facebookCredential;
+      if (Platform.OS === "ios") {
+        facebookCredential = FacebookAuthProvider.credential(accessToken);
+      } else {
+        facebookCredential = FacebookAuthProvider.credential(accessToken);
+      }
+
+      const userCredential = await signInWithCredential(auth, facebookCredential);
+      const user = userCredential.user;
+
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      
+      if (!userDoc.exists()) {
+        const currentProfile = await Profile.getCurrentProfile();
+        
+        await setDoc(doc(db, 'users', user.uid), {
+          profile: {
+            name: '',
+            username: '',
+            country: '',
+            schoolType: '',
+            class: '',
+            section: '',
+            onboardingCompleted: false,
+            subjects: [],
+            createdAt: new Date(),
+            facebookId: currentProfile?.userID
+          },
+          threads: {}
+        });
+        console.log('Nouveau profil utilisateur créé avec les données Facebook');
+      }
+
+      // Sauvegarder les identifiants Facebook dans le Keychain
+      await SecureStore.setItemAsync('userEmail', user.uid);
+      await SecureStore.setItemAsync('authMethod', 'facebook');
+
+      router.replace('/onboarding');
+    } catch (error: any) {
+      console.error('Erreur lors de la création du profil:', error);
+      await LoginManager.logOut();
+      
+      switch (error.code) {
+        case 'auth/account-exists-with-different-credential':
+          showErrorAlert('Erreur', 'Un compte existe déjà avec cette adresse email mais avec une méthode de connexion différente');
+          break;
+        case 'auth/invalid-credential':
+          showErrorAlert('Erreur', 'La connexion avec Facebook a échoué. Veuillez réessayer.');
+          break;
+        default:
+          showErrorAlert('Erreur', 'Une erreur est survenue lors de la création du profil. Veuillez réessayer.');
+          break;
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const renderSimplifiedAuth = () => (
+    <View style={styles.simplifiedContainer}>
+      <View style={styles.header}>
+        <Image source={require('../assets/images/logo.png')} style={styles.logo} contentFit="cover" cachePolicy="memory-disk" />
+        <Text style={styles.appSubtitle}>Ton assistant personnel d'apprentissage</Text>
+      </View>
+
+      <View style={styles.simplifiedContent}>
+        <Text style={styles.welcomeText}>Bonjour {savedUserName} !</Text>
+        <Text style={styles.authPrompt}>Voulez-vous vous connecter avec ce compte ?</Text>
+        
+        <TouchableOpacity 
+          style={[styles.button, isLoading && styles.buttonDisabled]} 
+          onPress={handleBiometricAuth}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <View style={styles.buttonContent}>
+              <MaterialCommunityIcons 
+                name={Platform.OS === 'ios' ? 'face-recognition' : 'fingerprint'} 
+                size={24} 
+                color="#fff" 
+                style={styles.buttonIcon}
+              />
+              <Text style={styles.buttonText}>
+                Se connecter avec Face ID
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.switchButton} 
+          onPress={() => setShowFullForm(true)}
+        >
+          <Text style={styles.switchText}>
+            Utiliser un autre compte
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
+      {hasSavedCredentials && !showFullForm ? (
+        renderSimplifiedAuth()
+      ) : (
       <ScrollView 
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Image source={require('../assets/images/logo.png')} style={styles.logo} contentFit="cover" cachePolicy="memory-disk" />
+            <Image source={require('../assets/images/logo.png')} style={styles.logo} contentFit="cover" cachePolicy="memory-disk" />
           <Text style={styles.appSubtitle}>Ton assistant personnel d'apprentissage</Text>
         </View>
 
         <View style={styles.formContainer}>
-          <Text style={styles.title}>{isLogin ? '👤 Connexion' : '✍️ Inscription'}</Text>
+            {hasSavedCredentials && (
+              <TouchableOpacity 
+                style={styles.backButton}
+                onPress={() => setShowFullForm(false)}
+              >
+                <MaterialCommunityIcons name="arrow-left" size={24} color="#60a5fa" />
+                <Text style={styles.backButtonText}>Retour</Text>
+              </TouchableOpacity>
+            )}
+
+            <Text style={styles.title}>{isLogin ? '👤 Connexion' : '✍️ Inscription'}</Text>
           
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>📧 Email</Text>
             <TextInput
               style={styles.input}
               placeholder="exemple@email.com"
+              textContentType="username"
               placeholderTextColor="#666"
               value={email}
               onChangeText={setEmail}
@@ -300,6 +512,7 @@ export default function AuthScreen() {
             <View style={styles.passwordContainer}>
               <TextInput
                 style={styles.passwordInput}
+                textContentType="password"
                 placeholder="••••••••"
                 placeholderTextColor="#666"
                 value={password}
@@ -333,6 +546,7 @@ export default function AuthScreen() {
               <View style={styles.passwordContainer}>
                 <TextInput
                   style={styles.passwordInput}
+                  textContentType="newPassword"
                   placeholder="••••••••"
                   placeholderTextColor="#666"
                   value={confirmPassword}
@@ -370,40 +584,38 @@ export default function AuthScreen() {
           
           <TouchableOpacity 
             style={[styles.button, isLoading && styles.buttonDisabled]} 
-            onPress={handleAuth}
+              onPress={isLogin ? (isBiometricSupported && !email && !password ? handleBiometricAuth : handleAuth) : handleAuth}
             disabled={isLoading}
           >
             {isLoading ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
+                <View style={styles.buttonContent}>
+                  {isLogin && isBiometricSupported && !email && !password && (
+                    <MaterialCommunityIcons 
+                      name={Platform.OS === 'ios' ? 'face-recognition' : 'fingerprint'} 
+                      size={24} 
+                      color="#fff" 
+                      style={styles.buttonIcon}
+                    />
+                  )}
               <Text style={styles.buttonText}>
                 {isLogin ? 'Se connecter' : 'S\'inscrire'}
               </Text>
+                </View>
             )}
           </TouchableOpacity>
-
-          {isLogin && isBiometricSupported && (
-            <TouchableOpacity 
-              style={styles.biometricButton} 
-              onPress={handleBiometricAuth}
-              disabled={isLoading}
-            >
-              <MaterialCommunityIcons 
-                name={Platform.OS === 'ios' ? 'face-recognition' : 'fingerprint'} 
-                size={24} 
-                color="#60a5fa" 
-              />
-              <Text style={styles.biometricButtonText}>
-                {Platform.OS === 'ios' ? 'Se connecter avec Face ID' : 'Se connecter avec l\'empreinte'}
-              </Text>
-            </TouchableOpacity>
-          )}
           
           <TouchableOpacity 
             style={styles.switchButton} 
             onPress={() => {
-              setIsLogin(!isLogin);
-              setConfirmPassword('');
+                if (isLogin) {
+                  setIsLogin(false);
+                  setConfirmPassword('');
+                } else {
+                  setIsLogin(true);
+                  setConfirmPassword('');
+                }
             }}
             disabled={isLoading}
           >
@@ -411,8 +623,76 @@ export default function AuthScreen() {
               {isLogin ? '✨ Créer un compte' : '👋 Déjà un compte ? Se connecter'}
             </Text>
           </TouchableOpacity>
+
+          {isLogin && (
+            <View style={styles.socialButtonsContainer}>
+              {Platform.OS === 'ios' && !hasTrackingPermission ? (
+                <TouchableOpacity 
+                  style={[styles.socialButton, styles.facebookButton]} 
+                  onPress={checkTrackingPermission}
+                >
+                  <MaterialCommunityIcons name="facebook" size={24} color="#fff" style={styles.socialButtonIcon} />
+                  <Text style={styles.socialButtonText}>Autoriser Facebook pour continuer</Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <View style={styles.orContainer}>
+                    <View style={styles.orLine} />
+                    <Text style={styles.orText}>ou</Text>
+                    <View style={styles.orLine} />
+                  </View>
+                  <LoginButton
+                    style={styles.facebookButton}
+                    onLoginFinished={async (error, result) => {
+                      if (error) {
+                        console.log("login has error: " + result);
+                      } else if (result.isCancelled) {
+                        console.log("login is cancelled.");
+                      } else {
+                        try {
+                          const tokenData = await AccessToken.getCurrentAccessToken();
+                          if (!tokenData?.accessToken) {
+                            throw new Error("Token d'accès manquant");
+                          }
+                          await loginWithFacebook(tokenData.accessToken);
+                        } catch (error) {
+                          console.error("Erreur lors de la récupération du token:", error);
+                          showErrorAlert('Erreur', 'Impossible de récupérer le token d\'authentification');
+                        }
+                      }
+                    }}
+                    onLogoutFinished={async () => {
+                      try {
+                        // Supprimer les identifiants de SecureStore
+                        await SecureStore.deleteItemAsync('userEmail');
+                        await SecureStore.deleteItemAsync('userPassword');
+                        await SecureStore.deleteItemAsync('authMethod');
+                        
+                        // Déconnecter de Firebase
+                        await auth.signOut();
+                        
+                        // Déconnecter de Facebook
+                        await LoginManager.logOut();
+                        
+                        // Réinitialiser l'état
+                        setHasSavedCredentials(false);
+                        setSavedUserName('');
+                        setShowFullForm(false);
+                        
+                        console.log("Déconnexion réussie");
+                      } catch (error) {
+                        console.error("Erreur lors de la déconnexion:", error);
+                        showErrorAlert('Erreur', 'Une erreur est survenue lors de la déconnexion');
+                      }
+                    }}
+                  />
+                </>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -539,7 +819,6 @@ const styles = StyleSheet.create({
   },
   switchButton: {
     marginTop: 20,
-    padding: 10,
   },
   switchText: {
     color: '#60a5fa',
@@ -560,20 +839,97 @@ const styles = StyleSheet.create({
     width: 320,
     height: 120,
   },
-  biometricButton: {
+  buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 15,
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#60a5fa',
   },
-  biometricButtonText: {
+  buttonIcon: {
+    marginRight: 8,
+  },
+  simplifiedContainer: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',
+  },
+  simplifiedContent: {
+    flex: 1,
+    backgroundColor: '#2d2d2d',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeText: {
+    fontSize: 24,
+    color: '#fff',
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  authPrompt: {
+    fontSize: 16,
+    color: '#999',
+    marginBottom: 30,
+    textAlign: 'center',
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'absolute',
+    top: 8,
+    left: 20,
+    zIndex: 1,
+  },
+  backButtonText: {
     color: '#60a5fa',
-    marginLeft: 10,
-    fontSize: 14,
+    marginLeft: 5,
+    fontSize: 16,
+  },
+  socialButtonsContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  socialButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 15,
+    borderRadius: 12,
+    width: '100%',
+    marginBottom: 15,
+  },
+  facebookButton: {
+    backgroundColor: '#1877f2',
+    padding: 15,
+    borderRadius: 12,
+    width: 200,
+    height: 50,
+  },
+  socialButtonIcon: {
+    marginRight: 10,
+  },
+  socialButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
+  },
+  orContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+    width: '100%',
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#666',
+    marginHorizontal: 10,
+  },
+  orText: {
+    color: '#666',
+    fontSize: 14,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
 }); 
