@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -66,6 +66,7 @@ export default function ClassementScreen() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [schoolTypeName, setSchoolTypeName] = useState<string>('');
   const [className, setClassName] = useState<string>('');
+  const flatListRef = useRef<FlatList>(null);
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -326,6 +327,12 @@ export default function ClassementScreen() {
       textAlign: 'center',
       fontWeight: '500',
     },
+    currentUserItem: {
+      borderWidth: 2,
+      borderColor: '#60a5fa',
+      backgroundColor: 'rgba(96, 165, 250, 0.1)',
+      borderRadius: 12,
+    },
   });
 
   const calculateTotalScore = (profile: any, subjectId?: string): number => {
@@ -488,6 +495,18 @@ export default function ClassementScreen() {
     if (userRank) {
       const page = Math.ceil(userRank / ITEMS_PER_PAGE);
       setCurrentPage(page);
+      
+      // Calculer l'index dans la page courante
+      const indexInPage = (userRank - 1) % ITEMS_PER_PAGE;
+      
+      // Scroll vers l'index après un court délai pour laisser le temps au rendu
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({
+          index: indexInPage,
+          animated: true,
+          viewPosition: 0.5
+        });
+      }, 100);
     }
   };
 
@@ -634,7 +653,11 @@ export default function ClassementScreen() {
           setShowUserModal(true);
         }}
       >
-        <View style={[styles.rankingItem, { backgroundColor: themeColors.card }]}>
+        <View style={[
+          styles.rankingItem, 
+          { backgroundColor: themeColors.card },
+          isCurrentUser && styles.currentUserItem
+        ]}>
           <View style={styles.rankContainer}>
             {item.rank <= 3 ? (
               <LinearGradient
@@ -764,6 +787,7 @@ export default function ClassementScreen() {
       </View>
 
       <FlatList
+        ref={flatListRef}
         data={paginatedUsers}
         renderItem={renderRankingItem}
         keyExtractor={item => item.id}
