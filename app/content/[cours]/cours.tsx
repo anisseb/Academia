@@ -77,7 +77,7 @@ export default function CoursScreen() {
         success: {
           cours: {
             [uniqueId]: {
-              timestamp: new Date().toISOString(),
+              timestamp: new Date(),
               count: 1,
               pdfExported: 0
             }
@@ -92,7 +92,7 @@ export default function CoursScreen() {
 
       await updateDoc(userDocRef, {
         [`success.cours.${uniqueId}`]: {
-          timestamp: new Date().toISOString(),
+          timestamp: new Date(),
           count: currentContent.count + 1,
           pdfExported: currentContent.pdfExported || 0
         }

@@ -641,51 +641,52 @@ export default function AuthScreen() {
                     <Text style={styles.orText}>ou</Text>
                     <View style={styles.orLine} />
                   </View>
-                  <LoginButton
-                    style={styles.facebookButton}
-                    onLoginFinished={async (error, result) => {
-                      if (error) {
-                        console.log("login has error: " + result);
-                      } else if (result.isCancelled) {
-                        console.log("login is cancelled.");
-                      } else {
-                        try {
-                          const tokenData = await AccessToken.getCurrentAccessToken();
-                          if (!tokenData?.accessToken) {
-                            throw new Error("Token d'accès manquant");
+                  <View style={styles.facebookButton}>
+                    <LoginButton
+                      onLoginFinished={async (error, result) => {
+                        if (error) {
+                          console.log("login has error: " + result);
+                        } else if (result.isCancelled) {
+                          console.log("login is cancelled.");
+                        } else {
+                          try {
+                            const tokenData = await AccessToken.getCurrentAccessToken();
+                            if (!tokenData?.accessToken) {
+                              throw new Error("Token d'accès manquant");
+                            }
+                            await loginWithFacebook(tokenData.accessToken);
+                          } catch (error) {
+                            console.error("Erreur lors de la récupération du token:", error);
+                            showErrorAlert('Erreur', 'Impossible de récupérer le token d\'authentification');
                           }
-                          await loginWithFacebook(tokenData.accessToken);
-                        } catch (error) {
-                          console.error("Erreur lors de la récupération du token:", error);
-                          showErrorAlert('Erreur', 'Impossible de récupérer le token d\'authentification');
                         }
-                      }
-                    }}
-                    onLogoutFinished={async () => {
-                      try {
-                        // Supprimer les identifiants de SecureStore
-                        await SecureStore.deleteItemAsync('userEmail');
-                        await SecureStore.deleteItemAsync('userPassword');
-                        await SecureStore.deleteItemAsync('authMethod');
-                        
-                        // Déconnecter de Firebase
-                        await auth.signOut();
-                        
-                        // Déconnecter de Facebook
-                        await LoginManager.logOut();
-                        
-                        // Réinitialiser l'état
-                        setHasSavedCredentials(false);
-                        setSavedUserName('');
-                        setShowFullForm(false);
-                        
-                        console.log("Déconnexion réussie");
-                      } catch (error) {
-                        console.error("Erreur lors de la déconnexion:", error);
-                        showErrorAlert('Erreur', 'Une erreur est survenue lors de la déconnexion');
-                      }
-                    }}
-                  />
+                      }}
+                      onLogoutFinished={async () => {
+                        try {
+                          // Supprimer les identifiants de SecureStore
+                          await SecureStore.deleteItemAsync('userEmail');
+                          await SecureStore.deleteItemAsync('userPassword');
+                          await SecureStore.deleteItemAsync('authMethod');
+                          
+                          // Déconnecter de Firebase
+                          await auth.signOut();
+                          
+                          // Déconnecter de Facebook
+                          await LoginManager.logOut();
+                          
+                          // Réinitialiser l'état
+                          setHasSavedCredentials(false);
+                          setSavedUserName('');
+                          setShowFullForm(false);
+                          
+                          console.log("Déconnexion réussie");
+                        } catch (error) {
+                          console.error("Erreur lors de la déconnexion:", error);
+                          showErrorAlert('Erreur', 'Une erreur est survenue lors de la déconnexion');
+                        }
+                      }}
+                    />
+                </View>
                 </>
               )}
             </View>
@@ -905,6 +906,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     width: 200,
     height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   socialButtonIcon: {
     marginRight: 10,

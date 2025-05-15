@@ -10,7 +10,6 @@ import { generateDailyExpression } from '../services/generateDailyExpression';
 import React from 'react';
 import { getClasseName, getSchoolTypeName } from '../utils/getLabelFromData';
 import { getAuth } from 'firebase/auth';
-import { setDoc } from 'firebase/firestore';
 
 interface SubjectStats {
   averageScore: number;
@@ -340,8 +339,14 @@ export default function HomeScreen() {
       const profile = userData.profile || {};
       const exercises = profile.exercises || {};
       const courses = userData.success?.cours || {};
+      const dailyProgress = userData.success?.dailyProgress || {};
 
-      // Compter les exercices complétés aujourd'hui
+      // Vérifier si l'objectif a déjà été atteint aujourd'hui
+      const lastUpdated = dailyProgress.lastUpdated?.toDate();
+      const isAlreadyCompleted = lastUpdated && 
+        lastUpdated.setHours(0, 0, 0, 0) === today.getTime();
+
+      // Compter les exercices complétés aujourd'hui (max 3)
       let todayExercisesCount = 0;
       Object.entries(exercises).forEach(([schoolType, schoolTypeData]) => {
         if (typeof schoolTypeData === 'object' && schoolTypeData !== null) {
@@ -354,7 +359,7 @@ export default function HomeScreen() {
                       Object.entries(chapterData).forEach(([contentId, contentData]) => {
                         if (Array.isArray(contentData)) {
                           contentData.forEach((exercise: any) => {
-                            if (exercise.completedAt) {
+                            if (exercise.completedAt && todayExercisesCount < 3) {
                               const exDate = new Date(exercise.completedAt);
                               exDate.setHours(0, 0, 0, 0);
                               if (exDate.getTime() === today.getTime()) {
@@ -373,12 +378,27 @@ export default function HomeScreen() {
         }
       });
 
-      // Filtrer les cours d'aujourd'hui
-      const todayCourses = Object.values(courses).filter((course: any) => {
-        const courseDate = new Date(course.timestamp);
-        courseDate.setHours(0, 0, 0, 0);
-        return courseDate.getTime() === today.getTime();
-      });
+      // Filtrer les cours d'aujourd'hui (max 1)
+      const todayCourses = Object.entries(courses)
+        .filter(([_, course]: [string, any]) => {
+          console.log('Structure du cours:', course);
+          if (!course.timestamp) {
+            return false;
+          }
+          
+          const courseDate = new Date(course.timestamp);
+          
+          // Créer les dates de début de jour en heure française
+          const courseDateStart = new Date(courseDate);
+          courseDateStart.setHours(0, 0, 0, 0);
+          
+          const todayStart = new Date(today);
+          todayStart.setHours(0, 0, 0, 0);
+          
+          return courseDateStart.getTime() === todayStart.getTime();
+        })
+        .slice(0, 1)
+        .map(([_, course]) => course);
 
       // Calculer la progression
       const exerciseProgress = Math.min(todayExercisesCount / 3, 1); // 3 exercices = 100%
@@ -392,35 +412,17 @@ export default function HomeScreen() {
       setCourseProgress(courseProgress);
       setTotalProgress(totalProgress);
 
-      // Si la progression est de 100%, incrémenter le compteur dans l'objet success
-      if (totalProgress >= 100) {
+      // Si la progression est de 100% et que l'objectif n'a pas déjà été atteint aujourd'hui
+      if (totalProgress >= 100 && !isAlreadyCompleted) {
         const userRef = doc(db, 'users', userId);
-        const userData = await getDoc(userRef);
+        const currentCount = dailyProgress.count || 0;
         
-        if (userData.exists()) {
-          const currentData = userData.data();
-          const currentCount = currentData.success?.dailyProgress?.count || 0;
-          const lastUpdated = currentData.success?.dailyProgress?.lastUpdated?.toDate();
-          
-          // Vérifier si la dernière mise à jour date d'aujourd'hui
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          
-          const lastUpdatedDate = lastUpdated ? new Date(lastUpdated) : null;
-          const isToday = lastUpdatedDate ? 
-            lastUpdatedDate.setHours(0, 0, 0, 0) === today.getTime() : 
-            false;
-          
-          // N'incrémenter que si la dernière mise à jour n'est pas d'aujourd'hui
-          if (!isToday) {
-            await updateDoc(userRef, {
-              'success.dailyProgress': {
-                count: currentCount + 1,
-                lastUpdated: new Date()
-              }
-            });
+        await updateDoc(userRef, {
+          'success.dailyProgress': {
+            count: currentCount + 1,
+            lastUpdated: new Date()
           }
-        }
+        });
       }
 
       return totalProgress;
@@ -816,7 +818,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
-    elevation: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -863,7 +864,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
-    elevation: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },

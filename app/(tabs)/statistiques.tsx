@@ -225,62 +225,153 @@ export default function StatistiquesScreen() {
       const subjectInfo = subjectInfos[subject];
       if (!subjectInfo) return null;
       
-      const cardsColors = 'rgba(13, 103, 172, 0.56)';
-  
+      const gradientColors = parseGradient(subjectInfo.gradient);
+      const primaryColor = gradientColors[0];
+      
       return (
-        <View key={subject} style={[styles.statsCard, { backgroundColor: 'rgba(234, 232, 232, 0.78)' }]}>
+        <View key={subject} style={[styles.statsCard, { 
+          backgroundColor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.9)',
+          borderWidth: 1,
+          borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+        }]}>
           <View style={styles.subjectHeader}>
             <MaterialCommunityIcons 
               name={subjectInfo.icon || 'book-open-variant'} 
-              size={24} 
-              color={parseGradient(subjectInfo.gradient)[0]} 
+              size={28} 
+              color={primaryColor} 
             />
-            <Text style={[styles.subjectTitle, { color: themeColors.text }]}>
+            <Text style={[styles.subjectTitle, { 
+              color: themeColors.text,
+              fontSize: 24,
+              fontWeight: '700',
+              letterSpacing: 0.5,
+            }]}>
               {subjectInfo.label}
             </Text>
           </View>
           
-          <View style={[styles.mainStatCard, { backgroundColor: cardsColors }]}>
-            <Ionicons name="trophy" size={24} color="#FFD700" />
-            <Text style={[styles.scoreText, { color: themeColors.text }]}>
-              {stats.averageScore}%
-            </Text>
-            <Text style={styles.scoreLabel}>Score moyen</Text>
+          <View style={[styles.mainStatCard, { 
+            backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.6)' : 'rgba(241, 245, 249, 0.8)',
+            borderWidth: 1,
+            borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+          }]}>
+            <View style={styles.scoreContainer}>
+              <Ionicons name="trophy" size={32} color="#FFD700" style={styles.trophyIcon} />
+              <Text style={[styles.scoreText, { 
+                color: themeColors.text,
+                fontSize: 48,
+                fontWeight: '800',
+              }]}>
+                {stats.averageScore}%
+              </Text>
+              <Text style={[styles.scoreLabel, { 
+                color: themeColors.text,
+                opacity: 0.8,
+                fontSize: 16,
+                letterSpacing: 1,
+              }]}>
+                Score moyen
+              </Text>
+            </View>
           </View>
-  
+
           <View style={styles.statsGrid}>
-            <View style={[styles.statItem, { backgroundColor: cardsColors }]}>
-              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-              <Text style={[styles.statValue, { color: themeColors.text }]}>{stats.completedExercises}</Text>
-              <Text style={styles.statLabel}>Quiz terminés</Text>
+            <View style={[styles.statItem, { 
+              backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.6)' : 'rgba(241, 245, 249, 0.8)',
+              borderWidth: 1,
+              borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+            }]}>
+              <Ionicons name="checkmark-circle" size={24} color="#10B981" style={styles.statIcon} />
+              <Text style={[styles.statValue, { 
+                color: themeColors.text,
+                fontSize: 28,
+                fontWeight: '700',
+              }]}>{stats.completedExercises}</Text>
+              <Text style={[styles.statLabel, { 
+                color: themeColors.text,
+                opacity: 0.8,
+                fontSize: 14,
+                letterSpacing: 0.5,
+              }]}>Quiz terminés</Text>
             </View>
-  
-            <View style={[styles.statItem, { backgroundColor: cardsColors }]}>
-              <Ionicons name="time" size={20} color="#2196F3" />
-              <Text style={[styles.statValue, { color: themeColors.text }]}>{stats.consecutiveDays}</Text>
-              <Text style={styles.statLabel}>Jours consécutifs</Text>
+
+            <View style={[styles.statItem, { 
+              backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.6)' : 'rgba(241, 245, 249, 0.8)',
+              borderWidth: 1,
+              borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+            }]}>
+              <Ionicons name="time" size={24} color="#3B82F6" style={styles.statIcon} />
+              <Text style={[styles.statValue, { 
+                color: themeColors.text,
+                fontSize: 28,
+                fontWeight: '700',
+              }]}>{stats.consecutiveDays}</Text>
+              <Text style={[styles.statLabel, { 
+                color: themeColors.text,
+                opacity: 0.8,
+                fontSize: 14,
+                letterSpacing: 0.5,
+              }]}>Jours consécutifs</Text>
             </View>
-  
-            <View style={[styles.statItem, { backgroundColor: cardsColors }]}>
-              <Ionicons name="checkmark" size={20} color="#4CAF50" />
-              <Text style={[styles.statValue, { color: themeColors.text }]}>{stats.correctAnswers}</Text>
-              <Text style={styles.statLabel}>Réponses correctes</Text>
+
+            <View style={[styles.statItem, { 
+              backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.6)' : 'rgba(241, 245, 249, 0.8)',
+              borderWidth: 1,
+              borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+            }]}>
+              <Ionicons name="checkmark" size={24} color="#10B981" style={styles.statIcon} />
+              <Text style={[styles.statValue, { 
+                color: themeColors.text,
+                fontSize: 28,
+                fontWeight: '700',
+              }]}>{stats.correctAnswers}</Text>
+              <Text style={[styles.statLabel, { 
+                color: themeColors.text,
+                opacity: 0.8,
+                fontSize: 14,
+                letterSpacing: 0.5,
+              }]}>Réponses correctes</Text>
             </View>
-  
-            <View style={[styles.statItem, { backgroundColor: cardsColors }]}>
-              <Ionicons name="close" size={20} color="#F44336" />
-              <Text style={[styles.statValue, { color: themeColors.text }]}>{stats.incorrectAnswers}</Text>
-              <Text style={styles.statLabel}>Réponses incorrectes</Text>
+
+            <View style={[styles.statItem, { 
+              backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.6)' : 'rgba(241, 245, 249, 0.8)',
+              borderWidth: 1,
+              borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+            }]}>
+              <Ionicons name="close" size={24} color="#EF4444" style={styles.statIcon} />
+              <Text style={[styles.statValue, { 
+                color: themeColors.text,
+                fontSize: 28,
+                fontWeight: '700',
+              }]}>{stats.incorrectAnswers}</Text>
+              <Text style={[styles.statLabel, { 
+                color: themeColors.text,
+                opacity: 0.8,
+                fontSize: 14,
+                letterSpacing: 0.5,
+              }]}>Réponses incorrectes</Text>
             </View>
           </View>
-  
-          <View style={[styles.precisionContainer]}>
+
+          <View style={[styles.precisionContainer, {
+            backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.6)' : 'rgba(241, 245, 249, 0.8)',
+            borderWidth: 1,
+            borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+          }]}>
             <View style={styles.precisionBar}>
               <View style={[styles.precisionFill, { 
                 width: `${stats.precision}%`,
-                backgroundColor: parseGradient(subjectInfo.gradient)[0]
+                backgroundColor: primaryColor,
+                shadowColor: primaryColor,
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.5,
+                shadowRadius: 10,
               }]} />
-              <Text style={styles.precisionText}>{stats.precision}% de précision</Text>
+              <Text style={[styles.precisionText, {
+                fontSize: 14,
+                fontWeight: '600',
+                letterSpacing: 0.5,
+              }]}>{stats.precision}% de précision</Text>
             </View>
           </View>
         </View>
@@ -336,17 +427,6 @@ const styles = StyleSheet.create({
       flex: 1,
       padding: 16,
     },
-    header: {
-      padding: 24,
-      borderRadius: 16,
-      alignItems: 'center',
-      marginBottom: 16,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 4,
-    },
     title: {
       fontSize: 32,
       fontWeight: 'bold',
@@ -360,60 +440,80 @@ const styles = StyleSheet.create({
       marginBottom: 16,
     },
     statsCard: {
-      borderRadius: 20,
-      padding: 20,
-      marginBottom: 16,
+      borderRadius: 24,
+      padding: 24,
+      marginBottom: 24,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.1,
       shadowRadius: 12,
-      elevation: 5,
+      elevation: 8,
     },
     mainStatCard: {
       alignItems: 'center',
       marginBottom: 24,
-      padding: 16,
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-      borderRadius: 16,
+      padding: 24,
+      borderRadius: 20,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+    },
+    scoreContainer: {
+      alignItems: 'center',
+    },
+    trophyIcon: {
+      marginBottom: 8,
+      shadowColor: '#FFD700',
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.5,
+      shadowRadius: 10,
     },
     statsGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'space-between',
-      gap: 12,
-      marginBottom: 20,
+      gap: 16,
+      marginBottom: 24,
     },
     statItem: {
       width: '47%',
       alignItems: 'center',
-      padding: 16,
-      borderRadius: 16,
-      marginBottom: 12,
+      padding: 20,
+      borderRadius: 20,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+    },
+    statIcon: {
+      marginBottom: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.2,
       shadowRadius: 4,
     },
     statValue: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      marginVertical: 8,
+      fontSize: 28,
+      fontWeight: '700',
     },
     statLabel: {
-      fontSize: 12,
-      opacity: 0.7,
-      color: 'rgba(255, 255, 255, 0.95)',
+      fontSize: 14,
       textAlign: 'center',
+      opacity: 0.8,
     },
     precisionContainer: {
-      padding: 12,
-      backgroundColor: 'rgba(255, 255, 255, 0.78)',
-      borderRadius: 16,
+      padding: 20,
+      borderRadius: 20,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
     },
     precisionBar: {
-      height: 24,
+      height: 32,
       backgroundColor: 'rgba(0,0,0,0.1)',
-      borderRadius: 12,
+      borderRadius: 16,
       overflow: 'hidden',
       position: 'relative',
     },
@@ -422,38 +522,36 @@ const styles = StyleSheet.create({
       top: 0,
       left: 0,
       bottom: 0,
-      backgroundColor: '#4CAF50',
-      borderRadius: 12,
+      borderRadius: 16,
     },
     precisionText: {
       position: 'absolute',
       width: '100%',
       textAlign: 'center',
-      lineHeight: 20,
+      lineHeight: 30,
       color: '#FFFFFF',
-      fontSize: 12,
-      fontWeight: 'bold',
+      textShadowColor: 'rgba(0, 0, 0, 0.3)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
     },
     subjectHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: 16,
-      gap: 8,
+      marginBottom: 24,
+      gap: 12,
     },
     subjectTitle: {
-      fontSize: 20,
-      fontWeight: 'bold',
+      fontSize: 24,
+      fontWeight: '700',
     },
     scoreText: {
       fontSize: 48,
-      fontWeight: 'bold',
-      marginVertical: 8,
+      fontWeight: '800',
     },
     scoreLabel: {
       fontSize: 16,
-      opacity: 0.7,
-      color: 'rgba(255, 255, 255, 0.95)',
+      opacity: 0.8,
     },
     emptyStatsContainer: {
       flex: 1,
