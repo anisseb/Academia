@@ -6,10 +6,11 @@ import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { generateDailyExpression } from '../services/generateDailyExpression';
 import React from 'react';
-import { getClasseName, getSchoolTypeName } from '../utils/getLabelFromData';
 import { getAuth } from 'firebase/auth';
+import NetInfo from '@react-native-community/netinfo';
+import { DEFAULT_EXPRESSIONS } from '../constants/dailyExpression';
+import { collection, getDocs } from 'firebase/firestore';
 
 interface SubjectStats {
   averageScore: number;
@@ -25,6 +26,13 @@ interface ExerciseData {
   done: boolean;
   exerciceId: string;
   score: number;
+}
+
+interface DailyExpression {
+  id: string;
+  title: string;
+  message: string;
+  createdAt: number;
 }
 
 type QuickActionProps = {
@@ -93,7 +101,7 @@ export default function HomeScreen() {
     achievements: 0
   });
   const [userName, setUserName] = useState('');
-  const [dailyExpression, setDailyExpression] = useState<{ title: string; message: string } | null>(null);
+  const [dailyExpression, setDailyExpression] = useState<DailyExpression | null>(null);
   const [isLoadingExpression, setIsLoadingExpression] = useState(true);
   const scrollY = useRef(new Animated.Value(0)).current;
   const [progress, setProgress] = useState(0);
@@ -301,22 +309,66 @@ export default function HomeScreen() {
     try {
       setIsLoadingExpression(true);
       const user = auth.currentUser;
-      if (!user) return;
+      if (!user) {
+        // Utiliser une expression par défaut si pas d'utilisateur
+        const randomExpression = DEFAULT_EXPRESSIONS[Math.floor(Math.random() * DEFAULT_EXPRESSIONS.length)];
+        setDailyExpression({
+          id: 'default',
+          title: randomExpression.title,
+          message: randomExpression.message,
+          createdAt: Date.now()
+        });
+        return;
+      }
 
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (!userDoc.exists()) return;
+      // Vérifier la connexion
+      const netInfo = await NetInfo.fetch();
+      if (!netInfo.isConnected) {
+        // Utiliser une expression par défaut en mode hors ligne
+        const randomExpression = DEFAULT_EXPRESSIONS[Math.floor(Math.random() * DEFAULT_EXPRESSIONS.length)];
+        setDailyExpression({
+          id: 'default',
+          title: randomExpression.title,
+          message: randomExpression.message,
+          createdAt: Date.now()
+        });
+        return;
+      }
 
-      const userData = userDoc.data();
-      const profile = userData.profile || {};
-      const schoolType = profile.schoolType;
-      const level = profile.class;
+      // Récupérer toutes les expressions
+      const expressionsRef = collection(db, 'dailyExpression');
+      const expressionsSnapshot = await getDocs(expressionsRef);
+      
+      if (expressionsSnapshot.empty) {
+        const randomExpression = DEFAULT_EXPRESSIONS[Math.floor(Math.random() * DEFAULT_EXPRESSIONS.length)];
+        setDailyExpression({
+          id: 'default',
+          title: randomExpression.title,
+          message: randomExpression.message,
+          createdAt: Date.now()
+        });
+        return;
+      }
 
-      if (!schoolType || !level) return;
+      // Convertir les expressions en tableau
+      const expressions = expressionsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as DailyExpression[];
 
-      const expression = await generateDailyExpression(await getSchoolTypeName(schoolType), await getClasseName(schoolType, level));
-      setDailyExpression(expression);
+      // Sélectionner une expression aléatoire
+      const randomExpression = expressions[Math.floor(Math.random() * expressions.length)];
+      setDailyExpression(randomExpression);
     } catch (error) {
-      console.error('Erreur lors du chargement du proverbe:', error);
+      console.error('Erreur lors du chargement de l\'expression:', error);
+      // Utiliser une expression par défaut en cas d'erreur
+      const randomExpression = DEFAULT_EXPRESSIONS[Math.floor(Math.random() * DEFAULT_EXPRESSIONS.length)];
+      setDailyExpression({
+        id: 'default',
+        title: randomExpression.title,
+        message: randomExpression.message,
+        createdAt: Date.now()
+      });
     } finally {
       setIsLoadingExpression(false);
     }
@@ -381,7 +433,6 @@ export default function HomeScreen() {
       // Filtrer les cours d'aujourd'hui (max 1)
       const todayCourses = Object.entries(courses)
         .filter(([_, course]: [string, any]) => {
-          console.log('Structure du cours:', course);
           if (!course.timestamp) {
             return false;
           }

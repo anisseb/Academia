@@ -21,6 +21,9 @@
           "fbapi",
           "fb-messenger-share-api"
         ]
+      },
+      "entitlements": {
+        "com.apple.developer.networking.wifi-info": true
       }
     },
     "android": {

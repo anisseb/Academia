@@ -16,6 +16,7 @@ import { ref, listAll, deleteObject } from 'firebase/storage';
 import { storage } from '../../firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LoginManager } from 'react-native-fbsdk-next';
+import NetInfo from '@react-native-community/netinfo';
 
 type Thread = {
   id: string;
@@ -230,6 +231,7 @@ export default function TabLayout() {
   const { threadId } = useLocalSearchParams();
   const [isAdmin, setIsAdmin] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
+  const [isOnline, setIsOnline] = useState(true);
   const auth = getAuth();
   const db = getFirestore();
 
@@ -329,6 +331,15 @@ export default function TabLayout() {
 
     return () => unsubscribe();
   }, [auth.currentUser, pendingRequests]);
+
+  // Vérifier la connexion internet
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsOnline(state.isConnected ?? true);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const toggleSidebar = () => {
     Keyboard.dismiss(); // Ferme le clavier
@@ -597,46 +608,50 @@ export default function TabLayout() {
             <Feather name="pie-chart" size={20} color={themeColors.icon} />
             <Text style={[styles.navigationText, { color: themeColors.text }]}>Statistiques</Text>
           </TouchableOpacity>
-
           <TouchableOpacity 
-            style={styles.navigationItem}
-            onPress={() => {
-              router.push('/(tabs)/classement');
-              toggleSidebar();
-            }}
-          >
-            <Feather name="bar-chart-2" size={20} color={themeColors.icon} />
-            <Text style={[styles.navigationText, { color: themeColors.text }]}>Classement</Text>
-          </TouchableOpacity>
+              style={styles.navigationItem}
+              onPress={() => {
+                router.push('/(tabs)/success');
+                toggleSidebar();
+              }}
+            >
+              <Feather name="award" size={20} color={themeColors.icon} />
+              <Text style={[styles.navigationText, { color: themeColors.text }]}>Succès</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.navigationItem}
-            onPress={() => {
-              router.push('/(tabs)/success');
-              toggleSidebar();
-            }}
-          >
-            <Feather name="award" size={20} color={themeColors.icon} />
-            <Text style={[styles.navigationText, { color: themeColors.text }]}>Succès</Text>
-          </TouchableOpacity>
+          {isOnline && (
+            <>
+              <TouchableOpacity 
+                style={styles.navigationItem}
+                onPress={() => {
+                  router.push('/(tabs)/classement');
+                  toggleSidebar();
+                }}
+              >
+                <Feather name="bar-chart-2" size={20} color={themeColors.icon} />
+                <Text style={[styles.navigationText, { color: themeColors.text }]}>Classement</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.navigationItem}
-            onPress={() => {
-              router.push('/(tabs)/amis');
-              toggleSidebar();
-            }}
-          >
-            <View style={styles.navigationIconContainer}>
-            <Feather name="users" size={20} color={themeColors.icon} />
-              {pendingRequests > 0 && (
-                <View style={[styles.badge, { backgroundColor: '#ef4444' }]}>
-                  <Text style={styles.badgeText}>{pendingRequests}</Text>
+
+              <TouchableOpacity 
+                style={styles.navigationItem}
+                onPress={() => {
+                  router.push('/(tabs)/amis');
+                  toggleSidebar();
+                }}
+              >
+                <View style={styles.navigationIconContainer}>
+                <Feather name="users" size={20} color={themeColors.icon} />
+                  {pendingRequests > 0 && (
+                    <View style={[styles.badge, { backgroundColor: '#ef4444' }]}>
+                      <Text style={styles.badgeText}>{pendingRequests}</Text>
+                    </View>
+                  )}
                 </View>
-              )}
-            </View>
-            <Text style={[styles.navigationText, { color: themeColors.text }]}>Amis</Text>
-          </TouchableOpacity>
+                <Text style={[styles.navigationText, { color: themeColors.text }]}>Amis</Text>
+              </TouchableOpacity>
+            </>
+          )}
 
           <TouchableOpacity 
             style={styles.navigationItem}
@@ -671,36 +686,47 @@ export default function TabLayout() {
             <Text style={[styles.navigationText, { color: themeColors.text }]}>Avatar</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.newThreadButton}
-            onPress={createNewThread}
-          >
-            <Feather name="plus" size={20} color="white" />
-            <Text style={styles.newThreadButtonText}>Nouvelle conversation</Text>
-          </TouchableOpacity>
+          {isOnline && (
+            <>
+              <TouchableOpacity
+                style={styles.newThreadButton}
+                onPress={createNewThread}
+              >
+                <Feather name="plus" size={20} color="white" />
+                <Text style={styles.newThreadButtonText}>Nouvelle conversation</Text>
+              </TouchableOpacity>
 
-          <View style={styles.threadsContainer}>
-            <ScrollView style={styles.threadsList}>
-              {threads.map((thread) => (
-                <ThreadItem
-                  key={thread.id}
-                  thread={thread}
-                  isActive={activeThreadId === thread.id}
-                  onPress={() => {
-                    setActiveThreadId(thread.id);
-                    router.push({
-                      pathname: '/(tabs)/history',
-                      params: { threadId: thread.id }
-                    });
-                    toggleSidebar();
-                  }}
-                  onTitleChange={(newTitle) => {
-                    handleSaveTitle(thread.id, newTitle);
-                  }}
-                />
-              ))}
-            </ScrollView>
-          </View>
+              <View style={styles.threadsContainer}>
+                <ScrollView style={styles.threadsList}>
+                  {threads.map((thread) => (
+                    <ThreadItem
+                      key={thread.id}
+                      thread={thread}
+                      isActive={activeThreadId === thread.id}
+                      onPress={() => {
+                        setActiveThreadId(thread.id);
+                        router.push({
+                          pathname: '/(tabs)/history',
+                          params: { threadId: thread.id }
+                        });
+                        toggleSidebar();
+                      }}
+                      onTitleChange={(newTitle) => {
+                        handleSaveTitle(thread.id, newTitle);
+                      }}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            </>
+          )}
+
+          {!isOnline && (
+            <View style={styles.offlineBanner}>
+              <Feather name="wifi-off" size={20} color="#fff" />
+              <Text style={styles.offlineText}>Mode hors ligne</Text>
+            </View>
+          )}
         </View>
 
         <View style={[styles.sidebarFooter, { borderTopColor: themeColors.border }]}>
@@ -942,5 +968,20 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 9,
     fontWeight: 'bold',
+  },
+  offlineBanner: {
+    backgroundColor: '#f59e0b',
+    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 15,
+    marginVertical: 10,
+    borderRadius: 8,
+  },
+  offlineText: {
+    color: '#fff',
+    fontWeight: '500',
   },
 });

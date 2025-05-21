@@ -8,14 +8,18 @@ import {
   ActivityIndicator,
   Platform,
   StatusBar,
+  Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useTheme } from '../context/ThemeContext';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getSubjects, parseGradient } from '../utils/subjectGradients';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
+import { saveFavorites, saveSubjectConfigs } from '../utils/userDataManager';
 
 interface FavoriteCourse {
   id: string;
@@ -40,6 +44,10 @@ interface SubjectConfig {
   gradientColors: [string, string];
 }
 
+const OFFLINE_FAVORITES_KEY = '@offline_favorites';
+const OFFLINE_SUBJECT_CONFIGS_KEY = '@offline_subject_configs';
+const OFFLINE_USER_KEY = '@offline_user';
+
 export default function FavorisScreen() {
   const router = useRouter();
   const { isDarkMode } = useTheme();
@@ -49,6 +57,7 @@ export default function FavorisScreen() {
   const [subjectConfigs, setSubjectConfigs] = useState<Record<string, SubjectConfig>>({});
   const [userSchoolType, setUserSchoolType] = useState<string>('');
   const [userClass, setUserClass] = useState<string>('');
+  const [isOnline, setIsOnline] = useState(true);
   
   const statusBarHeight = StatusBar.currentHeight || 0;
   
@@ -61,14 +70,37 @@ export default function FavorisScreen() {
   };
 
   useEffect(() => {
+    // Vérifier la connexion internet
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsOnline(state.isConnected ?? true);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
     loadUserData();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadUserData();
+    }, [])
+  );
 
   const loadUserData = async () => {
     try {
       const user = auth.currentUser;
       if (!user) {
         setLoading(false);
+        return;
+      }
+
+      // Vérifier si nous sommes en ligne
+      const netInfo = await NetInfo.fetch();
+      if (!netInfo.isConnected) {
+        // Charger les données hors ligne
+        await loadOfflineData();
         return;
       }
 
@@ -82,11 +114,52 @@ export default function FavorisScreen() {
       if (userData.profile) {
         setUserSchoolType(userData.profile.schoolType || '');
         setUserClass(userData.profile.class || '');
-        await loadSubjectConfigs(userData.profile.schoolType, userData.profile.class);
-        await loadFavorites();
+        
+        // Charger les favoris
+        const favorites = await getFavorites();
+        setFavorites(favorites);
+        await saveFavorites(favorites);
+        
+        // Charger et sauvegarder les configurations
+        const configs = await loadSubjectConfigs(userData.profile.schoolType, userData.profile.class);
+        setSubjectConfigs(configs);
+        await saveSubjectConfigs(configs);
+        
+        // Sauvegarder les données utilisateur
+        await saveUserData(userData);
       }
     } catch (error) {
       console.error('Erreur lors du chargement des données utilisateur:', error);
+      // En cas d'erreur, essayer de charger les données hors ligne
+      await loadOfflineData();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveOfflineData = async () => {
+    try {
+      await AsyncStorage.setItem(OFFLINE_FAVORITES_KEY, JSON.stringify(favorites));
+      await AsyncStorage.setItem(OFFLINE_SUBJECT_CONFIGS_KEY, JSON.stringify(subjectConfigs));
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde des données hors ligne:', error);
+    }
+  };
+
+  const loadOfflineData = async () => {
+    try {
+      const savedFavorites = await AsyncStorage.getItem(OFFLINE_FAVORITES_KEY);
+      const savedConfigs = await AsyncStorage.getItem(OFFLINE_SUBJECT_CONFIGS_KEY);
+
+      if (savedFavorites) {
+        setFavorites(JSON.parse(savedFavorites));
+      }
+      if (savedConfigs) {
+        setSubjectConfigs(JSON.parse(savedConfigs));
+      }
+      setLoading(false);
+    } catch (error) {
+      console.error('Erreur lors du chargement des données hors ligne:', error);
       setLoading(false);
     }
   };
@@ -111,9 +184,10 @@ export default function FavorisScreen() {
         };
       });
 
-      setSubjectConfigs(configs);
+      return configs;
     } catch (error) {
       console.error('Erreur lors du chargement des configurations des matières:', error);
+      return {};
     }
   };
 
@@ -179,6 +253,14 @@ export default function FavorisScreen() {
     };
   };
 
+  const saveUserData = async (userData: any) => {
+    try {
+      await AsyncStorage.setItem(OFFLINE_USER_KEY, JSON.stringify(userData));
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde des données utilisateur:', error);
+    }
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -187,8 +269,17 @@ export default function FavorisScreen() {
     );
   }
 
+  console.log('isOnline', isOnline);
+  console.log('favorites', favorites);
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+      {!isOnline && (
+        <View style={styles.offlineBanner}>
+          <MaterialCommunityIcons name="wifi-off" size={20} color="#fff" />
+          <Text style={styles.offlineText}>Mode hors ligne</Text>
+        </View>
+      )}
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -321,5 +412,17 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     textAlign: 'center',
+  },
+  offlineBanner: {
+    backgroundColor: '#f59e0b',
+    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  offlineText: {
+    color: '#fff',
+    fontWeight: '500',
   },
 }); 
