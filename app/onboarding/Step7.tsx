@@ -10,8 +10,8 @@ import { getSubjects, parseGradient } from '../utils/subjectGradients';
 
 type Step7Props = {
   onBack: () => void;
-  onNext: (data: Partial<{ name: string; username: string; country: string; schoolType: string; class: string; subjects: Array<{ id: string; label: string }> }>) => void;
-  data: { name?: string; username?: string; country?: string; schoolType?: string; class?: string; subjects?: Array<{ id: string; label: string }> };
+  onNext: (data: Partial<{ name: string; username: string; country: string; schoolType: string; class: string; subjects: Array<{ id: string; label: string }>, notificationsEnabled: boolean }>) => void;
+  data: { name?: string; username?: string; country?: string; schoolType?: string; class?: string; subjects?: Array<{ id: string; label: string }>, notificationsEnabled?: boolean };
 };
 
 export default function Step7({ onNext, onBack, data }: Step7Props) {
@@ -71,6 +71,7 @@ export default function Step7({ onNext, onBack, data }: Step7Props) {
         'profile.class': data.class,
         'profile.subjects': data.subjects,
         'profile.onboardingCompleted': true,
+        'notificationsEnabled': data.notificationsEnabled,
       });
 
       onNext(data);

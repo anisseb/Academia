@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { auth, db } from '../../firebaseConfig';
@@ -9,23 +9,39 @@ import { ref, listAll, deleteObject } from 'firebase/storage';
 import { storage } from '../../firebaseConfig';
 import { showAlert, showConfirmAlert } from '../utils/alerts';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function SettingsScreen() {
   const { isDarkMode, toggleTheme } = useTheme();
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
-  useEffect(() => {
-    const loadNotificationPreferences = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          setNotificationsEnabled(userDoc.data().notificationsEnabled || false);
+  const loadUserSettings = useCallback(async () => {
+    const user = auth.currentUser;
+    if (user) {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        setNotificationsEnabled(userData.notificationsEnabled || false);
+        // Charger le thème depuis les paramètres
+        if (userData.settings?.isDarkMode !== undefined) {
+          if (userData.settings.isDarkMode !== isDarkMode) {
+            toggleTheme();
+          }
         }
       }
-    };
-    loadNotificationPreferences();
-  }, []);
+    }
+  }, [isDarkMode, toggleTheme]);
+
+  useEffect(() => {
+    loadUserSettings();
+  }, [loadUserSettings]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadUserSettings();
+    }, [loadUserSettings])
+  );
 
   const toggleNotifications = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -87,8 +103,57 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleThemeToggle = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const user = auth.currentUser;
+    if (user) {
+      const newValue = !isDarkMode;
+      toggleTheme();
+      // Sauvegarder le nouveau thème dans Firestore
+      await updateDoc(doc(db, 'users', user.uid), {
+        'settings.isDarkMode': newValue
+      });
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff' }]}>
+      <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
+        <TouchableOpacity
+          style={[styles.notificationButton, { 
+            backgroundColor: isDarkMode ? '#3d3d3d' : '#ffffff',
+            borderColor: isDarkMode ? '#4d4d4d' : '#e0e0e0'
+          }]}
+          onPress={() => router.push('/(tabs)/settings/notifications')}
+        >
+          <View style={styles.notificationContent}>
+            <View style={styles.notificationLeft}>
+              <Ionicons 
+                name="notifications-outline" 
+                size={24} 
+                color={isDarkMode ? '#ffffff' : '#000000'} 
+              />
+              <Text style={[styles.notificationLabel, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+                Notifications
+              </Text>
+            </View>
+            <View style={styles.notificationRight}>
+              <Text style={[styles.notificationStatus, { 
+                color: notificationsEnabled ? '#60a5fa' : '#ef4444',
+                fontWeight: 'bold'
+              }]}>
+                {notificationsEnabled ? 'Activées' : 'Désactivées'}
+              </Text>
+              <Ionicons 
+                name="chevron-forward" 
+                size={20} 
+                color={isDarkMode ? '#666666' : '#999999'} 
+              />
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
+
       <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
           Apparence
@@ -99,24 +164,7 @@ export default function SettingsScreen() {
           </Text>
           <Switch
             value={isDarkMode}
-            onValueChange={toggleTheme}
-            trackColor={{ false: '#767577', true: '#60a5fa' }}
-            thumbColor={isDarkMode ? '#ffffff' : '#f4f3f4'}
-          />
-        </View>
-      </View>
-
-      <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
-        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
-          Notifications
-        </Text>
-        <View style={styles.settingItem}>
-          <Text style={[styles.settingLabel, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
-            Activer les notifications
-          </Text>
-          <Switch
-            value={notificationsEnabled}
-            onValueChange={toggleNotifications}
+            onValueChange={handleThemeToggle}
             trackColor={{ false: '#767577', true: '#60a5fa' }}
             thumbColor={isDarkMode ? '#ffffff' : '#f4f3f4'}
           />
@@ -194,6 +242,10 @@ const styles = StyleSheet.create({
   settingLabel: {
     fontSize: 16,
   },
+  settingValue: {
+    fontSize: 16,
+    color: '#666',
+  },
   feedbackItem: {
     paddingVertical: 12,
     borderBottomWidth: 1,
@@ -211,5 +263,34 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  notificationButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  notificationContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+  },
+  notificationLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  notificationRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  notificationLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  notificationStatus: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

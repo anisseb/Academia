@@ -388,7 +388,6 @@ export default function AuthScreen() {
           },
           threads: {}
         });
-        console.log('Nouveau profil utilisateur créé avec les données Facebook');
       }
 
       // Sauvegarder les identifiants Facebook dans le Keychain
@@ -679,7 +678,6 @@ export default function AuthScreen() {
                           setSavedUserName('');
                           setShowFullForm(false);
                           
-                          console.log("Déconnexion réussie");
                         } catch (error) {
                           console.error("Erreur lors de la déconnexion:", error);
                           showErrorAlert('Erreur', 'Une erreur est survenue lors de la déconnexion');

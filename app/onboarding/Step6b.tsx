@@ -2,15 +2,27 @@ import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { configureNotifications } from '../utils/notifications';
 import { Ionicons } from '@expo/vector-icons';
+import { OnboardingButton } from '../components/OnboardingButton';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Step6bProps {
   onNext: (data: { notificationsEnabled: boolean }) => void;
   onBack: () => void;
+  data: {
+    name?: string;
+    username?: string;
+    country?: string;
+    schoolType?: string;
+    class?: string;
+    subjects?: Array<{ id: string; label: string }>;
+    notificationsEnabled?: boolean;
+  };
 }
 
-export default function Step6b({ onNext, onBack }: Step6bProps) {
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+export default function Step6b({ onNext, onBack, data }: Step6bProps) {
+  const [notificationsEnabled, setNotificationsEnabled] = useState(data.notificationsEnabled || false);
   const rotateAnim = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
 
   const startBellAnimation = () => {
     Animated.sequence([
@@ -54,7 +66,7 @@ export default function Step6b({ onNext, onBack }: Step6bProps) {
     if (notificationsEnabled) {
       await configureNotifications();
     }
-    onNext({ notificationsEnabled });
+    onNext({ notificationsEnabled: notificationsEnabled });
   };
 
   const rotate = rotateAnim.interpolate({
@@ -64,10 +76,12 @@ export default function Step6b({ onNext, onBack }: Step6bProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>←</Text>
-        </TouchableOpacity>
+      <View style={{ top: insets.top }}>
+        <OnboardingButton
+          icon="arrow-left"
+          onPress={onBack}
+          style={styles.backButton}
+        />
       </View>
 
       <View style={styles.content}>
@@ -107,13 +121,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     padding: 20,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
   backButton: {
-    padding: 10,
+    position: 'absolute',
+    top: 0,
+    left: 16,
+    zIndex: 1,
+    padding: 8,
   },
   backButtonText: {
     color: '#fff',
@@ -166,6 +179,7 @@ const styles = StyleSheet.create({
   nextButton: {
     backgroundColor: '#60a5fa',
     paddingVertical: 15,
+    marginBottom: 20,
     borderRadius: 25,
     alignItems: 'center',
   },

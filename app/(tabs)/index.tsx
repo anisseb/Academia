@@ -11,6 +11,17 @@ import { getAuth } from 'firebase/auth';
 import NetInfo from '@react-native-community/netinfo';
 import { DEFAULT_EXPRESSIONS } from '../constants/dailyExpression';
 import { collection, getDocs } from 'firebase/firestore';
+import * as Notifications from 'expo-notifications';
+import { configureNotifications, scheduleMotivationalNotifications } from '../utils/notifications';
+
+// Configuration des notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 interface SubjectStats {
   averageScore: number;
@@ -110,6 +121,7 @@ export default function HomeScreen() {
   const [exerciseProgress, setExerciseProgress] = useState(0);
   const [courseProgress, setCourseProgress] = useState(0);
   const [totalProgress, setTotalProgress] = useState(0);
+  const [reminderTime, setReminderTime] = useState<string>('19:30'); // Par défaut à 20h
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -156,6 +168,8 @@ export default function HomeScreen() {
     loadUserStats();
     loadUserName();
     loadDailyExpression();
+    configureNotifications();
+    loadReminderTime();
   }, []);
 
   useEffect(() => {
@@ -374,6 +388,81 @@ export default function HomeScreen() {
     }
   };
 
+  const loadReminderTime = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) return;
+
+      const userData = userDoc.data();
+
+      if (userData.settings?.reminderTime && userData.settings.reminderTime !== 'none') {
+        setReminderTime(userData.settings.reminderTime);
+      } else {
+        // Valeur par défaut si aucune heure n'est définie
+        setReminderTime('19:30');
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement de l\'heure de rappel:', error);
+      // Valeur par défaut en cas d'erreur
+      setReminderTime('19:30');
+    }
+  };
+
+  const scheduleDailyReminder = async () => {
+    try {
+      // Annuler toutes les notifications existantes
+      await Notifications.cancelAllScheduledNotificationsAsync();
+
+      // Vérifier si l'objectif a été atteint aujourd'hui
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) return;
+
+      const userData = userDoc.data();
+      const dailyProgress = userData.success?.dailyProgress || {};
+      const lastUpdated = dailyProgress.lastUpdated?.toDate();
+
+      const isAlreadyCompleted = lastUpdated && 
+        lastUpdated.setHours(0, 0, 0, 0) === today.getTime();
+
+      // Si l'objectif n'a pas été atteint, planifier une notification
+      if (!isAlreadyCompleted) {
+        const [hours, minutes] = reminderTime.split(':').map(Number);
+        const trigger = new Date();
+        trigger.setHours(hours, minutes, 0, 0);
+
+        // Si l'heure est déjà passée aujourd'hui, planifier pour demain
+        if (trigger.getTime() <= Date.now()) {
+          trigger.setDate(trigger.getDate() + 1);
+        }
+
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "Objectif quotidien non atteint",
+            body: "N'oubliez pas de compléter vos exercices et cours quotidiens !",
+            data: { type: 'daily_reminder' },
+            sound: true
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds: 24 * 60 * 60, // 24 heures
+            repeats: true,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors de la planification de la notification:', error);
+    }
+  };
+
   const evaluateDailyProgress = async () => {
     try {
       const auth = getAuth();
@@ -474,6 +563,14 @@ export default function HomeScreen() {
             lastUpdated: new Date()
           }
         });
+
+        // Annuler la notification du jour car l'objectif est atteint
+        await Notifications.cancelAllScheduledNotificationsAsync();
+      } else if (totalProgress < 100 && !isAlreadyCompleted) {
+        // Si l'objectif n'est pas atteint, s'assurer qu'une notification est planifiée
+        if (userData.notificationsEnabled) {
+          await scheduleDailyReminder();
+        }
       }
 
       return totalProgress;

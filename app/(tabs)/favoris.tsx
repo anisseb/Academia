@@ -150,12 +150,20 @@ export default function FavorisScreen() {
     try {
       const savedFavorites = await AsyncStorage.getItem(OFFLINE_FAVORITES_KEY);
       const savedConfigs = await AsyncStorage.getItem(OFFLINE_SUBJECT_CONFIGS_KEY);
+      const savedUserData = await AsyncStorage.getItem(OFFLINE_USER_KEY);
 
       if (savedFavorites) {
         setFavorites(JSON.parse(savedFavorites));
       }
       if (savedConfigs) {
         setSubjectConfigs(JSON.parse(savedConfigs));
+      }
+      if (savedUserData) {
+        const userData = JSON.parse(savedUserData);
+        if (userData.profile) {
+          setUserSchoolType(userData.profile.schoolType || '');
+          setUserClass(userData.profile.class || '');
+        }
       }
       setLoading(false);
     } catch (error) {
@@ -268,9 +276,6 @@ export default function FavorisScreen() {
       </View>
     );
   }
-
-  console.log('isOnline', isOnline);
-  console.log('favorites', favorites);
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
