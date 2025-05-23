@@ -76,6 +76,15 @@ export default function Onboarding() {
               subjects: newData.subjects,
               onboardingCompleted: true,
             },
+            settings: {
+              isDarkMode: true,
+              ...(newData.notificationsEnabled && {
+                motivationalFrequency: 2,
+                motivationalTime1: "8:00",
+                motivationalTime2: "18:45",
+                reminderTime: "19:30"
+              })
+            },
             notificationsEnabled: newData.notificationsEnabled || false,
           };
           
@@ -126,13 +135,13 @@ export default function Onboarding() {
           setStep(7);
           return null;
         }
-        return <Step6b onNext={handleNext} onBack={handleBack} />;
+        return <Step6b onNext={handleNext} onBack={handleBack} data={{ name: data.name, username: data.username, country: data.country, schoolType: data.schoolType, class: data.class, subjects: data.subjects, notificationsEnabled: data.notificationsEnabled }} />;
       case 8:
-        if (!data.schoolType || !data.class || !data.subjects) {
+        if (!data.schoolType || !data.class || !data.subjects || !data.notificationsEnabled) {
           setStep(8);
           return null;
         }
-        return <Step7 onNext={handleNext} onBack={handleBack} data={{ name: data.name, username: data.username, country: data.country, schoolType: data.schoolType, class: data.class, subjects: data.subjects }} />;
+        return <Step7 onNext={handleNext} onBack={handleBack} data={{ name: data.name, username: data.username, country: data.country, schoolType: data.schoolType, class: data.class, subjects: data.subjects, notificationsEnabled: data.notificationsEnabled }} />;
       default:
         return null;
     }

@@ -1,7 +1,8 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { db } from '@/firebaseConfig';
 
 // Configuration des notifications
 export async function configureNotifications() {
@@ -100,4 +101,72 @@ export async function sendFriendRequestNotification(friendId: string, username: 
   } catch (error) {
     console.error('Erreur lors de l\'envoi de la notification:', error);
   }
-} 
+}
+
+
+export async function scheduleMotivationalNotifications(userId: string) {
+  try {
+    // Récupérer les paramètres de l'utilisateur
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (!userDoc.exists()) return;
+
+    const userData = userDoc.data();
+    const { motivationalFrequency, motivationalTime1, motivationalTime2 } = userData.settings || {};
+
+    
+    // Si les notifications motivantes sont désactivées, ne rien faire
+    if (motivationalFrequency === 0) return;
+
+    // Récupérer un message motivant aléatoire
+    const motivationsRef = collection(db, 'dailyMotivation');
+    const motivationsSnapshot = await getDocs(motivationsRef);
+    const motivations = motivationsSnapshot.docs.map(doc => doc.data());
+    
+    if (motivations.length === 0) return;
+
+    // Sélectionner un message aléatoire
+    const randomMotivation = motivations[Math.floor(Math.random() * motivations.length)];
+
+    // Planifier la première notification
+    if (motivationalTime1) {
+      const [hours1, minutes1] = motivationalTime1.split(':').map(Number);
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: randomMotivation.title,
+          body: randomMotivation.message,
+          data: { type: 'motivational' },
+          sound: true,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour: hours1,
+          minute: minutes1,
+        },
+      });
+    }
+
+    // Si la fréquence est de 2, planifier la deuxième notification
+    if (motivationalFrequency === 2 && motivationalTime2) {
+      const [hours2, minutes2] = motivationalTime2.split(':').map(Number);
+
+      // Sélectionner un autre message aléatoire pour la deuxième notification
+      const randomMotivation2 = motivations[Math.floor(Math.random() * motivations.length)];
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: randomMotivation2.title,
+          body: randomMotivation2.message,
+          sound: true,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour: hours2,
+          minute: minutes2,
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Erreur lors de la planification des notifications motivantes:', error);
+  }
+}
