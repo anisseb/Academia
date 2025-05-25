@@ -223,6 +223,34 @@ export default function SettingsScreen() {
 
       <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+          Contact
+        </Text>
+        <TouchableOpacity
+          style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
+          onPress={() => router.push('/(tabs)/feedback/contact-us')}
+        >
+          <View style={styles.contactContent}>
+            <View style={styles.notificationLeft}>
+              <Ionicons 
+                name="mail-outline" 
+                size={24} 
+                color={isDarkMode ? '#ffffff' : '#000000'} 
+              />
+              <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+                Contactez-nous
+              </Text>
+            </View>
+            <Ionicons 
+              name="chevron-forward" 
+              size={20} 
+              color={isDarkMode ? '#666666' : '#999999'} 
+            />
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
+        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
           Compte
         </Text>
         <TouchableOpacity
@@ -266,7 +294,6 @@ const styles = StyleSheet.create({
   },
   feedbackItem: {
     paddingVertical: 12,
-    borderBottomWidth: 1,
   },
   feedbackText: {
     fontSize: 16,
@@ -292,6 +319,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
+  },
+  contactContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   notificationLeft: {
     flexDirection: 'row',
