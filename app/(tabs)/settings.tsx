@@ -175,9 +175,16 @@ export default function SettingsScreen() {
           style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
           onPress={() => router.push('/(tabs)/feedback/satisfaction')}
         >
-          <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
-            Enquêtes de satisfaction
-          </Text>
+          <View style={styles.viewContent}>
+            <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+              Enquêtes de satisfaction
+            </Text>
+            <Ionicons
+              name="chevron-forward" 
+              size={20} 
+              color={isDarkMode ? '#666666' : '#999999'} 
+            />
+          </View>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
@@ -185,17 +192,59 @@ export default function SettingsScreen() {
             router.push('/(tabs)/feedback/bugs')
           }}
         >
-          <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
-            Signalement de bugs
-          </Text>
+          <View style={styles.viewContent}>
+            <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+              Signalement de bugs
+            </Text>
+            <Ionicons
+              name="chevron-forward" 
+              size={20} 
+              color={isDarkMode ? '#666666' : '#999999'} 
+            />
+          </View>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
           onPress={() => router.push('/(tabs)/feedback/suggestions')}
         >
-          <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
-            Suggestions d'amélioration
-          </Text>
+          <View style={styles.viewContent}>
+            <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+              Suggestions d'amélioration
+            </Text>
+            <Ionicons
+              name="chevron-forward" 
+              size={20} 
+              color={isDarkMode ? '#666666' : '#999999'} 
+            />
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
+        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+          Contact
+        </Text>
+        <TouchableOpacity
+          style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
+          onPress={() => router.push('/(tabs)/feedback/contact-us')}
+        >
+          <View style={styles.viewContent}>
+            <View style={styles.notificationLeft}>
+              <Ionicons 
+                name="mail-outline" 
+                size={24} 
+                color={isDarkMode ? '#ffffff' : '#000000'} 
+              />
+              <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+                Contactez-nous
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward" 
+              size={20} 
+              color={isDarkMode ? '#666666' : '#999999'} 
+            />
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -218,34 +267,6 @@ export default function SettingsScreen() {
           <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
             Politique de confidentialité
           </Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
-        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
-          Contact
-        </Text>
-        <TouchableOpacity
-          style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
-          onPress={() => router.push('/(tabs)/feedback/contact-us')}
-        >
-          <View style={styles.contactContent}>
-            <View style={styles.notificationLeft}>
-              <Ionicons 
-                name="mail-outline" 
-                size={24} 
-                color={isDarkMode ? '#ffffff' : '#000000'} 
-              />
-              <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
-                Contactez-nous
-              </Text>
-            </View>
-            <Ionicons 
-              name="chevron-forward" 
-              size={20} 
-              color={isDarkMode ? '#666666' : '#999999'} 
-            />
-          </View>
         </TouchableOpacity>
       </View>
 
@@ -320,7 +341,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
   },
-  contactContent: {
+  viewContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
