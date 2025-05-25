@@ -106,6 +106,9 @@ export async function sendFriendRequestNotification(friendId: string, username: 
 
 export async function scheduleMotivationalNotifications(userId: string) {
   try {
+    // Annuler toutes les notifications existantes
+    await Notifications.cancelAllScheduledNotificationsAsync();
+
     // Récupérer les paramètres de l'utilisateur
     const userDoc = await getDoc(doc(db, 'users', userId));
     if (!userDoc.exists()) return;
@@ -113,7 +116,6 @@ export async function scheduleMotivationalNotifications(userId: string) {
     const userData = userDoc.data();
     const { motivationalFrequency, motivationalTime1, motivationalTime2 } = userData.settings || {};
 
-    
     // Si les notifications motivantes sont désactivées, ne rien faire
     if (motivationalFrequency === 0) return;
 
@@ -130,6 +132,14 @@ export async function scheduleMotivationalNotifications(userId: string) {
     // Planifier la première notification
     if (motivationalTime1) {
       const [hours1, minutes1] = motivationalTime1.split(':').map(Number);
+      const now = new Date();
+      const scheduledTime = new Date();
+      scheduledTime.setHours(hours1, minutes1, 0, 0);
+
+      // Si l'heure est déjà passée aujourd'hui, programmer pour demain
+      if (scheduledTime <= now) {
+        scheduledTime.setDate(scheduledTime.getDate() + 1);
+      }
 
       await Notifications.scheduleNotificationAsync({
         content: {
@@ -149,6 +159,14 @@ export async function scheduleMotivationalNotifications(userId: string) {
     // Si la fréquence est de 2, planifier la deuxième notification
     if (motivationalFrequency === 2 && motivationalTime2) {
       const [hours2, minutes2] = motivationalTime2.split(':').map(Number);
+      const now = new Date();
+      const scheduledTime = new Date();
+      scheduledTime.setHours(hours2, minutes2, 0, 0);
+
+      // Si l'heure est déjà passée aujourd'hui, programmer pour demain
+      if (scheduledTime <= now) {
+        scheduledTime.setDate(scheduledTime.getDate() + 1);
+      }
 
       // Sélectionner un autre message aléatoire pour la deuxième notification
       const randomMotivation2 = motivations[Math.floor(Math.random() * motivations.length)];

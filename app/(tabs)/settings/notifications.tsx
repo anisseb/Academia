@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, Platform, Modal } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { auth, db } from '../../../firebaseConfig';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -116,22 +116,131 @@ export default function NotificationSettingsScreen() {
     }
   };
 
-  const handleTimeChange = (event: any, selectedTime?: Date) => {
-    if (selectedTime) {
-      setTempTime(selectedTime);
-    }
-  };
-
   const handleSaveTime = async () => {
-    setReminderTime(tempTime);
-    setShowTimePicker(false);
     const user = auth.currentUser;
     if (user) {
-      const timeString = `${tempTime.getHours()}:${tempTime.getMinutes()}`;
+      const timeString = formatTime(tempTime);
       await updateDoc(doc(db, 'users', user.uid), {
         'settings.reminderTime': timeString
       });
+      setReminderTime(tempTime);
+      setShowTimePicker(false);
     }
+  };
+
+  const handleSaveTime1 = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      const timeString = formatTime(tempTime1);
+      await updateDoc(doc(db, 'users', user.uid), {
+        'settings.motivationalTime1': timeString
+      });
+      await scheduleMotivationalNotifications(user.uid);
+      setMotivationalTime1(tempTime1);
+      setShowTimePicker1(false);
+    }
+  };
+
+  const handleSaveTime2 = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      const timeString = formatTime(tempTime2);
+      await updateDoc(doc(db, 'users', user.uid), {
+        'settings.motivationalTime2': timeString
+      });
+      await scheduleMotivationalNotifications(user.uid);
+      setMotivationalTime2(tempTime2);
+      setShowTimePicker2(false);
+    }
+  };
+
+  const handleTimeChange = (event: any, selectedTime?: Date) => {
+    if (Platform.OS === 'android') {
+      if (event.type === 'set' && selectedTime) {
+        const newTime = new Date();
+        newTime.setHours(selectedTime.getHours());
+        newTime.setMinutes(selectedTime.getMinutes());
+        setTempTime(newTime);
+        setReminderTime(newTime);
+        setShowTimePicker(false);
+        
+        const user = auth.currentUser;
+        if (user) {
+          const timeString = formatTime(newTime);
+          updateDoc(doc(db, 'users', user.uid), {
+            'settings.reminderTime': timeString
+          });
+        }
+      } else {
+        setShowTimePicker(false);
+      }
+    } else {
+      if (selectedTime) {
+        setTempTime(selectedTime);
+      }
+    }
+  };
+
+  const handleTimeChange1 = (event: any, selectedTime?: Date) => {
+    if (Platform.OS === 'android') {
+      if (event.type === 'set' && selectedTime) {
+        const newTime = new Date();
+        newTime.setHours(selectedTime.getHours());
+        newTime.setMinutes(selectedTime.getMinutes());
+        setTempTime1(newTime);
+        setMotivationalTime1(newTime);
+        setShowTimePicker1(false);
+        
+        const user = auth.currentUser;
+        if (user) {
+          const timeString = formatTime(newTime);
+          updateDoc(doc(db, 'users', user.uid), {
+            'settings.motivationalTime1': timeString
+          });
+          scheduleMotivationalNotifications(user.uid);
+        }
+      } else {
+        setShowTimePicker1(false);
+      }
+    } else {
+      if (selectedTime) {
+        setTempTime1(selectedTime);
+      }
+    }
+  };
+
+  const handleTimeChange2 = (event: any, selectedTime?: Date) => {
+    if (Platform.OS === 'android') {
+      if (event.type === 'set' && selectedTime) {
+        const newTime = new Date();
+        newTime.setHours(selectedTime.getHours());
+        newTime.setMinutes(selectedTime.getMinutes());
+        setTempTime2(newTime);
+        setMotivationalTime2(newTime);
+        setShowTimePicker2(false);
+        
+        const user = auth.currentUser;
+        if (user) {
+          const timeString = formatTime(newTime);
+          updateDoc(doc(db, 'users', user.uid), {
+            'settings.motivationalTime2': timeString
+          });
+          scheduleMotivationalNotifications(user.uid);
+        }
+      } else {
+        setShowTimePicker2(false);
+      }
+    } else {
+      if (selectedTime) {
+        setTempTime2(selectedTime);
+      }
+    }
+  };
+
+  const formatTime = (date: Date) => {
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
   };
 
   const handleFrequencyChange = async (frequency: number) => {
@@ -141,44 +250,6 @@ export default function NotificationSettingsScreen() {
     if (user) {
       await updateDoc(doc(db, 'users', user.uid), {
         'settings.motivationalFrequency': frequency
-      });
-      await scheduleMotivationalNotifications(user.uid);
-    }
-  };
-
-  const handleTimeChange1 = (event: any, selectedTime?: Date) => {
-    if (selectedTime) {
-      setTempTime1(selectedTime);
-    }
-  };
-
-  const handleTimeChange2 = (event: any, selectedTime?: Date) => {
-    if (selectedTime) {
-      setTempTime2(selectedTime);
-    }
-  };
-
-  const handleSaveTime1 = async () => {
-    setMotivationalTime1(tempTime1);
-    setShowTimePicker1(false);
-    const user = auth.currentUser;
-    if (user) {
-      const timeString = `${tempTime1.getHours()}:${tempTime1.getMinutes()}`;
-      await updateDoc(doc(db, 'users', user.uid), {
-        'settings.motivationalTime1': timeString
-      });
-      await scheduleMotivationalNotifications(user.uid);
-    }
-  };
-
-  const handleSaveTime2 = async () => {
-    setMotivationalTime2(tempTime2);
-    setShowTimePicker2(false);
-    const user = auth.currentUser;
-    if (user) {
-      const timeString = `${tempTime2.getHours()}:${tempTime2.getMinutes()}`;
-      await updateDoc(doc(db, 'users', user.uid), {
-        'settings.motivationalTime2': timeString
       });
       await scheduleMotivationalNotifications(user.uid);
     }
@@ -283,28 +354,59 @@ export default function NotificationSettingsScreen() {
                       opacity: notificationsEnabled ? 1 : 0.5
                     }
                   ]}>
-                    {reminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {formatTime(reminderTime)}
                   </Text>
                 </View>
               </TouchableOpacity>
             )}
 
             {showTimePicker && (
-              <View style={styles.timePickerContainer}>
-                <DateTimePicker
-                  value={tempTime}
-                  mode="time"
-                  is24Hour={true}
-                  display="spinner"
-                  onChange={handleTimeChange}
-                />
-                <TouchableOpacity
-                  style={[styles.saveButton, { backgroundColor: isDarkMode ? '#60a5fa' : '#3b82f6' }]}
-                  onPress={handleSaveTime}
+              Platform.OS === 'ios' ? (
+                <Modal
+                  transparent={true}
+                  visible={showTimePicker}
+                  animationType="slide"
                 >
-                  <Text style={styles.saveButtonText}>Enregistrer</Text>
-                </TouchableOpacity>
-              </View>
+                  <View style={styles.modalContainer}>
+                    <View style={[styles.modalContent, { backgroundColor: isDarkMode ? '#2d2d2d' : '#ffffff' }]}>
+                      <DateTimePicker
+                        value={tempTime}
+                        mode="time"
+                        is24Hour={true}
+                        display="spinner"
+                        onChange={handleTimeChange}
+                      />
+                      <View style={styles.modalButtons}>
+                        <TouchableOpacity
+                          style={[styles.modalButton, { backgroundColor: isDarkMode ? '#3d3d3d' : '#f5f5f5' }]}
+                          onPress={() => {
+                            setShowTimePicker(false);
+                            setTempTime(reminderTime);
+                          }}
+                        >
+                          <Text style={[styles.modalButtonText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>Annuler</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.modalButton, { backgroundColor: isDarkMode ? '#60a5fa' : '#3b82f6' }]}
+                          onPress={handleSaveTime}
+                        >
+                          <Text style={styles.modalButtonText}>Enregistrer</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </Modal>
+              ) : (
+                <View style={styles.timePickerContainer}>
+                  <DateTimePicker
+                    value={tempTime}
+                    mode="time"
+                    is24Hour={true}
+                    display="spinner"
+                    onChange={handleTimeChange}
+                  />
+                </View>
+              )
             )}
           </View>
           <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
@@ -438,7 +540,7 @@ export default function NotificationSettingsScreen() {
                       opacity: notificationsEnabled ? 1 : 0.5
                     }
                   ]}>
-                    {motivationalTime1.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {formatTime(motivationalTime1)}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -478,46 +580,108 @@ export default function NotificationSettingsScreen() {
                       opacity: notificationsEnabled ? 1 : 0.5
                     }
                   ]}>
-                    {motivationalTime2.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {formatTime(motivationalTime2)}
                   </Text>
                 </View>
               </TouchableOpacity>
             )}
 
             {showTimePicker1 && (
-              <View style={styles.timePickerContainer}>
-                <DateTimePicker
-                  value={tempTime1}
-                  mode="time"
-                  is24Hour={true}
-                  display="spinner"
-                  onChange={handleTimeChange1}
-                />
-                <TouchableOpacity
-                  style={[styles.saveButton, { backgroundColor: isDarkMode ? '#60a5fa' : '#3b82f6' }]}
-                  onPress={handleSaveTime1}
+              Platform.OS === 'ios' ? (
+                <Modal
+                  transparent={true}
+                  visible={showTimePicker1}
+                  animationType="slide"
                 >
-                  <Text style={styles.saveButtonText}>Enregistrer</Text>
-                </TouchableOpacity>
-              </View>
+                  <View style={styles.modalContainer}>
+                    <View style={[styles.modalContent, { backgroundColor: isDarkMode ? '#2d2d2d' : '#ffffff' }]}>
+                      <DateTimePicker
+                        value={tempTime1}
+                        mode="time"
+                        is24Hour={true}
+                        display="spinner"
+                        onChange={handleTimeChange1}
+                      />
+                      <View style={styles.modalButtons}>
+                        <TouchableOpacity
+                          style={[styles.modalButton, { backgroundColor: isDarkMode ? '#3d3d3d' : '#f5f5f5' }]}
+                          onPress={() => {
+                            setShowTimePicker1(false);
+                            setTempTime1(motivationalTime1);
+                          }}
+                        >
+                          <Text style={[styles.modalButtonText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>Annuler</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.modalButton, { backgroundColor: isDarkMode ? '#60a5fa' : '#3b82f6' }]}
+                          onPress={handleSaveTime1}
+                        >
+                          <Text style={styles.modalButtonText}>Enregistrer</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </Modal>
+              ) : (
+                <View style={styles.timePickerContainer}>
+                  <DateTimePicker
+                    value={tempTime1}
+                    mode="time"
+                    is24Hour={true}
+                    display="spinner"
+                    onChange={handleTimeChange1}
+                  />
+                </View>
+              )
             )}
 
             {showTimePicker2 && (
-              <View style={styles.timePickerContainer}>
-                <DateTimePicker
-                  value={tempTime2}
-                  mode="time"
-                  is24Hour={true}
-                  display="spinner"
-                  onChange={handleTimeChange2}
-                />
-                <TouchableOpacity
-                  style={[styles.saveButton, { backgroundColor: isDarkMode ? '#60a5fa' : '#3b82f6' }]}
-                  onPress={handleSaveTime2}
+              Platform.OS === 'ios' ? (
+                <Modal
+                  transparent={true}
+                  visible={showTimePicker2}
+                  animationType="slide"
                 >
-                  <Text style={styles.saveButtonText}>Enregistrer</Text>
-                </TouchableOpacity>
-              </View>
+                  <View style={styles.modalContainer}>
+                    <View style={[styles.modalContent, { backgroundColor: isDarkMode ? '#2d2d2d' : '#ffffff' }]}>
+                      <DateTimePicker
+                        value={tempTime2}
+                        mode="time"
+                        is24Hour={true}
+                        display="spinner"
+                        onChange={handleTimeChange2}
+                      />
+                      <View style={styles.modalButtons}>
+                        <TouchableOpacity
+                          style={[styles.modalButton, { backgroundColor: isDarkMode ? '#3d3d3d' : '#f5f5f5' }]}
+                          onPress={() => {
+                            setShowTimePicker2(false);
+                            setTempTime2(motivationalTime2);
+                          }}
+                        >
+                          <Text style={[styles.modalButtonText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>Annuler</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.modalButton, { backgroundColor: isDarkMode ? '#60a5fa' : '#3b82f6' }]}
+                          onPress={handleSaveTime2}
+                        >
+                          <Text style={styles.modalButtonText}>Enregistrer</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </Modal>
+              ) : (
+                <View style={styles.timePickerContainer}>
+                  <DateTimePicker
+                    value={tempTime2}
+                    mode="time"
+                    is24Hour={true}
+                    display="spinner"
+                    onChange={handleTimeChange2}
+                  />
+                </View>
+              )
             )}
           </View>
         </ScrollView>
@@ -617,5 +781,33 @@ const styles = StyleSheet.create({
   frequencyText: {
     fontSize: 14,
     fontWeight: '500',
-  }
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    gap: 10,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 }); 
