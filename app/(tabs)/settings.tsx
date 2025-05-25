@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, Linking, ScrollView } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { configureNotifications } from '../utils/notifications';
 import * as Haptics from 'expo-haptics';
 import { ref, listAll, deleteObject } from 'firebase/storage';
 import { storage } from '../../firebaseConfig';
@@ -42,21 +41,6 @@ export default function SettingsScreen() {
       loadUserSettings();
     }, [loadUserSettings])
   );
-
-  const toggleNotifications = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const user = auth.currentUser;
-    if (user) {
-      const newValue = !notificationsEnabled;
-      if (newValue) {
-        await configureNotifications();
-      }
-      setNotificationsEnabled(newValue);
-      await updateDoc(doc(db, 'users', user.uid), {
-        notificationsEnabled: newValue
-      });
-    }
-  };
 
   const handleDeleteAccount = async () => {
     showConfirmAlert(
@@ -116,8 +100,20 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleOpenLink = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch (error) {
+      console.error('Erreur lors de l\'ouverture du lien:', error);
+      showAlert('Erreur', 'Impossible d\'ouvrir le lien');
+    }
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff' }]}>
+    <ScrollView 
+      style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff' }]}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
         <TouchableOpacity
           style={[styles.notificationButton, { 
@@ -205,6 +201,28 @@ export default function SettingsScreen() {
 
       <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+          Conditions d'utilisation
+        </Text>
+        <TouchableOpacity
+          style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
+          onPress={() => handleOpenLink('https://academiaforkids.com/cgu/')}
+        >
+          <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+            Conditions générales d'utilisation
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
+          onPress={() => handleOpenLink('https://academiaforkids.com/politique-de-confidentialite-academia/')}
+        >
+          <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+            Politique de confidentialité
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
+        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
           Compte
         </Text>
         <TouchableOpacity
@@ -214,7 +232,7 @@ export default function SettingsScreen() {
           <Text style={styles.deleteButtonText}>Supprimer mon compte</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
