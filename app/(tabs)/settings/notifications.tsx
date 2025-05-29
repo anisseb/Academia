@@ -397,15 +397,15 @@ export default function NotificationSettingsScreen() {
                   </View>
                 </Modal>
               ) : (
-                <View style={styles.timePickerContainer}>
-                  <DateTimePicker
-                    value={tempTime}
-                    mode="time"
-                    is24Hour={true}
-                    display="spinner"
-                    onChange={handleTimeChange}
-                  />
-                </View>
+              <View style={styles.timePickerContainer}>
+                <DateTimePicker
+                  value={tempTime}
+                  mode="time"
+                  is24Hour={true}
+                  display="spinner"
+                  onChange={handleTimeChange}
+                />
+              </View>
               )
             )}
           </View>
@@ -623,15 +623,15 @@ export default function NotificationSettingsScreen() {
                   </View>
                 </Modal>
               ) : (
-                <View style={styles.timePickerContainer}>
-                  <DateTimePicker
-                    value={tempTime1}
-                    mode="time"
-                    is24Hour={true}
-                    display="spinner"
-                    onChange={handleTimeChange1}
-                  />
-                </View>
+              <View style={styles.timePickerContainer}>
+                <DateTimePicker
+                  value={tempTime1}
+                  mode="time"
+                  is24Hour={true}
+                  display="spinner"
+                  onChange={handleTimeChange1}
+                />
+              </View>
               )
             )}
 
@@ -672,15 +672,15 @@ export default function NotificationSettingsScreen() {
                   </View>
                 </Modal>
               ) : (
-                <View style={styles.timePickerContainer}>
-                  <DateTimePicker
-                    value={tempTime2}
-                    mode="time"
-                    is24Hour={true}
-                    display="spinner"
-                    onChange={handleTimeChange2}
-                  />
-                </View>
+              <View style={styles.timePickerContainer}>
+                <DateTimePicker
+                  value={tempTime2}
+                  mode="time"
+                  is24Hour={true}
+                  display="spinner"
+                  onChange={handleTimeChange2}
+                />
+              </View>
               )
             )}
           </View>

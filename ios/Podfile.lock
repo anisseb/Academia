@@ -236,6 +236,8 @@ PODS:
     - ExpoModulesCore
     - ZXingObjC/OneD
     - ZXingObjC/PDF417
+  - ExpoDevice (7.0.3):
+    - ExpoModulesCore
   - ExpoDocumentPicker (13.0.3):
     - ExpoModulesCore
   - ExpoFileSystem (18.0.12):
@@ -2414,6 +2416,7 @@ DEPENDENCIES:
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
   - ExpoCamera (from `../node_modules/expo-camera/ios`)
+  - ExpoDevice (from `../node_modules/expo-device/ios`)
   - ExpoDocumentPicker (from `../node_modules/expo-document-picker/ios`)
   - ExpoFileSystem (from `../node_modules/expo-file-system/ios`)
   - ExpoFont (from `../node_modules/expo-font/ios`)
@@ -2586,6 +2589,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-blur/ios"
   ExpoCamera:
     :path: "../node_modules/expo-camera/ios"
+  ExpoDevice:
+    :path: "../node_modules/expo-device/ios"
   ExpoDocumentPicker:
     :path: "../node_modules/expo-document-picker/ios"
   ExpoFileSystem:
@@ -2805,6 +2810,7 @@ SPEC CHECKSUMS:
   ExpoAsset: 0687fe05f5d051c4a34dd1f9440bd00858413cfe
   ExpoBlur: 567af66164e3043a9a30069594aed1ddf0a88d97
   ExpoCamera: 173e000631122854b87c20310513981e89030bc6
+  ExpoDevice: cf7419343b6e060209aaadd596defb1b6320597f
   ExpoDocumentPicker: 8c1f88c2809ab2287350e8fac65964bf423578be
   ExpoFileSystem: c8c19bf80d914c83dda3beb8569d7fb603be0970
   ExpoFont: 773955186469acc5108ff569712a2d243857475f
