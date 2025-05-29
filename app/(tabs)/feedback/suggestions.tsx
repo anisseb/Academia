@@ -40,8 +40,6 @@ export default function SuggestionsScreen() {
             description,
             category,
             timestamp: new Date(),
-            status: 'new',
-            votes: 0,
           })
         });
       } else {
@@ -52,8 +50,6 @@ export default function SuggestionsScreen() {
             description,
             category,
             timestamp: new Date(),
-            status: 'new',
-            votes: 0,
           }]
         });
       }
