@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Animated, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSchoolData } from '../hooks/useSchoolData';
 import { OnboardingButton } from '../components/OnboardingButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { SchoolType } from '../types/firestore';
+import { getSchoolTypes } from '../services/firestoreService';
+import * as Haptics from 'expo-haptics';
 
 type Step4Props = {
   onNext: (data: { schoolType: string }) => void;
@@ -23,9 +25,62 @@ const schoolTypeIcons: Record<string, keyof typeof MaterialCommunityIcons.glyphM
 export default function Step4({ onNext, onBack, data }: Step4Props) {
   const [selectedType, setSelectedType] = React.useState<string | undefined>(data?.schoolType);
   const insets = useSafeAreaInsets();
-  const fadeAnim = new Animated.Value(0);
-  const scaleAnim = new Animated.Value(0.9);
-  const { schoolTypes, loading, error } = useSchoolData();
+  
+  // Animation d'entrée
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  
+  // Animation de sélection
+  const buttonScale = useRef(new Animated.Value(1)).current;
+  
+  const [schoolTypes, setSchoolTypes] = useState<SchoolType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchSchoolTypes = async () => {
+      const schoolTypes = await getSchoolTypes(data?.country || '');
+      setSchoolTypes(schoolTypes);
+      setLoading(false);
+    };
+    fetchSchoolTypes();
+  }, [data?.country]);
+
+  useEffect(() => {
+    // Animation d'entrée
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
+
+  const handleTypeSelect = (typeId: string) => {
+    setSelectedType(typeId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Animation de sélection
+    Animated.sequence([
+      Animated.timing(buttonScale, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(buttonScale, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      })
+    ]).start();
+  };
 
   if (loading) {
     return (
@@ -44,20 +99,39 @@ export default function Step4({ onNext, onBack, data }: Step4Props) {
   }
 
   return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <Animated.View
+        style={{
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }]
+        }}
+      >
         <Text style={styles.title}>Votre niveau d'études</Text>
         <Text style={styles.subtitle}>Sélectionnez votre type d'établissement</Text>
+      </Animated.View>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          <View style={styles.grid}>
-            {schoolTypes.map((type) => (
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.grid}>
+          {schoolTypes.map((type) => (
+            <Animated.View
+              key={type.id}
+              style={[
+                styles.buttonContainer,
+                {
+                  opacity: fadeAnim,
+                  transform: [
+                    { translateY: slideAnim },
+                    { scale: selectedType === type.id ? buttonScale : 1 }
+                  ]
+                }
+              ]}
+            >
               <TouchableOpacity
-                key={type.id}
                 style={[
                   styles.typeButton,
                   selectedType === type.id && styles.selectedType,
                 ]}
-                onPress={() => setSelectedType(type.id)}
+                onPress={() => handleTypeSelect(type.id)}
               >
                 <MaterialCommunityIcons
                   name={schoolTypeIcons[type.id] || 'school'}
@@ -67,24 +141,25 @@ export default function Step4({ onNext, onBack, data }: Step4Props) {
                 />
                 <Text style={styles.typeName}>{type.label}</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-
-        <View style={styles.footer}>
-          <OnboardingButton
-            icon="arrow-left"
-            onPress={onBack}
-            style={styles.backButton}
-          />
-          <OnboardingButton
-            label="Continuer"
-            onPress={() => selectedType && onNext({ schoolType: selectedType })}
-            disabled={!selectedType}
-            style={styles.continueButton}
-          />
+            </Animated.View>
+          ))}
         </View>
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <OnboardingButton
+          icon="arrow-left"
+          onPress={onBack}
+          style={styles.backButton}
+        />
+        <OnboardingButton
+          label="Continuer"
+          onPress={() => selectedType && onNext({ schoolType: selectedType })}
+          disabled={!selectedType}
+          style={styles.continueButton}
+        />
       </View>
+    </View>
   );
 }
 
@@ -117,12 +192,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 10,
   },
-  typeButton: {
+  buttonContainer: {
     width: '48%',
+    marginBottom: 16,
+  },
+  typeButton: {
+    width: '100%',
     backgroundColor: '#1e293b',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#334155',
