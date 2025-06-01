@@ -23,6 +23,7 @@ import { validateUsername } from '../utils/usernameValidation';
 import { COURSE_PROGRESSION_ACHIEVEMENTS, EXERCISE_ACHIEVEMENTS, IA_ACHIEVEMENTS, SPECIAL_BADGES_ACHIEVEMENTS } from '../constants/achievements';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
+import { useSchoolData } from '../hooks/useSchoolData';
 
 interface Section {
   id: string;
@@ -79,7 +80,6 @@ type ProfileData = {
 
 export default function ProfileScreen() {
   const { isDarkMode } = useTheme();
-  const { schoolTypes, loading: schoolTypesLoading, error: schoolTypesError } = useSchoolTypes();
   const [profileData, setProfileData] = useState<ProfileData>({
     name: '',
     username: '',
@@ -89,6 +89,19 @@ export default function ProfileScreen() {
     section: '',
     subjects: [],
   });
+  const { 
+    countries,
+    schoolTypes,
+    classes,
+    subjects,
+    loading: schoolDataLoading,
+    error: schoolDataError
+  } = useSchoolData(
+    profileData.country,
+    profileData.schoolType,
+    profileData.class
+  );
+  const { schoolTypes: schoolDataTypes, loading: schoolTypesLoading, error: schoolTypesError } = useSchoolTypes();
   const [isEditing, setIsEditing] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
   const [usernameError, setUsernameError] = useState<string | null>(null);
@@ -170,7 +183,7 @@ export default function ProfileScreen() {
         profile: {
           ...currentProfile,
           ...profileData,
-          exercises: currentProfile.exercises || {},
+          completedExercises: currentProfile.completedExercises || {},
           onboardingCompleted: true
         }
       });
@@ -193,14 +206,9 @@ export default function ProfileScreen() {
     return schoolType ? schoolType.label : schoolTypeId;
   };
 
-  const getClassName = (classId: string, schoolTypeId: string, sectionId?: string) => {
-    if (schoolTypeId === 'high_technological' && sectionId) {
-      const schoolType = schoolTypes.find(s => s.id === schoolTypeId) as SchoolType;
-      const section = schoolType?.sections?.find(s => s.id === sectionId);
-      const classInfo = section?.classes.find(c => c.id === classId);
-      return classInfo ? classInfo.label : classId;
-    }
-    return classId;
+  const getClassName = (classId: string) => {
+    const classInfo = classes.find(c => c.id === classId);
+    return classInfo ? classInfo.label : classId;
   };
 
   const getSectionName = (sectionId: string, schoolTypeId: string) => {
@@ -257,7 +265,7 @@ export default function ProfileScreen() {
   };
 
   const renderSchoolTypeSelector = () => {
-    if (schoolTypesLoading) {
+    if (schoolDataLoading) {
       return (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="small" color="#60a5fa" />
@@ -265,10 +273,10 @@ export default function ProfileScreen() {
       );
     }
 
-    if (schoolTypesError) {
+    if (schoolDataError) {
       return (
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{schoolTypesError}</Text>
+          <Text style={styles.errorText}>{schoolDataError}</Text>
         </View>
       );
     }
@@ -348,12 +356,6 @@ export default function ProfileScreen() {
   };
 
   const renderClassSelector = () => {
-    const schoolType = schoolTypes.find(s => s.id === profileData.schoolType);
-    const classes = schoolType?.classes ? Object.entries(schoolType.classes).map(([id, classData]) => ({
-      id,
-      label: classData.label
-    })) : [];
-
     if (!classes.length) return null;
 
     return (
@@ -387,84 +389,56 @@ export default function ProfileScreen() {
   };
 
   const renderSubjectSelector = () => {
-    if (!profileData.class) return null;
-
-    const schoolType = schoolTypes.find(s => s.id === profileData.schoolType) as SchoolType;
-    if (!schoolType) return null;
-
-    let availableSubjects: SubjectDisplay[] = [];
-
-    if (profileData.schoolType === 'high_technological' && profileData.section) {
-      const section = schoolType.sections?.find(s => s.id === profileData.section);
-      const classInfo = section?.classes.find(c => c.id === profileData.class);
-      if (classInfo) {
-        availableSubjects = Object.entries(classInfo.matieres).map(([id, subject]) => ({
-          id,
-          label: subject.label,
-          icon: subject.icon,
-          gradient: subject.gradient
-        }));
-      }
-    } else if (schoolType.classes && schoolType.classes[profileData.class]) {
-      const classInfo = schoolType.classes[profileData.class];
-      availableSubjects = Object.entries(classInfo.matieres).map(([id, subject]) => ({
-        id,
-        label: subject.label,
-        icon: subject.icon,
-        gradient: subject.gradient
-      }));
-    }
-
-    if (!availableSubjects.length) return null;
+    if (!profileData.class || !subjects.length) return null;
 
     return (
       <View style={[styles.section, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Matières</Text>
         <View style={styles.subjectsGrid}>
-        {availableSubjects.map((subject) => {
-          const isSelected = profileData.subjects.some(s => s.id === subject.id);
-          return (
-            <TouchableOpacity
-              key={subject.id}
-              style={[
-                styles.subjectButton,
-                { borderColor: isSelected ? parseGradient(subject.gradient)[1] : themeColors.border }
-              ]}
-              onPress={() => toggleSubject(subject)}
-            >
-              {isSelected && (
-                <View style={styles.selectedBadge}>
-                  <MaterialCommunityIcons
-                    name="check-circle"
-                    size={18}
-                    color="#22c55e"
-                  />
-                </View>
-              )}
-              <LinearGradient
-                colors={isSelected ? parseGradient(subject.gradient) : [themeColors.buttonBackground, themeColors.buttonBackground]}
-                style={styles.gradientBackground}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+          {subjects.map((subject) => {
+            const isSelected = profileData.subjects.some(s => s.id === subject.id);
+            return (
+              <TouchableOpacity
+                key={subject.id}
+                style={[
+                  styles.subjectButton,
+                  { borderColor: isSelected ? parseGradient(subject.gradient)[1] : themeColors.border }
+                ]}
+                onPress={() => toggleSubject(subject)}
               >
-                <MaterialCommunityIcons
-                  name={subject.icon as any}
-                  size={24}
-                  color={isSelected ? '#ffffff' : themeColors.text}
-                  style={styles.subjectIcon}
-                />
-                <Text style={[
-                  styles.subjectButtonText,
-                  { color: isSelected ? '#ffffff' : themeColors.text }
-                ]}>
-                  {subject.label}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          );
-        })}
+                {isSelected && (
+                  <View style={styles.selectedBadge}>
+                    <MaterialCommunityIcons
+                      name="check-circle"
+                      size={18}
+                      color="#22c55e"
+                    />
+                  </View>
+                )}
+                <LinearGradient
+                  colors={isSelected ? parseGradient(subject.gradient) : [themeColors.buttonBackground, themeColors.buttonBackground]}
+                  style={styles.gradientBackground}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <MaterialCommunityIcons
+                    name={subject.icon as any}
+                    size={24}
+                    color={isSelected ? '#ffffff' : themeColors.text}
+                    style={styles.subjectIcon}
+                  />
+                  <Text style={[
+                    styles.subjectButtonText,
+                    { color: isSelected ? '#ffffff' : themeColors.text }
+                  ]}>
+                    {subject.label}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
-    </View>
     );
   };
 
@@ -629,7 +603,7 @@ export default function ProfileScreen() {
                 <Text style={[styles.fieldLabel, { color: themeColors.text }]}>Classe</Text>
                 {isEditing ? renderClassSelector() : (
                   <Text style={[styles.value, { color: themeColors.text }]}>
-                    {getClassName(profileData.class || '', profileData.schoolType, profileData.section)}
+                    {getClassName(profileData.class || '')}
                   </Text>
                 )}
               </View>

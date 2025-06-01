@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSchoolTypes } from '../hooks/useSchoolTypes';
+import { useSchoolData } from '../hooks/useSchoolData';
 import { OnboardingButton } from '../components/OnboardingButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -25,7 +25,7 @@ export default function Step4({ onNext, onBack, data }: Step4Props) {
   const insets = useSafeAreaInsets();
   const fadeAnim = new Animated.Value(0);
   const scaleAnim = new Animated.Value(0.9);
-  const { schoolTypes, loading, error } = useSchoolTypes();
+  const { schoolTypes, loading, error } = useSchoolData();
 
   if (loading) {
     return (

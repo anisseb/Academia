@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useState, useEffect } from 'react';
 import { auth, db } from '../../firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { parseGradient } from '../utils/subjectGradients';
@@ -54,81 +54,76 @@ export default function StatistiquesScreen() {
         const profile = userData.profile || {};
         setProfileData(profile);
         
-        // Récupérer tous les exercices complétés de la nouvelle structure
-        const exercises = profile.exercises || {};
-        const completedExercises: any[] = [];
-  
-        // Parcourir la structure imbriquée pour extraire tous les exercices
-        Object.entries(exercises).forEach(([schoolType, schoolTypeData]) => {
-          if (typeof schoolTypeData === 'object' && schoolTypeData !== null) {
-            Object.entries(schoolTypeData).forEach(([classe, classeData]) => {
-              if (typeof classeData === 'object' && classeData !== null) {
-                Object.entries(classeData).forEach(([subject, subjectData]) => {
-                  if (typeof subjectData === 'object' && subjectData !== null) {
-                    Object.entries(subjectData).forEach(([chapterId, chapterData]) => {
-                      if (typeof chapterData === 'object' && chapterData !== null) {
-                        Object.entries(chapterData).forEach(([contentId, contentExercises]) => {
-                          if (Array.isArray(contentExercises)) {
-                            contentExercises.forEach((exercise: any) => {
-                              completedExercises.push({
-                                ...exercise,
-                                subject,
-                                chapterId,
-                                contentId
-                              });
-                            });
-                          }
-                        });
-                      }
-                    });
-                  }
-                });
+        // Récupérer les exercices complétés depuis la collection completedExercises
+        const completedExercisesMap = profile.completedExercises || {};
+        const completedExercises = Object.keys(completedExercisesMap).map(id => ({
+          id,
+          ...completedExercisesMap[id]
+        }));
+
+        // Charger les détails de chaque exercice depuis la collection exercices
+        const exercicesRef = collection(db, 'exercises');
+        const exercicesDetails = await Promise.all(
+          completedExercises.map(async (ex: any) => {
+              try {
+              const exerciceDoc = await getDoc(doc(exercicesRef, ex.exerciseId));
+              if (exerciceDoc.exists()) {
+                return {
+                  ...ex,
+                  ...exerciceDoc.data(),
+                };
+              } else {
+                return ex; // fallback si l'exercice n'existe plus
               }
-            });
-          }
-        });
+            } catch (e) {
+              return ex; // fallback en cas d'erreur
+            }
+          })
+        );
+
+        // Récupérer les informations des matières depuis la collection subjects
+        const subjectsRef = collection(db, 'subjects');
+        const subjectsSnapshot = await getDocs(subjectsRef);
+        const subjectsData = subjectsSnapshot.docs.reduce((acc, doc) => {
+          acc[doc.id] = { id: doc.id, ...doc.data() };
+          return acc;
+        }, {} as Record<string, any>);
         
-        // Regrouper les exercices par matière
+        // Regrouper les exercices par matière (subjectId)
         const exercisesBySubject: Record<string, any[]> = {};
-        
-        completedExercises.forEach((exercise: any) => {
-          const subject = exercise.subject;
-          if (!exercisesBySubject[subject]) {
-            exercisesBySubject[subject] = [];
+        exercicesDetails.forEach((exercise: any) => {
+          const subjectId = exercise.subjectId;
+          if (!subjectId) return; // ignorer si pas de matière
+          if (!exercisesBySubject[subjectId]) {
+            exercisesBySubject[subjectId] = [];
           }
-          exercisesBySubject[subject].push(exercise);
+          exercisesBySubject[subjectId].push(exercise);
         });
         
         // Calculer les statistiques pour chaque matière
         const newStats: Record<string, SubjectStats> = {};
-        
-        Object.entries(exercisesBySubject).forEach(([subject, subjectExercises]) => {
+
+        Object.entries(exercisesBySubject).forEach(([subjectId, subjectExercises]) => {
           // Calculer les statistiques pour cette matière
           const totalExercises = subjectExercises.length;
           const validExercises = subjectExercises.filter(ex => ex.score !== undefined && ex.score !== null);
-          
           const totalScore = validExercises.reduce((sum, ex) => {
             return sum + (ex.score || 0);
           }, 0);
-          
           const averageScore = validExercises.length > 0 ? totalScore / validExercises.length : 0;
-          
           // Calculer les jours consécutifs
           const dates = subjectExercises
             .map(ex => new Date(ex.completedAt).toDateString())
             .sort()
             .filter((date, index, array) => array.indexOf(date) === index);
-          
           // Calculer les réponses correctes/incorrectes basées sur le score
           const correctAnswers = validExercises.reduce((sum, ex) => {
             return sum + Math.round(((ex.score || 0) / 100) * 10);
           }, 0);
-          
           const incorrectAnswers = validExercises.reduce((sum, ex) => {
             return sum + (10 - Math.round(((ex.score || 0) / 100) * 10));
           }, 0);
-          
-          newStats[subject] = {
+          newStats[subjectId] = {
             averageScore: Math.round(averageScore),
             completedExercises: totalExercises,
             consecutiveDays: calculateConsecutiveDays(dates),
@@ -141,6 +136,7 @@ export default function StatistiquesScreen() {
         });
   
         setStats(newStats);
+        setSubjectInfos(subjectsData);
       } catch (error) {
         console.error('Erreur lors du chargement des stats:', error);
       } finally {
@@ -170,55 +166,8 @@ export default function StatistiquesScreen() {
       return consecutiveDays;
     };
   
-    const getSubjectInfo = async (subjectId: string) => {
-      try {
-        const user = auth.currentUser;
-        if (!user) return null;
-  
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (!userDoc.exists()) return null;
-  
-        const userData = userDoc.data();
-        const profile = userData.profile || {};
-        const schoolType = profile.schoolType;
-        const classe = profile.class;
-  
-        if (!schoolType || !classe) return null;
-  
-        const academiaDoc = await getDoc(doc(db, 'academia', schoolType));
-        if (!academiaDoc.exists()) return null;
-  
-        const academiaData = academiaDoc.data();
-        
-        if (academiaData.classes && 
-            academiaData.classes[classe] && 
-            academiaData.classes[classe].matieres && 
-            academiaData.classes[classe].matieres[subjectId]) {
-          return academiaData.classes[classe].matieres[subjectId];
-        }
-  
-      } catch (error) {
-        console.error('Erreur lors de la récupération des informations de la matière:', error);
-        return null;
-      }
-    };
-  
     const loadSubjectInfos = async () => {
-      try {
-        setIsLoadingSubjects(true);
-        const newSubjectInfos: Record<string, any> = {};
-        for (const subject of Object.keys(stats)) {
-          const info = await getSubjectInfo(subject);
-          if (info) {
-            newSubjectInfos[subject] = info;
-          }
-        }
-        setSubjectInfos(newSubjectInfos);
-      } catch (error) {
-        console.error('Erreur lors du chargement des infos des matières:', error);
-      } finally {
-        setIsLoadingSubjects(false);
-      }
+      setIsLoadingSubjects(false);
     };
   
     const renderSubjectStats = (subject: string, stats: SubjectStats) => {

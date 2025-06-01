@@ -11,34 +11,15 @@ export const checkLevelExplorer = async (): Promise<number> => {
 
     const userData = userDoc.data();
     const profile = userData.profile || {};
-    const exercises = profile.exercises || {};
+    const completedExercises = profile.completedExercises || {};
 
     // Ensemble pour stocker les niveaux de difficulté complétés
     const completedLevels = new Set<string>();
     
-    Object.entries(exercises).forEach(([schoolType, schoolTypeData]) => {
-      if (typeof schoolTypeData === 'object' && schoolTypeData !== null) {
-        Object.entries(schoolTypeData).forEach(([classe, classeData]) => {
-          if (typeof classeData === 'object' && classeData !== null) {
-            Object.entries(classeData).forEach(([subject, subjectData]) => {
-              if (typeof subjectData === 'object' && subjectData !== null) {
-                Object.entries(subjectData).forEach(([chapterId, chapterData]) => {
-                  if (typeof chapterData === 'object' && chapterData !== null) {
-                    Object.entries(chapterData).forEach(([contentId, contentData]) => {
-                      if (Array.isArray(contentData)) {
-                        contentData.forEach((exercise: any) => {
-                          if (exercise.difficulty) {
-                            completedLevels.add(exercise.difficulty);
-                          }
-                        });
-                      }
-                    });
-                  }
-                });
-              }
-            });
-          }
-        });
+    // Parcourir les exercices complétés
+    Object.values(completedExercises).forEach((exercise: any) => {
+      if (exercise.done && exercise.difficulty) {
+        completedLevels.add(exercise.difficulty);
       }
     });
 

@@ -97,10 +97,10 @@ const Message = ({ message, isLast }: { message: Message, isLast: boolean }) => 
 };
 
 export default function HistoryScreen() {
-  const { threadId, imageBase64: initialImageBase64 } = useLocalSearchParams();
+  const { threadId, imageUri: initialImageUri } = useLocalSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [question, setQuestion] = useState('');
-  const [selectedImageBase64, setSelectedImageBase64] = useState<string | null>(initialImageBase64 as string || null);
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(initialImageUri as string || null);
   const [isLoading, setIsLoading] = useState(false);
   const [showSubjectSelector, setShowSubjectSelector] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
@@ -177,31 +177,34 @@ export default function HistoryScreen() {
 
     const user = auth.currentUser;
     if (!user) return;
-
-    const userRef = doc(db, 'users', user.uid);
-    const unsubscribe = onSnapshot(userRef, async (doc) => {
-      if (doc.exists()) {
-        const userData = doc.data();
-        setUserClass(userData.profile?.class || null);
-        setUserSchoolType(userData.profile?.schoolType || null);
-        
-        const subjects = [...(userData.profile?.subjects || [])];
-        setUserSubjects(subjects);
-
-        const currentThread = userData.threads?.[threadId as string];
-        
-        if (currentThread) {
-          setThreadTitle(currentThread.title || 'Nouvelle conversation');
-          setMessages(currentThread.messages || []);
-          setSelectedSubject(currentThread.subject || null);
-          setSelectedAIProfile(currentThread.aiProfile || 'professeur');
-          setShowSubjectSelector(!currentThread.subject);
+    const threadRef = doc(db, 'threads', user.uid);
+    const unsubscribe = onSnapshot(threadRef, async (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const threadData = data.threads && data.threads[threadId as string];
+        if (threadData) {
+          setThreadTitle(threadData.title || 'Nouvelle conversation');
+          setMessages(threadData.messages || []);
+          setSelectedSubject(threadData.subject || null);
+          setSelectedAIProfile(threadData.aiProfile || 'professeur');
+          if (!threadData.subject) {
+            setShowSubjectSelector(true);
+          } else {
+            setShowSubjectSelector(false);
+          }
         } else {
           setMessages([]);
           setThreadTitle('Nouvelle conversation');
           setSelectedSubject(null);
           setSelectedAIProfile('professeur');
+          setShowSubjectSelector(false);
         }
+      } else {
+        setMessages([]);
+        setThreadTitle('Nouvelle conversation');
+        setSelectedSubject(null);
+        setSelectedAIProfile('professeur');
+        setShowSubjectSelector(false);
       }
     });
 
@@ -209,10 +212,10 @@ export default function HistoryScreen() {
   }, [threadId]);
 
   useEffect(() => {
-    if (initialImageBase64) {
-      setSelectedImageBase64(initialImageBase64 as string);
+    if (initialImageUri) {
+      setSelectedImageUri(initialImageUri as string);
     }
-  }, [initialImageBase64]);
+  }, [initialImageUri]);
 
   const handleSubjectSelect = async (subject: string) => {
     setSelectedSubject(subject);
@@ -220,9 +223,8 @@ export default function HistoryScreen() {
 
     const user = auth.currentUser;
     if (!user || !threadId) return;
-
-    const userRef = doc(db, 'users', user.uid);
-    await updateDoc(userRef, {
+    const threadRef = doc(db, 'threads', user.uid);
+    await updateDoc(threadRef, {
       [`threads.${threadId}.subject`]: subject,
     });
   };
@@ -291,10 +293,10 @@ export default function HistoryScreen() {
     try {
       setIsLoading(true);
       const currentQuestion = question;
-      const currentImage = selectedImageBase64;
+      const currentImage = selectedImageUri;
 
       setQuestion('');
-      setSelectedImageBase64(null);
+      setSelectedImageUri(null);
       Keyboard.dismiss();
 
       const messageId = `user_${Date.now()}`;
@@ -314,29 +316,17 @@ export default function HistoryScreen() {
 
       const user = auth.currentUser;
       if (!user) return;
-
-      const userRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userRef);
+      const threadRef = doc(db, 'threads', user.uid);
+      const threadDoc = await getDoc(threadRef);
       
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        const currentThread = userData.threads?.[threadId as string];
-        
-        if (!currentThread) {
-          throw new Error('Conversation non trouvée');
-        }
+      if (threadDoc.exists()) {
+        const threadData = threadDoc.data();
+        const updatedMessages = [...(threadData.threads[threadId as string].messages || []), userMessage];
 
-        if(imageUrl) {
-          await updateDoc(userRef, {
-            [`threads.${threadId}.cameraCount`]: (userData.threads?.[threadId as string]?.cameraCount || 0) + 1
-          });
-        }
-
-        const updatedMessages = [...(currentThread.messages || []), userMessage];
-
-        await updateDoc(userRef, {
+        await updateDoc(threadRef, {
           [`threads.${threadId}.messages`]: updatedMessages,
-          [`threads.${threadId}.lastUpdated`]: new Date()
+          [`threads.${threadId}.lastUpdated`]: new Date(),
+          ...(imageUrl && { [`threads.${threadId}.cameraCount`]: (threadData.threads[threadId as string].cameraCount || 0) + 1 })
         });
 
         // Créer l'historique des messages pour l'API Mistral
@@ -424,7 +414,7 @@ export default function HistoryScreen() {
           timestamp: new Date(),
         };
 
-        await updateDoc(userRef, {
+        await updateDoc(threadRef, {
           [`threads.${threadId}.messages`]: [...updatedMessages, aiMessage],
           [`threads.${threadId}.lastUpdated`]: new Date()
         });
@@ -444,9 +434,8 @@ export default function HistoryScreen() {
 
     const user = auth.currentUser;
     if (!user || !threadId) return;
-
-    const userRef = doc(db, 'users', user.uid);
-    await updateDoc(userRef, {
+    const threadRef = doc(db, 'threads', user.uid);
+    await updateDoc(threadRef, {
       [`threads.${threadId}.aiProfile`]: profile
     });
   };
@@ -462,24 +451,41 @@ export default function HistoryScreen() {
         });
 
         if (!result.canceled) {
-          router.push({
-            pathname: '/(tabs)/history',
-            params: { 
-              threadId: threadId as string,
-              imageBase64: result.assets[0].uri
-            }
-          });
+          // Vérifier que le fichier sélectionné est bien une image
+          const asset = result.assets[0];
+          console.log('asset', asset);
+          if (asset.type && asset.type.startsWith('image')) {
+            router.push({
+              pathname: '/(tabs)/history',
+              params: { 
+                threadId: threadId as string,
+                imageUri: asset.uri
+              }
+            });
+          } else {
+            showErrorAlert('Erreur', "Le fichier sélectionné n'est pas une image.");
+          }
         }
       } else if (type === 'document') {
         const result = await DocumentPicker.getDocumentAsync({
-          type: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+          type: ['image/*', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
           copyToCacheDirectory: true,
         });
 
         if (result.assets && result.assets.length > 0) {
-          // Ici vous pouvez gérer le fichier PDF ou document
-          console.log('Document sélectionné:', result.assets[0]);
-          // Vous pouvez ajouter le document à votre message ou le traiter comme vous le souhaitez
+          const asset = result.assets[0];
+          // Si c'est une image, l'afficher en preview
+          if (asset.mimeType && asset.mimeType.startsWith('image/')) {
+            router.push({
+              pathname: '/(tabs)/history',
+              params: { 
+                threadId: threadId as string,
+                imageUri: asset.uri
+              }
+            });
+          } else {
+            showErrorAlert('Erreur', "Le fichier sélectionné n'est pas une image.");
+          }
         }
       } else {
         router.push({
@@ -563,16 +569,16 @@ export default function HistoryScreen() {
 
         <View style={[styles.inputContainer, { backgroundColor: themeColors.card }]}>
           <View style={styles.inputContent}>
-            {selectedImageBase64 && (
+            {selectedImageUri && (
               <View style={styles.selectedImageContainer}>
                 <Image 
-                  source={{ uri: selectedImageBase64 }} 
+                  source={{ uri: selectedImageUri }} 
                   style={styles.selectedImagePreview}
                 />
                 <TouchableOpacity 
                   style={styles.removeImageButton}
                   onPress={() => {
-                    setSelectedImageBase64(null);
+                    setSelectedImageUri(null);
                   }}
                 >
                   <X size={20} color={themeColors.text} />

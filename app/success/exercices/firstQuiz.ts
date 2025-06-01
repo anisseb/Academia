@@ -11,31 +11,10 @@ export const checkFirstQuiz = async (): Promise<number> => {
 
     const userData = userDoc.data();
     const profile = userData.profile || {};
-    const exercises = profile.exercises || {};
+    const completedExercises = profile.completedExercises || {};
 
     // Vérifier si l'utilisateur a au moins un exercice complété
-    let hasCompletedExercise = false;
-    Object.entries(exercises).forEach(([schoolType, schoolTypeData]) => {
-      if (typeof schoolTypeData === 'object' && schoolTypeData !== null) {
-        Object.entries(schoolTypeData).forEach(([classe, classeData]) => {
-          if (typeof classeData === 'object' && classeData !== null) {
-            Object.entries(classeData).forEach(([subject, subjectData]) => {
-              if (typeof subjectData === 'object' && subjectData !== null) {
-                Object.entries(subjectData).forEach(([chapterId, chapterData]) => {
-                  if (typeof chapterData === 'object' && chapterData !== null) {
-                    Object.entries(chapterData).forEach(([contentId, contentData]) => {
-                      if (Array.isArray(contentData) && contentData.length > 0) {
-                        hasCompletedExercise = true;
-                      }
-                    });
-                  }
-                });
-              }
-            });
-          }
-        });
-      }
-    });
+    const hasCompletedExercise = Object.keys(completedExercises).length > 0;
 
     return hasCompletedExercise ? 1 : 0;
   } catch (error) {

@@ -25,13 +25,15 @@ export interface Question {
 
 export interface Exercise {
   id: string;
+  chapterId: string;
+  themeId: string;
+  subjectId: string;
+  classId: string;
+  countryId: string;
+  schoolTypeId: string;
   title: string;
   difficulty: 'facile' | 'moyen' | 'difficile';
   questions: Question[];
-  subject?: string;
-  class?: string;
-  chapter?: string;
-  content?: string;
   createdAt?: string;
   isCompleted?: boolean;
   score?: number;

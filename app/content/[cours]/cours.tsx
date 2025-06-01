@@ -22,6 +22,8 @@ import * as Print from 'expo-print';
 import { shareAsync } from 'expo-sharing';
 import katex from 'katex';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 
 interface CoursSection {
   title: string;
@@ -66,7 +68,7 @@ export default function CoursScreen() {
     if (!user) return;
 
     // Création de l'identifiant unique
-    const uniqueId = `${params.classe}_${params.subject}_${params.chapter}_${params.contentId}`;
+    const uniqueId = `${params.chapterId}`;
 
     const userDocRef = doc(db, 'users', user.uid);
     const userDoc = await getDoc(userDocRef);
@@ -156,7 +158,7 @@ export default function CoursScreen() {
         if (userData.profile) {
           setUserLevel(userData.profile.class || '');
           setUserSchoolType(userData.profile.schoolType || '');
-          await loadCourse(userData.profile.class, userData.profile.schoolType);
+          await loadCourse();
         }
       }
     } catch (error) {
@@ -165,63 +167,36 @@ export default function CoursScreen() {
     }
   };
 
-  const loadCourse = async (level: string, schoolType: string) => {
+  const loadCourse = async () => {
     try {
       setLoading(true);
-      
-      // Récupérer le cours depuis la collection academia
-      const academiaDoc = await getDoc(doc(db, 'academia', schoolType));
-      if (!academiaDoc.exists()) {
-        console.error('Document academia non trouvé');
+      // Vérifier la connexion
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
+        // Mode hors-ligne : charger depuis AsyncStorage
+        const cached = await AsyncStorage.getItem(`@offline_course_${params.chapterId}`);
+        if (cached) {
+          setCoursContent(JSON.parse(cached));
+        } else {
+          setCoursContent(null);
+        }
         setLoading(false);
         return;
       }
-      
-      const academiaData = academiaDoc.data();
-      
-      // Vérifier si les données nécessaires existent
-      if (!academiaData.classes || 
-          !academiaData.classes[level] || 
-          !academiaData.classes[level].matieres || 
-          !academiaData.classes[level].matieres[params.subject as string]) {
-        console.error('Structure de données invalide');
+      // Récupérer le cours depuis la collection chapters
+      const chapterDoc = await getDoc(doc(db, 'chapters', params.chapterId as string));
+      if (!chapterDoc.exists()) {
+        console.error('Chapitre non trouvé');
         setLoading(false);
         return;
       }
-      
-      // Récupérer le programme de la matière
-      const subjectProgram = academiaData.classes[level].matieres[params.subject as string].programme || [];
-      
-      // Trouver le chapitre correspondant
-      const chapterIndex = parseInt(params.chapter as string);
-      if (isNaN(chapterIndex) || chapterIndex < 0 || chapterIndex >= subjectProgram.length) {
-        console.error('Index de chapitre invalide');
-        setLoading(false);
-        return;
-      }
-      
-      const chapter = subjectProgram[chapterIndex];
-      
-      // Trouver le contenu correspondant
-      const contentIndex = parseInt(params.contentId as string);
-      if (isNaN(contentIndex) || contentIndex < 0 || contentIndex >= chapter.content.length) {
-        console.error('Index de contenu invalide');
-        setLoading(false);
-        return;
-      }
-      
-      const content = chapter.content[contentIndex];
-      
-      // Vérifier si le cours existe
-      if (!content.cours) {
+      const chapterData = chapterDoc.data();
+      if (!chapterData.cours) {
         console.error('Cours non trouvé');
         setLoading(false);
         return;
       }
-      
-      // Utiliser le cours existant
-      setCoursContent(content.cours);
-      
+      setCoursContent(chapterData.cours);
     } catch (error) {
       console.error('Erreur lors du chargement du cours:', error);
     } finally {
@@ -242,9 +217,9 @@ export default function CoursScreen() {
       
       const isInFavorites = favorites.some(
         (fav: any) => 
-          fav.subject === params.subject &&
-          fav.chapter === params.chapter &&
-          fav.contentId === params.contentId
+          fav.subjectId === params.subject &&
+          fav.themeId === params.themeId &&
+          fav.chapterId === params.chapterId
       );
       
       setIsFavorite(isInFavorites);
@@ -271,30 +246,28 @@ export default function CoursScreen() {
         // Retirer des favoris
         const newFavorites = favorites.filter(
           (fav: any) => 
-            !(fav.subject === params.subject &&
-              fav.chapter === params.chapter &&
-              fav.contentId === params.contentId)
+            !(fav.subjectId === params.subject &&
+              fav.themeId === params.themeId &&
+              fav.chapterId === params.chapterId)
         );
         
         await updateDoc(userRef, {
           favorites: newFavorites
         });
+        // Supprimer du cache local
+        await AsyncStorage.removeItem(`@offline_course_${params.chapterId}`);
       } else {
         // Ajouter aux favoris
         const newFavorite = {
-          id: `${params.subject}-${params.chapter}-${params.contentId}`,
-          subject: params.subject,
-          subjectLabel: params.subjectLabel,
-          chapter: params.chapter,
-          chapterLabel: params.chapterLabel,
-          contentId: params.contentId,
-          courseTitle: coursContent.title,
+          chapterId: params.chapterId,
           timestamp: Date.now()
         };
         
         await updateDoc(userRef, {
           favorites: [...favorites, newFavorite]
         });
+        // Sauvegarder le contenu du cours dans AsyncStorage
+        await AsyncStorage.setItem(`@offline_course_${params.chapterId}`, JSON.stringify(coursContent));
       }
       
       setIsFavorite(!isFavorite);
@@ -546,7 +519,7 @@ export default function CoursScreen() {
         const user = auth.currentUser;
         if (!user) return;
 
-        const uniqueId = `${params.classe}_${params.subject}_${params.chapter}_${params.contentId}`;
+        const uniqueId = `${params.chapterId}`;
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
         

@@ -6,7 +6,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showErrorAlert } from '../utils/alerts';
 import { OnboardingButton } from '../components/OnboardingButton';
-import { getSubjects, parseGradient } from '../utils/subjectGradients';
+import { getSubjects } from '../services/firestoreService';
+import { parseGradient } from '../utils/subjectGradients';
 
 type Step7Props = {
   onBack: () => void;
@@ -43,18 +44,19 @@ export default function Step7({ onNext, onBack, data }: Step7Props) {
 
   useEffect(() => {
     const loadSubjects = async () => {
-      if (!data.subjects || !data.schoolType || !data.class) return;
-
-      const userSubjects = await getSubjects(
-        data.subjects,
-        data.schoolType,
-        data.class
-      );
-      setSubjects(userSubjects);
+      if (!data.country || !data.class) return;
+      // Charger les matières depuis Firestore
+      const userSubjects = await getSubjects(data.country, data.class);
+      setSubjects(userSubjects.map(subject => ({
+        id: subject.id,
+        label: subject.label,
+        icon: subject.icon,
+        gradient: subject.gradient,
+        key: subject.id,
+      })));
     };
-
     loadSubjects();
-  }, [data.subjects, data.schoolType, data.class]);
+  }, [data.country, data.class]);
 
   const handleSaveAndContinue = async () => {
     try {

@@ -34,7 +34,7 @@ import {
   IA_ACHIEVEMENTS, 
   SPECIAL_BADGES_ACHIEVEMENTS 
 } from '../constants/achievements';
-import { getSchoolTypeName, getClasseName } from '../utils/getLabelFromData';
+import { getSchoolTypeName, getClassName } from '../services/firestoreService';
 import { Image } from 'expo-image';
 
 interface Friend {
@@ -44,6 +44,7 @@ interface Friend {
   status: 'accepted' | 'pending' | 'sent' | 'search';
   key: string;
   schoolType?: string;
+  country?: string;
   class?: string;
   completedAchievements?: string[];
   displayedAchievements?: string[];
@@ -325,12 +326,12 @@ export default function AmisScreen() {
 
   useEffect(() => {
     const loadNames = async () => {
-      if (selectedUser?.schoolType) {
-        const schoolName = await getSchoolTypeName(selectedUser.schoolType);
+      if (selectedUser?.schoolType && selectedUser?.country) {
+        const schoolName = await getSchoolTypeName(selectedUser.country, selectedUser.schoolType);
         setSchoolTypeName(schoolName);
       }
       if (selectedUser?.schoolType && selectedUser?.class) {
-        const classLabel = await getClasseName(selectedUser.schoolType, selectedUser.class);
+        const classLabel = await getClassName(selectedUser.country ?? '', selectedUser.schoolType ?? '', selectedUser.class ?? '');
         setClassName(classLabel);
       }
     };

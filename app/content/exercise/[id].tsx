@@ -23,38 +23,37 @@ import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile
 import { adUnitIds } from '../../config/admob';
 
 interface CompletedExercise {
-  exerciceId: string;
+  exerciseId: string;
   completedAt: string;
   done: boolean;
   score: number;
   difficulty: string;
 }
 
-interface ExercisesStructure {
-  [schoolType: string]: {
-    [classe: string]: {
-      [subject: string]: {
-        [chapterId: string]: {
-          [contentId: string]: CompletedExercise[];
-        };
-      };
-    };
+interface UserProfile {
+  completedExercises?: {
+    [exerciseId: string]: CompletedExercise;
   };
 }
 
-interface UserProfile {
-  exercises?: ExercisesStructure;
-  // ... autres propriétés du profil
-}
-
 export default function ExercisePage() {
-  const { exerciseId, schoolType, classe, subject, chapterIndex, contentId, difficulty } = useLocalSearchParams<{
+  const { 
+    exerciseId,
+    subject,
+    subjectLabel,
+    themeId,
+    themeLabel,
+    chapterId,
+    chapterLabel,
+    difficulty
+  } = useLocalSearchParams<{
     exerciseId: string;
-    schoolType: string;
-    classe: string;
     subject: string;
-    chapterIndex: string;
-    contentId: string;
+    subjectLabel: string;
+    themeId: string;
+    themeLabel: string;
+    chapterId: string;
+    chapterLabel: string;
     difficulty: string;
   }>();
   const router = useRouter();
@@ -66,21 +65,10 @@ export default function ExercisePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showExplanation, setShowExplanation] = useState(false);
   const [hasAnswered, setHasAnswered] = useState(false);
-  const [exercises, setExercises] = useState<Array<{
-    exerciceId: string;
-    subject: string;
-    chapterId: string;
-    contentId: string;
-    done: boolean;
-    score: number;
-    difficulty: string;
-    completedAt: string;
-  }>>([]);
   const [interstitialAd, setInterstitialAd] = useState<InterstitialAd | null>(null);
   const [adLoaded, setAdLoaded] = useState(false);
   const [currentScore, setCurrentScore] = useState<number | null>(null);
 
-  // Obtenir la hauteur de la barre de statut
   const statusBarHeight = StatusBar.currentHeight || 0;
 
   const themeColors = {
@@ -90,78 +78,27 @@ export default function ExercisePage() {
   };
 
   useEffect(() => {
-    loadUserData();
+    loadExercise();
   }, []);
 
-  const loadUserData = async () => {
-    await loadExercise(schoolType as string, classe as string);
-  };  
-
-  const loadExercise = async (schoolType: string, classe: string) => {
+  const loadExercise = async () => {
     try {
-      // Construire le chemin hiérarchique
-      const academiaDoc = await getDoc(doc(db, 'academia', schoolType));
-      if (!academiaDoc.exists()) {
-        console.error('Document academia non trouvé');
-        setIsLoading(false);
-        return;
-      }
-
-      const academiaData = academiaDoc.data();
-      if (!academiaData.classes || 
-        !academiaData.classes[classe] || 
-        !academiaData.classes[classe].matieres || 
-        !academiaData.classes[classe].matieres[subject as string]) {
-        console.error('Structure de données invalide');
+      setIsLoading(true);
+      const exerciseDoc = await getDoc(doc(db, 'exercises', exerciseId));
+      
+      if (!exerciseDoc.exists()) {
+        console.error('Exercice non trouvé');
         setIsLoading(false);
         return;
       }
       
-      // Récupérer le programme de la matière
-      const subjectProgram = academiaData.classes[classe].matieres[subject as string].programme || [];
-      
-      // Trouver le chapitre correspondant
-      if (isNaN(parseInt(chapterIndex)) || parseInt(chapterIndex) < 0 || parseInt(chapterIndex) >= subjectProgram.length) {
-        console.error('Index de chapitre invalide');
-        setIsLoading(false);
-        return;
-      }
-      const chapter = subjectProgram[parseInt(chapterIndex)];
-
-      // Trouver le contenu correspondant
-      const contentIndex = parseInt(contentId);
-      if (isNaN(contentIndex) || contentIndex < 0 || contentIndex >= chapter.content.length) {
-        console.error('Index de contenu invalide');
-        setIsLoading(false);
-        return;
-      }
-
-      const content = chapter.content[contentIndex];
-      
-      // Vérifier si les exercices existent
-      if (!content.exercices) {
-        console.error('Exercices non trouvés');
-        setIsLoading(false);
-        return;
-      }
-
-      // Parcourir le tableau content.exercices pour trouver l'exercice correspondant à l'exerciseId
-      const exerciseData = content.exercices.find((ex: any) => ex.id === exerciseId);
-      
-      if (!exerciseData) {
-        console.error('Exercice non trouvé avec l\'ID:', exerciseId);
-        setIsLoading(false);
-        return;
-      }
-      
-
+      const exerciseData = exerciseDoc.data();
       setExercise({
+        id: exerciseDoc.id,
         ...exerciseData,
-        id: exerciseId as string,
-        difficulty: exerciseData.difficulty,
-        questions: exerciseData.questions,
-        title: exerciseData.title,
-      });
+        createdAt: exerciseData.createdAt?.toDate() || new Date()
+      } as Exercise);
+
     } catch (error) {
       console.error('Erreur lors du chargement de l\'exercice:', error);
     } finally {
@@ -297,57 +234,19 @@ export default function ExercisePage() {
       
       // Créer l'objet exercice complété
       const completedExercise: CompletedExercise = {
-        exerciceId: exerciseId,
+        exerciseId: exerciseId,
         completedAt: new Date().toISOString(),
         done: true,
         score: score,
         difficulty: difficulty || 'facile'
       };
 
-      // Vérifier et initialiser la structure de manière sécurisée
-      const exercises = profile.exercises || {};
-      const schoolTypeExercises = exercises[schoolType] || {};
-      const classeExercises = schoolTypeExercises[classe] || {};
-      const subjectExercises = classeExercises[subject] || {};
-      const chapterExercises = subjectExercises[chapterIndex] || {};
-      const contentExercises = chapterExercises[contentId] || [];
-
-      // Vérifier si l'exercice existe déjà
-      const existingExerciseIndex = contentExercises.findIndex(
-        (ex: CompletedExercise) => ex.exerciceId === exerciseId
-      );
-
-      if (existingExerciseIndex !== -1) {
-        // Mettre à jour l'exercice existant
-        contentExercises[existingExerciseIndex] = {
-          ...contentExercises[existingExerciseIndex],
-          score: score,
-          difficulty: difficulty || 'facile',
-          completedAt: completedExercise.completedAt
-        };
-      } else {
-        // Ajouter le nouvel exercice
-        contentExercises.push(completedExercise);
-      }
-
-      // Reconstruire l'objet de manière sécurisée
+      // Mettre à jour les exercices complétés
       const updatedProfile = {
         ...profile,
-        exercises: {
-          ...exercises,
-          [schoolType]: {
-            ...schoolTypeExercises,
-            [classe]: {
-              ...classeExercises,
-              [subject]: {
-                ...subjectExercises,
-                [chapterIndex]: {
-                  ...chapterExercises,
-                  [contentId]: contentExercises
-                }
-              }
-            }
-          }
+        completedExercises: {
+          ...(profile.completedExercises || {}),
+          [exerciseId]: completedExercise
         }
       };
 
@@ -355,21 +254,11 @@ export default function ExercisePage() {
       await updateDoc(userDocRef, {
         profile: updatedProfile
       });
-      
-      // Mettre à jour l'état local
-      setExercises(prevExercises => 
-        prevExercises.map(ex => 
-          ex.exerciceId === exerciseId 
-            ? { ...ex, completed: true, score: score, difficulty: difficulty || 'facile' }
-            : ex
-        )
-      );
 
     } catch (error) {
       console.error('Erreur lors de la sauvegarde de l\'exercice:', error);
     }
   };
-
 
   const renderResults = () => {
     if (!exercise) return null;

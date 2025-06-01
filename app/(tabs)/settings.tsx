@@ -254,7 +254,7 @@ export default function SettingsScreen() {
         </Text>
         <TouchableOpacity
           style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
-          onPress={() => handleOpenLink('https://academiaforkids.com/cgu/')}
+          onPress={() => handleOpenLink('https://academiaforkids.com/fr/cgu/')}
         >
           <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
             Conditions générales d'utilisation
@@ -262,7 +262,7 @@ export default function SettingsScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
-          onPress={() => handleOpenLink('https://academiaforkids.com/politique-de-confidentialite-academia/')}
+          onPress={() => handleOpenLink('https://academiaforkids.com/fr/politique-de-confidentialite-academia/')}
         >
           <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
             Politique de confidentialité

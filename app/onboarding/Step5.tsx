@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSchoolTypes } from '../hooks/useSchoolTypes';
+import { useSchoolData } from '../hooks/useSchoolData';
 import { OnboardingButton } from '../components/OnboardingButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -16,9 +16,7 @@ export default function Step5({ onNext, onBack, data }: Step5Props) {
   const insets = useSafeAreaInsets();
   const fadeAnim = new Animated.Value(0);
   const scaleAnim = new Animated.Value(0.9);
-  const { schoolTypes, loading, error } = useSchoolTypes();
-
-  const schoolType = schoolTypes.find(type => type.id === data.schoolType);
+  const { classes, loading, error } = useSchoolData(data.country, data.schoolType);
 
   if (loading) {
     return (
@@ -36,10 +34,6 @@ export default function Step5({ onNext, onBack, data }: Step5Props) {
     );
   }
 
-  if (!schoolType) {
-    return null;
-  }
-
   const handleNext = () => {
     if (selectedClass) {
       onNext({
@@ -49,11 +43,6 @@ export default function Step5({ onNext, onBack, data }: Step5Props) {
   };
 
   const renderClasses = () => {
-    const classes = schoolType?.classes ? Object.entries(schoolType.classes).map(([id, classData]) => ({
-      id,
-      label: classData.label
-    })) : [];
-
     if (!classes || classes.length === 0) {
       return null;
     }
