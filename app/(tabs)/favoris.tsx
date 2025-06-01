@@ -13,29 +13,33 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useTheme } from '../context/ThemeContext';
 import { auth, db } from '../../firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getSubjects, parseGradient } from '../utils/subjectGradients';
+import { parseGradient } from '../utils/subjectGradients';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { saveFavorites, saveSubjectConfigs } from '../utils/userDataManager';
 
-interface FavoriteCourse {
-  id: string;
-  subject: string;
+interface FavoriteMinimal {
+  chapterId: string;
+  timestamp: number;
+}
+
+interface FavoriteDisplay {
+  chapterId: string;
+  chapterTitle: string;
+  subjectId: string;
   subjectLabel: string;
-  chapter: string;
-  chapterLabel: string;
-  contentId: string;
-  courseTitle: string;
+  subjectIcon: keyof typeof MaterialCommunityIcons.glyphMap;
+  subjectGradient: [string, string];
   timestamp: number;
 }
 
 interface GroupedFavorites {
   [subject: string]: {
     label: string;
-    courses: FavoriteCourse[];
+    courses: FavoriteDisplay[];
   };
 }
 
@@ -52,15 +56,11 @@ export default function FavorisScreen() {
   const router = useRouter();
   const { isDarkMode } = useTheme();
   const [loading, setLoading] = useState(true);
-  const [favorites, setFavorites] = useState<GroupedFavorites>({});
-  const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
-  const [subjectConfigs, setSubjectConfigs] = useState<Record<string, SubjectConfig>>({});
-  const [userSchoolType, setUserSchoolType] = useState<string>('');
-  const [userClass, setUserClass] = useState<string>('');
+  const [favorites, setFavorites] = useState<FavoriteDisplay[]>([]);
   const [isOnline, setIsOnline] = useState(true);
-  
   const statusBarHeight = StatusBar.currentHeight || 0;
-  
+  const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
+
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
     text: isDarkMode ? '#ffffff' : '#000000',
@@ -70,283 +70,212 @@ export default function FavorisScreen() {
   };
 
   useEffect(() => {
-    // Vérifier la connexion internet
     const unsubscribe = NetInfo.addEventListener(state => {
       setIsOnline(state.isConnected ?? true);
     });
-
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    loadUserData();
+    loadUserFavorites();
   }, []);
 
   useFocusEffect(
     React.useCallback(() => {
-      loadUserData();
+      loadUserFavorites();
     }, [])
   );
 
-  const loadUserData = async () => {
+  const loadUserFavorites = async () => {
+    setLoading(true);
     try {
       const user = auth.currentUser;
       if (!user) {
         setLoading(false);
         return;
       }
-
-      // Vérifier si nous sommes en ligne
-      const netInfo = await NetInfo.fetch();
-      if (!netInfo.isConnected) {
-        // Charger les données hors ligne
-        await loadOfflineData();
-        return;
-      }
-
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (!userDoc.exists()) {
         setLoading(false);
         return;
       }
-
       const userData = userDoc.data();
-      if (userData.profile) {
-        setUserSchoolType(userData.profile.schoolType || '');
-        setUserClass(userData.profile.class || '');
-        
-        // Charger les favoris
-        const favorites = await getFavorites();
-        setFavorites(favorites);
-        await saveFavorites(favorites);
-        
-        // Charger et sauvegarder les configurations
-        const configs = await loadSubjectConfigs(userData.profile.schoolType, userData.profile.class);
-        setSubjectConfigs(configs);
-        await saveSubjectConfigs(configs);
-        
-        // Sauvegarder les données utilisateur
-        await saveUserData(userData);
+      const userFavorites: FavoriteMinimal[] = userData.favorites || [];
+      if (userFavorites.length === 0) {
+        setFavorites([]);
+        setLoading(false);
+        return;
       }
+      // Batch fetch chapters
+      const chapterIds = userFavorites.map(fav => fav.chapterId);
+      const chaptersQuery = query(collection(db, 'chapters'), where('__name__', 'in', chapterIds));
+      const chaptersSnapshot = await getDocs(chaptersQuery);
+      const chaptersMap: Record<string, any> = {};
+      chaptersSnapshot.forEach(doc => {
+        chaptersMap[doc.id] = doc.data();
+      });
+      // Batch fetch themes
+      const themeIds = Array.from(new Set(Object.values(chaptersMap).map((ch: any) => ch.themeId)));
+      const themesQuery = query(collection(db, 'theme'), where('__name__', 'in', themeIds));
+      const themesSnapshot = await getDocs(themesQuery);
+      const themesMap: Record<string, any> = {};
+      themesSnapshot.forEach(doc => {
+        themesMap[doc.id] = doc.data();
+      });
+      // Batch fetch subjects
+      const subjectIds = Array.from(new Set(Object.values(themesMap).map((th: any) => th.subjectId)));
+      const subjectsQuery = query(collection(db, 'subjects'), where('__name__', 'in', subjectIds));
+      const subjectsSnapshot = await getDocs(subjectsQuery);
+      const subjectsMap: Record<string, any> = {};
+      subjectsSnapshot.forEach(doc => {
+        subjectsMap[doc.id] = doc.data();
+      });
+      // Build displayFavorites
+      const displayFavorites: FavoriteDisplay[] = [];
+      for (const fav of userFavorites) {
+        const chapterData = chaptersMap[fav.chapterId];
+        if (!chapterData) continue;
+        const themeData = themesMap[chapterData.themeId];
+        if (!themeData) continue;
+        const subjectData = subjectsMap[themeData.subjectId];
+        if (!subjectData) continue;
+        // Sécurité supplémentaire : ignorer les favoris mal formés
+        if (!chapterData.title || !subjectData.label || !subjectData.icon) {
+          continue;
+        }
+        // Sécurisation du gradient
+        const safeGradient = typeof subjectData.gradient === 'string' && subjectData.gradient.includes('linear-gradient')
+          ? subjectData.gradient
+          : 'linear-gradient(to right, #60a5fa, #3b82f6)';
+        displayFavorites.push({
+          chapterId: fav.chapterId,
+          chapterTitle: chapterData.title,
+          subjectId: themeData.subjectId,
+          subjectLabel: subjectData.label,
+          subjectIcon: subjectData.icon as keyof typeof MaterialCommunityIcons.glyphMap,
+          subjectGradient: parseGradient(safeGradient),
+          timestamp: fav.timestamp,
+        });
+      }
+      // Trier par date d'ajout (plus récent en premier)
+      displayFavorites.sort((a, b) => b.timestamp - a.timestamp);
+      setFavorites(displayFavorites);
+      await AsyncStorage.setItem('@offline_favorites', JSON.stringify(displayFavorites));
     } catch (error) {
-      console.error('Erreur lors du chargement des données utilisateur:', error);
-      // En cas d'erreur, essayer de charger les données hors ligne
-      await loadOfflineData();
+      console.error('Erreur lors du chargement des favoris:', error);
+      // Essayer de charger les favoris hors-ligne
+      try {
+        const savedFavorites = await AsyncStorage.getItem('@offline_favorites');
+        if (savedFavorites) {
+          const parsed = JSON.parse(savedFavorites);
+          const validFavorites = Array.isArray(parsed)
+            ? parsed.filter(fav => fav.chapterId && fav.chapterTitle && fav.subjectId && fav.subjectLabel && fav.subjectIcon && fav.subjectGradient)
+            : [];
+          setFavorites(validFavorites);
+        } else {
+          setFavorites([]);
+        }
+      } catch (e) {
+        setFavorites([]);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const saveOfflineData = async () => {
-    try {
-      await AsyncStorage.setItem(OFFLINE_FAVORITES_KEY, JSON.stringify(favorites));
-      await AsyncStorage.setItem(OFFLINE_SUBJECT_CONFIGS_KEY, JSON.stringify(subjectConfigs));
-    } catch (error) {
-      console.error('Erreur lors de la sauvegarde des données hors ligne:', error);
-    }
-  };
-
-  const loadOfflineData = async () => {
-    try {
-      const savedFavorites = await AsyncStorage.getItem(OFFLINE_FAVORITES_KEY);
-      const savedConfigs = await AsyncStorage.getItem(OFFLINE_SUBJECT_CONFIGS_KEY);
-      const savedUserData = await AsyncStorage.getItem(OFFLINE_USER_KEY);
-
-      if (savedFavorites) {
-        setFavorites(JSON.parse(savedFavorites));
-      }
-      if (savedConfigs) {
-        setSubjectConfigs(JSON.parse(savedConfigs));
-      }
-      if (savedUserData) {
-        const userData = JSON.parse(savedUserData);
-        if (userData.profile) {
-          setUserSchoolType(userData.profile.schoolType || '');
-          setUserClass(userData.profile.class || '');
-        }
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error('Erreur lors du chargement des données hors ligne:', error);
-      setLoading(false);
-    }
-  };
-
-  const loadSubjectConfigs = async (schoolType: string, classe: string) => {
-    try {
-      // Créer un tableau d'objets SubjectInput à partir des favoris
-      const userFavorites = await getFavorites();
-      const subjectInputs = Object.keys(userFavorites).map(subjectId => ({
-        id: subjectId,
-        label: userFavorites[subjectId].label
-      }));
-
-      // Utiliser getSubjects pour obtenir les configurations des matières
-      const subjects = await getSubjects(subjectInputs, schoolType, classe);
-      
-      const configs: Record<string, SubjectConfig> = {};
-      subjects.forEach(subject => {
-        configs[subject.id] = {
-          icon: subject.icon as keyof typeof MaterialCommunityIcons.glyphMap,
-          gradientColors: parseGradient(subject.gradient)
-        };
-      });
-
-      return configs;
-    } catch (error) {
-      console.error('Erreur lors du chargement des configurations des matières:', error);
-      return {};
-    }
-  };
-
-  const getFavorites = async () => {
-    try {
-      const user = auth.currentUser;
-      if (!user) return {};
-
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (!userDoc.exists()) return {};
-
-      const userData = userDoc.data();
-      const userFavorites = userData.favorites || [];
-      
-      // Grouper les favoris par matière
-      const grouped: GroupedFavorites = {};
-      userFavorites.forEach((fav: FavoriteCourse) => {
-        if (!grouped[fav.subject]) {
-          grouped[fav.subject] = {
-            label: fav.subjectLabel,
-            courses: []
-          };
-        }
-        grouped[fav.subject].courses.push(fav);
-      });
-
-      // Trier les cours par date d'ajout (plus récent en premier)
-      Object.values(grouped).forEach(subject => {
-        subject.courses.sort((a, b) => b.timestamp - a.timestamp);
-      });
-
-      return grouped;
-    } catch (error) {
-      console.error('Erreur lors du chargement des favoris:', error);
-      return {};
-    }
-  };
-
-  const loadFavorites = async () => {
-    const favorites = await getFavorites();
-    setFavorites(favorites);
-    setLoading(false);
-  };
-
-  const handleCoursePress = (course: FavoriteCourse) => {
+  const handleCoursePress = (course: FavoriteDisplay) => {
     router.push({
       pathname: '/content/[cours]/cours',
       params: {
-        subject: course.subject as string,
-        subjectLabel: course.subjectLabel as string,
-        classe: userClass as string,
-        chapter: course.chapter as string,
-        chapterLabel: course.chapterLabel as string,
-        contentId: course.contentId as string,
+        chapterId: course.chapterId,
+        subject: course.subjectId,
+        subjectLabel: course.subjectLabel,
+        chapterLabel: course.chapterTitle,
       },
     } as any);
   };
 
-  const getSubjectConfig = (subject: string): SubjectConfig => {
-    return subjectConfigs[subject] || {
-      icon: 'book' as keyof typeof MaterialCommunityIcons.glyphMap,
-      gradientColors: ['#64748b', '#94a3b8'] as [string, string]
-    };
-  };
-
-  const saveUserData = async (userData: any) => {
-    try {
-      await AsyncStorage.setItem(OFFLINE_USER_KEY, JSON.stringify(userData));
-    } catch (error) {
-      console.error('Erreur lors de la sauvegarde des données utilisateur:', error);
+  // Regrouper les favoris par matière
+  const groupedFavorites = favorites.reduce((acc, fav) => {
+    if (!acc[fav.subjectId]) {
+      acc[fav.subjectId] = {
+        subjectLabel: fav.subjectLabel,
+        subjectIcon: fav.subjectIcon,
+        subjectGradient: fav.subjectGradient,
+        courses: [],
+      };
     }
-  };
+    acc[fav.subjectId].courses.push(fav);
+    return acc;
+  }, {} as Record<string, {
+    subjectLabel: string;
+    subjectIcon: keyof typeof MaterialCommunityIcons.glyphMap;
+    subjectGradient: [string, string];
+    courses: FavoriteDisplay[];
+  }>);
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+      <View style={[styles.container, { backgroundColor: themeColors.background }]}> 
         <ActivityIndicator size="large" color={themeColors.accent} />
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+    <View style={[styles.container, { backgroundColor: themeColors.background }]}> 
       {!isOnline && (
         <View style={styles.offlineBanner}>
           <MaterialCommunityIcons name="wifi-off" size={20} color="#fff" />
           <Text style={styles.offlineText}>Mode hors ligne</Text>
         </View>
       )}
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {Object.entries(favorites).length === 0 ? (
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {Object.keys(groupedFavorites).length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, { color: themeColors.text }]}>
-              Aucun cours en favoris
-            </Text>
+            <Text style={[styles.emptyText, { color: themeColors.text }]}>Aucun cours en favoris</Text>
           </View>
         ) : (
-          Object.entries(favorites).map(([subject, data]) => {
-            const { icon, gradientColors } = getSubjectConfig(subject);
-            return (
-              <View key={subject} style={[styles.subjectCard, { backgroundColor: themeColors.card }]}>
-                <TouchableOpacity
-                  style={styles.subjectHeader}
-                  onPress={() => setExpandedSubject(expandedSubject === subject ? null : subject)}
+          Object.entries(groupedFavorites).map(([subjectId, data]) => (
+            <View key={subjectId} style={[styles.subjectCard, { backgroundColor: themeColors.card }]}> 
+              <TouchableOpacity
+                style={styles.subjectHeader}
+                onPress={() => setExpandedSubject(expandedSubject === subjectId ? null : subjectId)}
+              >
+                <LinearGradient
+                  colors={data.subjectGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.headerGradient}
                 >
-                  <LinearGradient
-                    colors={gradientColors}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.headerGradient}
-                  >
-                    <View style={styles.headerContent}>
-                      <MaterialCommunityIcons name={icon} size={24} color="#fff" />
-                      <Text style={styles.subjectTitle}>
-                        {data.label}
-                      </Text>
-                      <MaterialCommunityIcons 
-                        name={expandedSubject === subject ? "chevron-up" : "chevron-down"} 
-                        size={24} 
-                        color="#fff" 
-                      />
-                    </View>
-                  </LinearGradient>
-                </TouchableOpacity>
-                
-                {expandedSubject === subject && (
-                  <View style={[styles.coursesList, { borderTopColor: themeColors.border }]}>
-                    {data.courses.map((course, index) => (
-                      <TouchableOpacity
-                        key={`${course.id}-${index}`}
-                        style={[styles.courseItem, { borderBottomColor: themeColors.border }]}
-                        onPress={() => handleCoursePress(course)}
-                      >
-                        <View>
-                          <Text style={[styles.chapterLabel, { color: themeColors.text }]}>
-                            {course.chapterLabel}
-                          </Text>
-                          <Text style={[styles.courseTitle, { color: themeColors.accent }]}>
-                            {course.courseTitle}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
+                  <View style={styles.headerContent}>
+                    <MaterialCommunityIcons name={data.subjectIcon} size={24} color="#fff" />
+                    <Text style={styles.subjectTitle}>{data.subjectLabel}</Text>
+                    <MaterialCommunityIcons
+                      name={expandedSubject === subjectId ? 'chevron-up' : 'chevron-down'}
+                      size={24}
+                      color="#fff"
+                    />
                   </View>
-                )}
-              </View>
-            );
-          })
+                </LinearGradient>
+              </TouchableOpacity>
+              {expandedSubject === subjectId && (
+                <View style={[styles.coursesList, { borderTopColor: themeColors.border }]}> 
+                  {data.courses.map((fav) => (
+                    <TouchableOpacity
+                      key={fav.chapterId}
+                      style={[styles.courseItem, { borderBottomColor: themeColors.border }]}
+                      onPress={() => handleCoursePress(fav)}
+                    >
+                      <View>
+                        <Text style={[styles.chapterLabel, { color: themeColors.text }]}> {fav.chapterTitle} </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          ))
         )}
       </ScrollView>
     </View>
@@ -374,11 +303,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  subjectHeader: {
-    overflow: 'hidden',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  },
   headerGradient: {
     padding: 16,
   },
@@ -392,13 +316,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
     flex: 1,
-  },
-  coursesList: {
-    borderTopWidth: 1,
-  },
-  courseItem: {
-    padding: 16,
-    borderBottomWidth: 1,
   },
   chapterLabel: {
     fontSize: 14,
@@ -429,5 +346,20 @@ const styles = StyleSheet.create({
   offlineText: {
     color: '#fff',
     fontWeight: '500',
+  },
+  courseInfo: {
+    padding: 16,
+  },
+  subjectHeader: {
+    overflow: 'hidden',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  coursesList: {
+    borderTopWidth: 1,
+  },
+  courseItem: {
+    padding: 16,
+    borderBottomWidth: 1,
   },
 }); 

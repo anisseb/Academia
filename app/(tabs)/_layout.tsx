@@ -5,7 +5,7 @@ import { StyleSheet, Pressable, View, Text, TouchableOpacity, TextInput, ScrollV
 import { auth, db } from '../../firebaseConfig';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather, FontAwesome } from '@expo/vector-icons';
-import { onSnapshot, doc, updateDoc, getDoc, deleteField } from 'firebase/firestore';
+import { onSnapshot, doc, updateDoc, getDoc, deleteField, collection, query, where, addDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import React from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { showAlert, showConfirmAlert } from '../utils/alerts';
@@ -54,8 +54,8 @@ const ThreadItem = ({ thread, isActive, onPress, onTitleChange }: {
       const user = auth.currentUser;
       if (!user) return;
 
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
+      const threadRef = doc(db, 'threads', user.uid);
+      await updateDoc(threadRef, {
         [`threads.${thread.id}.title`]: editedTitle,
         [`threads.${thread.id}.lastUpdated`]: new Date()
       });
@@ -74,7 +74,7 @@ const ThreadItem = ({ thread, isActive, onPress, onTitleChange }: {
       async () => {
         try {
           if (auth.currentUser) {
-            const userRef = doc(db, 'users', auth.currentUser.uid);
+            const threadRef = doc(db, 'threads', auth.currentUser.uid);
             
             try {
               // Supprimer tous les fichiers dans le dossier du thread
@@ -98,7 +98,7 @@ const ThreadItem = ({ thread, isActive, onPress, onTitleChange }: {
             }
             
             // Supprimer le thread dans Firestore
-            await updateDoc(userRef, {
+            await updateDoc(threadRef, {
               [`threads.${thread.id}`]: deleteField()
             });
             
@@ -300,18 +300,19 @@ export default function TabLayout() {
     const user = auth.currentUser;
     if (!user) return;
 
-    const userRef = doc(db, 'users', user.uid);
-    const unsubscribe = onSnapshot(userRef, (doc) => {
+    const threadRef = doc(db, 'threads', user.uid);
+    const unsubscribe = onSnapshot(threadRef, (doc) => {
       if (doc.exists()) {
         const data = doc.data();
-        const threads = data.threads || {};
-        const threadsList = Object.entries(threads).map(([id, thread]: [string, any]) => ({
+        const threadsList = Object.entries(data.threads || {}).map(([id, thread]: [string, any]) => ({
           id,
           title: thread.title || 'Nouvelle conversation',
           timestamp: thread.timestamp?.toDate() || new Date(),
         })).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
         
         setThreads(threadsList);
+      } else {
+        setThreads([]);
       }
     });
 
@@ -381,26 +382,33 @@ export default function TabLayout() {
   const createNewThread = async () => {
     try {
       if (auth.currentUser) {
-        const userRef = doc(db, 'users', auth.currentUser.uid);
-        const userDoc = await getDoc(userRef);
-        const userData = userDoc.data();
-        
-        if (!userData) {
-          showAlert('Erreur', 'Données utilisateur non trouvées');
-          return;
-        }
-        
-        const threads = userData.threads || {};
+        const threadRef = doc(db, 'threads', auth.currentUser.uid);
+        const threadDoc = await getDoc(threadRef);
         const newThreadId = `thread_${Date.now()}`;
         
-        await updateDoc(userRef, {
-          [`threads.${newThreadId}`]: {
-            title: 'Nouvelle conversation',
-            timestamp: new Date(),
-            aiProfile: 'professeur',
-            messages: []
-          }
-        });
+        if (!threadDoc.exists()) {
+          // Créer le document avec le premier thread
+          await setDoc(threadRef, {
+            threads: {
+              [newThreadId]: {
+                title: 'Nouvelle conversation',
+                timestamp: new Date(),
+                aiProfile: 'professeur',
+                messages: []
+              }
+            }
+          });
+        } else {
+          // Ajouter un nouveau thread au document existant
+          await updateDoc(threadRef, {
+            [`threads.${newThreadId}`]: {
+              title: 'Nouvelle conversation',
+              timestamp: new Date(),
+              aiProfile: 'professeur',
+              messages: []
+            }
+          });
+        }
         
         // Fermer la navigation avant de rediriger
         toggleSidebar();
@@ -419,9 +427,10 @@ export default function TabLayout() {
   const handleSaveTitle = async (threadId: string, newTitle: string) => {
     try {
       if (auth.currentUser) {
-        const userRef = doc(db, 'users', auth.currentUser.uid);
-        await updateDoc(userRef, {
-          [`threads.${threadId}.title`]: newTitle
+        const threadRef = doc(db, 'threads', auth.currentUser.uid);
+        await updateDoc(threadRef, {
+          [`threads.${threadId}.title`]: newTitle,
+          [`threads.${threadId}.lastUpdated`]: new Date()
         });
       }
     } catch (error) {

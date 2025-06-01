@@ -57,7 +57,7 @@ export const SubjectSelector = ({ visible, onSelect, onClose, selectedSubject }:
   };
 
   const handleSubjectSelect = (subject: SubjectInfo) => {
-    // Renvoyer le label de la matière au lieu de l'ID
+    // Renvoyer l'id de la matière (et non le label)
     onSelect(subject.label);
   };
 
@@ -90,7 +90,7 @@ export const SubjectSelector = ({ visible, onSelect, onClose, selectedSubject }:
               </Text>
             ) : (
               availableSubjects.map((subject) => {
-                const isSelected = selectedSubject === subject.label;
+                const isSelected = selectedSubject === subject.id;
                 return (
                   <TouchableOpacity
                     key={subject.id}

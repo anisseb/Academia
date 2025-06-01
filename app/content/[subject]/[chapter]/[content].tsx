@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Exercise } from '../../../types/exercise';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db, auth } from '../../../../firebaseConfig';
 import * as Haptics from 'expo-haptics';
 
@@ -17,24 +17,19 @@ export default function ContentPage() {
   const { 
     subject, 
     subjectLabel,
-    classe,
-    classeLabel,
-    chapterIndex,
+    themeId,
+    themeLabel,
+    chapterId,
     chapterLabel,
-    content,
-    contentId,
-    contentLabel 
   } = useLocalSearchParams();
   const { isDarkMode } = useTheme();
   const router = useRouter();
   const [isLoading, setLoading] = useState(true);
   const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [contentData, setContentData] = useState<ChapterContent | null>(null);
-  const [chapterTitle, setChapterTitle] = useState('');
+  const [chapterData, setChapterData] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [userSchoolType, setUserSchoolType] = useState<string>('');
+  const [userCountry, setUserCountry] = useState<string>('');
   const [userClass, setUserClass] = useState<string>('');
-    // Obtenir la hauteur de la barre de statut
   const statusBarHeight = StatusBar.currentHeight || 0;
 
   const themeColors = {
@@ -47,6 +42,13 @@ export default function ContentPage() {
     loadUserData();
   }, []);
 
+  // Ajouter un useEffect pour recharger les exercices quand les données utilisateur sont disponibles
+  useEffect(() => {
+    if (userCountry && userClass) {
+      loadChapterAndExercises();
+    }
+  }, [userCountry, userClass]);
+
   const loadUserData = async () => {
     const user = auth.currentUser;
     if (!user) return;
@@ -54,78 +56,58 @@ export default function ContentPage() {
     const userDoc = await getDoc(doc(db, 'users', user.uid));
     if (userDoc.exists()) { 
       const userData = userDoc.data();
-      setUserSchoolType(userData.profile.schoolType || '');
+      setUserCountry(userData.profile.country || '');
       setUserClass(userData.profile.class || '');
-      await loadExercises(userData.profile.schoolType, userData.profile.class);
     }
   };  
-  
 
-  const loadExercises = async (schoolType: string, classe: string) => {
+  const loadChapterAndExercises = async () => {
     try {
       setLoading(true);
       
-      let completedExercises: string[] = [];
-      const academiaDoc = await getDoc(doc(db, 'academia', schoolType));
-      if (!academiaDoc.exists()) {
-        console.error('Document academia non trouvé');
+      // Récupérer le chapitre
+      const chapterDoc = await getDoc(doc(db, 'chapters', chapterId as string));
+      if (!chapterDoc.exists()) {
+        console.error('Chapitre non trouvé');
         setLoading(false);
         return;
       }
 
-      const academiaData = academiaDoc.data();
-      if (!academiaData.classes || 
-        !academiaData.classes[classe] || 
-        !academiaData.classes[classe].matieres || 
-        !academiaData.classes[classe].matieres[subject as string]) {
-        console.error('Structure de données invalide');
-        setLoading(false);
-        return;
-      }
-      
-      // Récupérer le programme de la matière
-      const subjectProgram = academiaData.classes[classe].matieres[subject as string].programme || [];
-      
-      // Trouver le chapitre correspondant
-      if (isNaN(parseInt(chapterIndex as string)) || parseInt(chapterIndex as string) < 0 || parseInt(chapterIndex as string) >= subjectProgram.length) {
-        console.error('Index de chapitre invalide');
-        setLoading(false);
-        return;
-      }
-      const chapter = subjectProgram[parseInt(chapterIndex as string)];
+      const chapterData = chapterDoc.data();
+      setChapterData(chapterData);
 
-      // Trouver le contenu correspondant
-      const contentIndex = parseInt(contentId as string);
-      if (isNaN(contentIndex) || contentIndex < 0 || contentIndex >= chapter.content.length) {
-        console.error('Index de contenu invalide');
-        setLoading(false);
-        return;
-      }
+      // Récupérer les exercices associés au chapitre
+      const exercisesRef = collection(db, 'exercises');
+      const exercisesQuery = query(
+        exercisesRef,
+        where('chapterId', '==', chapterId),
+        where('themeId', '==', themeId),
+        where('subjectId', '==', subject),
+        where('classId', '==', userClass),
+        where('countryId', '==', userCountry)
+      );
 
-      const content = chapter.content[contentIndex];
-      
-      // Vérifier si les exercices existent
-      if (!content.exercices) {
-        console.error('Exercices non trouvés');
-        setLoading(false);
-        return;
-      }
-
-      // Récupérer les exercices au même niveau que cours
-      const exercisesData = content.exercices || [];
-      
-      // Transformer les exercices pour ajouter le statut de complétion
-      const exercisesWithCompletion = exercisesData.map((exercise: any) => ({
-        ...exercise,
-        isCompleted: completedExercises.includes(exercise.id)
-      }));
-      
-      setExercises(exercisesWithCompletion);
-      setContentData({
-        id: String(content),
-        content: String(contentLabel)
+      const exercisesSnapshot = await getDocs(exercisesQuery);
+      const exercisesData = exercisesSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          chapterId: data.chapterId || '',
+          themeId: data.themeId || '',
+          subjectId: data.subjectId || '',
+          classId: data.classId || '',
+          countryId: data.countryId || '',
+          schoolTypeId: data.schoolTypeId || '',
+          title: data.title || '',
+          difficulty: data.difficulty || 'facile',
+          questions: data.questions || [],
+          createdAt: data.createdAt?.toDate() || new Date(),
+          isCompleted: data.isCompleted || false,
+          score: data.score || 0
+        } as Exercise;
       });
-      setChapterTitle(String(chapterLabel));
+
+      setExercises(exercisesData);
     } catch (error) {
       console.error('Erreur:', error);
     } finally {
@@ -136,39 +118,36 @@ export default function ContentPage() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadExercises(userSchoolType, userClass);
+    await loadChapterAndExercises();
   };
 
   const handleExercisePress = (exercise: Exercise) => {
-
     router.push({
       pathname: "/content/exercise/[id]",
       params: { 
-        schoolType: String(userSchoolType),
-        classe: String(userClass),
-        subject: String(subject),
-        chapterIndex: String(chapterIndex),
-        contentId: String(contentId),
-        contentLabel: String(contentLabel),
         exerciseId: exercise.id,
         exercice: exercise,
-        difficulty: exercise.difficulty
+        difficulty: exercise.difficulty,
+        subject: String(subject),
+        subjectLabel: String(subjectLabel),
+        themeId: String(themeId),
+        themeLabel: String(themeLabel),
+        chapterId: String(chapterId),
+        chapterLabel: String(chapterLabel)
       }
     } as any);
   };
 
-  const handleChapterContentPress = (chapterIndex: number, contentIndex: number) => {
+  const handleChapterContentPress = () => {
     router.push({
       pathname: '/content/[cours]/cours',
       params: {
         subject: subject as string,
         subjectLabel: subjectLabel as string,
-        classe: userClass as string,
-        classeLabel: classeLabel as string,
-        chapter: chapterIndex.toString(),
+        themeId: themeId as string,
+        themeLabel: themeLabel as string,
+        chapterId: chapterId as string,
         chapterLabel: chapterLabel as string,
-        contentId: contentIndex.toString(),
-        contentLabel: contentLabel as string,
       },
     } as any);
   };
@@ -229,7 +208,7 @@ export default function ContentPage() {
     );
   }
 
-  if (!contentData) {
+  if (!chapterData) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
         {renderBackButton()}
@@ -261,27 +240,12 @@ export default function ContentPage() {
           scrollEventThrottle={400}
         >
           <View style={[styles.contentCard, { backgroundColor: themeColors.card }]}>
-            <View style={styles.breadcrumb}>
-              <Text style={[styles.subjectTitle, { color: '#60a5fa' }]}>
-                {String(subjectLabel)}
-              </Text>
-              <MaterialCommunityIcons name="chevron-right" size={20} color="#9ca3af" />
-              <Text style={[styles.chapterTitle, { color: themeColors.text }]}>
-                {chapterTitle}
-              </Text>
-            </View>
-            <View style={styles.contentHeader}>
-              <View style={styles.contentTitleContainer}>
-                <MaterialCommunityIcons 
-                  name="book-open-variant" 
-                  size={24} 
-                  color="#60a5fa" 
-                  style={styles.contentIcon}
-                />
-                <Text style={[styles.contentTitle, { color: themeColors.text }]}>
-                  {contentData.content}
-                </Text>
+            <View style={styles.headerContainer}>
+              <View style={styles.breadcrumbRow}>
+                <Text style={styles.breadcrumbText}>{subjectLabel}</Text>
               </View>
+              <Text style={styles.chapterMainTitle}>{chapterLabel}</Text>
+              <Text style={styles.themeSubtitle}>{themeLabel}</Text>
             </View>
           </View>
           <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
@@ -289,7 +253,7 @@ export default function ContentPage() {
           </Text>
           <TouchableOpacity
             style={[styles.courseCard, { backgroundColor: themeColors.card }]}
-            onPress={() => handleChapterContentPress(Number(chapterIndex), Number(contentId))}
+            onPress={handleChapterContentPress}
           >
             <View style={styles.courseContent}>
               <View style={styles.courseIconContainer}>
@@ -356,25 +320,33 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
   },
-  breadcrumb: {
+  headerContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 18,
+    backgroundColor: 'transparent',
+  },
+  breadcrumbRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    flexWrap: 'wrap',
+    marginBottom: 6,
   },
-  subjectTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginRight: 4,
+  breadcrumbText: {
+    fontSize: 13,
+    color: '#aaa',
+    marginHorizontal: 2,
   },
-  chapterTitle: {
-    fontSize: 14,
+  chapterMainTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 2,
+  },
+  themeSubtitle: {
+    fontSize: 15,
+    color: '#60a5fa',
     fontWeight: '500',
-    color: '#6b7280',
-    flex: 1,
-    flexWrap: 'wrap',
+    marginBottom: 0,
   },
   contentHeader: {
     marginTop: 8,
@@ -382,7 +354,7 @@ const styles = StyleSheet.create({
   contentTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginLeft: 18,
   },
   contentIcon: {
     marginRight: 12,

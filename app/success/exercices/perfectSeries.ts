@@ -11,40 +11,22 @@ export const checkPerfectSeries = async (): Promise<number> => {
 
     const userData = userDoc.data();
     const profile = userData.profile || {};
-    const exercises = profile.exercises || {};
+    const completedExercises = profile.completedExercises || {};
 
     // Récupérer tous les exercices complétés avec leur score et date
-    const completedExercises: { score: number; completedAt: string }[] = [];
+    const exercises: { score: number; completedAt: string }[] = [];
     
-    Object.entries(exercises).forEach(([schoolType, schoolTypeData]) => {
-      if (typeof schoolTypeData === 'object' && schoolTypeData !== null) {
-        Object.entries(schoolTypeData).forEach(([classe, classeData]) => {
-          if (typeof classeData === 'object' && classeData !== null) {
-            Object.entries(classeData).forEach(([subject, subjectData]) => {
-              if (typeof subjectData === 'object' && subjectData !== null) {
-                Object.entries(subjectData).forEach(([chapterId, chapterData]) => {
-                  if (typeof chapterData === 'object' && chapterData !== null) {
-                    Object.entries(chapterData).forEach(([contentId, contentData]) => {
-                      if (Array.isArray(contentData)) {
-                        contentData.forEach((exercise: any) => {
-                          completedExercises.push({
-                            score: exercise.score,
-                            completedAt: exercise.completedAt
-                          });
-                        });
-                      }
-                    });
-                  }
-                });
-              }
-            });
-          }
+    Object.values(completedExercises).forEach((exercise: any) => {
+      if (exercise.done && exercise.completedAt) {
+        exercises.push({
+          score: exercise.score || 0,
+          completedAt: exercise.completedAt
         });
       }
     });
 
     // Trier les exercices par date
-    completedExercises.sort((a, b) => 
+    exercises.sort((a, b) => 
       new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime()
     );
 
@@ -52,7 +34,7 @@ export const checkPerfectSeries = async (): Promise<number> => {
     let currentSeries = 0;
     let maxSeries = 0;
 
-    for (const exercise of completedExercises) {
+    for (const exercise of exercises) {
       if (exercise.score >= 80) {
         currentSeries++;
         maxSeries = Math.max(maxSeries, currentSeries);

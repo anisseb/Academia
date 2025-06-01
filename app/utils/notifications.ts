@@ -106,8 +106,8 @@ export async function sendFriendRequestNotification(friendId: string, username: 
 
 export async function scheduleMotivationalNotifications(userId: string) {
   try {
-    // Annuler toutes les notifications existantes
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    // Ne plus annuler toutes les notifications existantes ici
+    // await Notifications.cancelAllScheduledNotificationsAsync();
 
     // Récupérer les paramètres de l'utilisateur
     const userDoc = await getDoc(doc(db, 'users', userId));
@@ -142,6 +142,7 @@ export async function scheduleMotivationalNotifications(userId: string) {
       }
 
       await Notifications.scheduleNotificationAsync({
+        identifier: 'motivational-1', // identifiant unique
         content: {
           title: randomMotivation.title,
           body: randomMotivation.message,
@@ -172,6 +173,7 @@ export async function scheduleMotivationalNotifications(userId: string) {
       const randomMotivation2 = motivations[Math.floor(Math.random() * motivations.length)];
 
       await Notifications.scheduleNotificationAsync({
+        identifier: 'motivational-2', // identifiant unique
         content: {
           title: randomMotivation2.title,
           body: randomMotivation2.message,

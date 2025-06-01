@@ -22,7 +22,7 @@ import {
   SPECIAL_BADGES_ACHIEVEMENTS 
 } from '../constants/achievements';
 
-import { getSchoolTypeName, getClasseName } from '../utils/getLabelFromData';
+import { getSchoolTypeName, getClassName } from '../services/firestoreService';
 
 interface UserRanking {
   id: string;
@@ -30,6 +30,7 @@ interface UserRanking {
   name: string;
   score: number;
   rank: number;
+  country?: string;
   schoolType?: string;
   class?: string;
   completedAchievements?: string[];
@@ -337,98 +338,25 @@ export default function ClassementScreen() {
 
   const calculateTotalScore = (profile: any, subjectId?: string): number => {
     let totalScore = 0;
+    const completedExercises = profile.completedExercises || {};
     
     // Si une matière est sélectionnée, on ne compte que les exercices de cette matière
     if (subjectId) {
-      Object.values(profile.exercises || {}).forEach((schoolType: any) => {
-        Object.values(schoolType || {}).forEach((classData: any) => {
-          // Vérifier si la matière existe dans cette classe
-          if (classData[subjectId]) {
-            Object.values(classData[subjectId] || {}).forEach((theme: any) => {
-              Object.values(theme || {}).forEach((chapter: any) => {
-                if (Array.isArray(chapter)) {
-                  chapter.forEach((exercise: unknown) => {
-                    const exerciseData = exercise as ExerciseData;
-                    if (exerciseData.done) {
-                      totalScore += exerciseData.score;
-                    }
-                  });
-                }
-              });
-            });
-          }
-        });
+      Object.values(completedExercises).forEach((exercise: any) => {
+        if (exercise.done && exercise.subjectId === subjectId) {
+          totalScore += exercise.score || 0;
+        }
       });
     } else {
       // Sinon, on compte tous les exercices
-      Object.values(profile.exercises || {}).forEach((schoolType: any) => {
-        Object.values(schoolType || {}).forEach((classData: any) => {
-          Object.values(classData || {}).forEach((subject: any) => {
-            Object.values(subject || {}).forEach((theme: any) => {
-              Object.values(theme || {}).forEach((chapter: any) => {
-                if (Array.isArray(chapter)) {
-                  chapter.forEach((exercise: unknown) => {
-                    const exerciseData = exercise as ExerciseData;
-                    if (exerciseData.done) {
-                      totalScore += exerciseData.score;
-                    }
-                  });
-                }
-              });
-            });
-          });
-        });
+      Object.values(completedExercises).forEach((exercise: any) => {
+        if (exercise.done) {
+          totalScore += exercise.score || 0;
+        }
       });
     }
 
     return totalScore;
-  };
-
-  const loadSubjects = async () => {
-    try {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (!userDoc.exists()) return;
-
-      const userData = userDoc.data();
-      const userSchoolType = userData.profile?.schoolType;
-      const academiaDoc = await getDoc(doc(db, 'academia', userSchoolType));
-      
-      //load la classe de l'utilisateur
-
-      const userClass = userData.profile?.class;
-      
-      if (!userClass) {
-          console.error('Classe de l\'utilisateur non trouvée');
-          return;
-      }
-
-      const subjectsList: Subject[] = [];
-      if (academiaDoc.exists()) {
-        const academiaData = academiaDoc.data();
-          // Vérifier que la structure des données est correcte
-          if (!academiaData.classes || !academiaData.classes[userClass]) {
-          console.error('Structure de données incorrecte pour la classe:', userClass);
-          return;
-          }
-
-          // Parcourir les matières de la classe
-          Object.entries(academiaData.classes[userClass].matieres || {}).forEach(([id, subject]: [string, any]) => {
-          if (subject && subject.label) {
-              subjectsList.push({
-              id,
-              label: subject.label,
-              });
-          }
-          });
-      }
-      
-      setSubjects(subjectsList);
-      } catch (error) {
-      console.error('Erreur lors du chargement des matières:', error);
-      }
   };
 
   const loadFriends = async () => {
@@ -464,6 +392,7 @@ export default function ClassementScreen() {
           rankings.push({
             id: doc.id,
             username: data.profile.username,
+            country: data.profile.country,
             name: data.profile.name,
             score: totalScore,
             rank: 0,
@@ -518,7 +447,6 @@ export default function ClassementScreen() {
   const totalPages = Math.ceil(users.length / ITEMS_PER_PAGE);
 
   useEffect(() => {
-    loadSubjects();
     loadFriends();
   }, []);
 
@@ -529,12 +457,12 @@ export default function ClassementScreen() {
 
   useEffect(() => {
     const loadNames = async () => {
-      if (selectedUser?.schoolType) {
-        const schoolName = await getSchoolTypeName(selectedUser.schoolType);
+      if (selectedUser?.schoolType && selectedUser?.country) {
+        const schoolName = await getSchoolTypeName(selectedUser.country ?? '', selectedUser.schoolType ?? '');
         setSchoolTypeName(schoolName);
       }
       if (selectedUser?.schoolType && selectedUser?.class) {
-        const classLabel = await getClasseName(selectedUser.schoolType, selectedUser.class);
+        const classLabel = await getClassName(selectedUser.country ?? '', selectedUser.schoolType ?? '', selectedUser.class ?? '');
         setClassName(classLabel);
       }
     };

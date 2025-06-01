@@ -168,13 +168,15 @@ export default function HomeScreen() {
     loadUserStats();
     loadUserName();
     loadDailyExpression();
-    configureNotifications();
+    // Vérifier la connexion avant de configurer les notifications
+    NetInfo.fetch().then(state => {
+      if (state.isConnected) {
+        configureNotifications();
+      }
+    });
     loadReminderTime();
   }, []);
 
-  useEffect(() => {
-    loadSubjectInfos();
-  }, [stats]);
 
   const loadUserStats = async () => {
     try {
@@ -209,31 +211,18 @@ export default function HomeScreen() {
       const profile = userData.profile || {};
       const cours = userData.success?.cours || {};
       const achievements = profile.completedAchievements || [];
+      const completedExercises = profile.completedExercises || {};
       
       completedCourses = Object.keys(cours).length;
       completedAchievements = achievements.length;
 
-      if (profile.exercises) {
-        Object.values(profile.exercises).forEach((schoolType: any) => {
-          Object.values(schoolType || {}).forEach((classData: any) => {
-            Object.values(classData || {}).forEach((subject: any) => {
-              Object.values(subject || {}).forEach((theme: any) => {
-                Object.values(theme || {}).forEach((chapter: any) => {
-                  if (Array.isArray(chapter)) {
-                    chapter.forEach((exercise: unknown) => {
-                      const exerciseData = exercise as ExerciseData;
-                      if (exerciseData.done) {
-                        totalScore += exerciseData.score || 0;
-                        countExercises++;
-                      }
-                    });
-                  }
-                });
-              });
-            });
-          });
-        });
-      }
+      // Calculer les statistiques des exercices
+      Object.values(completedExercises).forEach((exercise: any) => {
+        if (exercise.done) {
+          totalScore += exercise.score || 0;
+          countExercises++;
+        }
+      });
 
       setUserStats({
         completedCourses,
@@ -265,57 +254,6 @@ export default function HomeScreen() {
       setUserName(profile.name || '');
     } catch (error) {
       console.error('Erreur lors du chargement du prénom:', error);
-    }
-  };
-
-  const getSubjectInfo = async (subjectId: string) => {
-    try {
-      const user = auth.currentUser;
-      if (!user) return null;
-
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (!userDoc.exists()) return null;
-
-      const userData = userDoc.data();
-      const profile = userData.profile || {};
-      const schoolType = profile.schoolType;
-      const classe = profile.class;
-
-      if (!schoolType || !classe) return null;
-
-      const academiaDoc = await getDoc(doc(db, 'academia', schoolType));
-      if (!academiaDoc.exists()) return null;
-
-      const academiaData = academiaDoc.data();
-      
-      if (academiaData.classes && 
-          academiaData.classes[classe] && 
-          academiaData.classes[classe].matieres && 
-          academiaData.classes[classe].matieres[subjectId]) {
-        return academiaData.classes[classe].matieres[subjectId];
-      }
-
-    } catch (error) {
-      console.error('Erreur lors de la récupération des informations de la matière:', error);
-      return null;
-    }
-  };
-
-  const loadSubjectInfos = async () => {
-    try {
-      setIsLoadingSubjects(true);
-      const newSubjectInfos: Record<string, any> = {};
-      for (const subject of Object.keys(stats)) {
-        const info = await getSubjectInfo(subject);
-        if (info) {
-          newSubjectInfos[subject] = info;
-        }
-      }
-      setSubjectInfos(newSubjectInfos);
-    } catch (error) {
-      console.error('Erreur lors du chargement des infos des matières:', error);
-    } finally {
-      setIsLoadingSubjects(false);
     }
   };
 
@@ -413,8 +351,8 @@ export default function HomeScreen() {
 
   const scheduleDailyReminder = async () => {
     try {
-      // Annuler toutes les notifications existantes
-      await Notifications.cancelAllScheduledNotificationsAsync();
+      // Ne plus annuler toutes les notifications existantes ici
+      // await Notifications.cancelAllScheduledNotificationsAsync();
 
       // Vérifier si l'objectif a été atteint aujourd'hui
       const today = new Date();
@@ -445,6 +383,7 @@ export default function HomeScreen() {
         }
 
         await Notifications.scheduleNotificationAsync({
+          identifier: 'daily-reminder',
           content: {
             title: "Objectif quotidien non atteint",
             body: "N'oubliez pas de compléter vos exercices et cours quotidiens !",
@@ -478,7 +417,7 @@ export default function HomeScreen() {
 
       const userData = userDoc.data();
       const profile = userData.profile || {};
-      const exercises = profile.exercises || {};
+      const completedExercises = profile.completedExercises || {};
       const courses = userData.success?.cours || {};
       const dailyProgress = userData.success?.dailyProgress || {};
 
@@ -489,33 +428,13 @@ export default function HomeScreen() {
 
       // Compter les exercices complétés aujourd'hui (max 3)
       let todayExercisesCount = 0;
-      Object.entries(exercises).forEach(([schoolType, schoolTypeData]) => {
-        if (typeof schoolTypeData === 'object' && schoolTypeData !== null) {
-          Object.entries(schoolTypeData).forEach(([classe, classeData]) => {
-            if (typeof classeData === 'object' && classeData !== null) {
-              Object.entries(classeData).forEach(([subject, subjectData]) => {
-                if (typeof subjectData === 'object' && subjectData !== null) {
-                  Object.entries(subjectData).forEach(([chapterId, chapterData]) => {
-                    if (typeof chapterData === 'object' && chapterData !== null) {
-                      Object.entries(chapterData).forEach(([contentId, contentData]) => {
-                        if (Array.isArray(contentData)) {
-                          contentData.forEach((exercise: any) => {
-                            if (exercise.completedAt && todayExercisesCount < 3) {
-                              const exDate = new Date(exercise.completedAt);
-                              exDate.setHours(0, 0, 0, 0);
-                              if (exDate.getTime() === today.getTime()) {
-                                todayExercisesCount++;
-                              }
-                            }
-                          });
-                        }
-                      });
-                    }
-                  });
-                }
-              });
-            }
-          });
+      Object.values(completedExercises).forEach((exercise: any) => {
+        if (exercise.completedAt && todayExercisesCount < 3) {
+          const exDate = new Date(exercise.completedAt);
+          exDate.setHours(0, 0, 0, 0);
+          if (exDate.getTime() === today.getTime()) {
+            todayExercisesCount++;
+          }
         }
       });
 

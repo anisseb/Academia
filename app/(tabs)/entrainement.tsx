@@ -8,20 +8,18 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { getSubjects, parseGradient } from '../utils/subjectGradients';
+import { useSchoolData } from '../hooks/useSchoolData';
+import { parseGradient } from '../utils/subjectGradients';
+import type { Subject, Theme, Chapter } from '../types/firestore';
 
-interface Subject {
-  id: string;
-  label: string;
-  icon: string;
-  gradient: string;
-  key: string;
+interface ThemeWithChapters extends Theme {
+  chapters: Chapter[];
 }
 
 interface SubjectSceneProps {
@@ -36,9 +34,9 @@ interface SubjectSceneProps {
 
 const SubjectScene: React.FC<SubjectSceneProps> = ({ subject, themeColors }) => {
   const [userClass, setUserClass] = useState<string>('');
-  const [userSchoolType, setUserSchoolType] = useState<string>('');
+  const [userCountry, setUserCountry] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [programme, setProgramme] = useState<any[]>([]);
+  const [themes, setThemes] = useState<ThemeWithChapters[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -56,51 +54,68 @@ const SubjectScene: React.FC<SubjectSceneProps> = ({ subject, themeColors }) => 
         const userData = userDoc.data();
         if (userData.profile) {
           setUserClass(userData.profile.class || '');
-          setUserSchoolType(userData.profile.schoolType || '');
+          setUserCountry(userData.profile.country || '');
           
-          // Récupérer le programme depuis la collection academia
-          const academiaDoc = await getDoc(doc(db, 'academia', userData.profile.schoolType));
-          if (academiaDoc.exists()) {
-            const academiaData = academiaDoc.data();
-            
-            // Vérifier si les données nécessaires existent
-            if (academiaData.classes && 
-                academiaData.classes[userData.profile.class] && 
-                academiaData.classes[userData.profile.class].matieres && 
-                academiaData.classes[userData.profile.class].matieres[subject.id]) {
-              
-              // Récupérer le programme de la matière
-              const subjectProgram = academiaData.classes[userData.profile.class].matieres[subject.id].programme || [];
-              setProgramme(subjectProgram);
-            } else {
-              setProgramme([]);
-            }
-          } else {
-            setProgramme([]);
-          }
+          // Récupérer les thèmes
+          const themesRef = collection(db, 'theme');
+          const themesQuery = query(
+            themesRef,
+            where('countryId', '==', userData.profile.country),
+            where('classeId', '==', userData.profile.class),
+            where('subjectId', '==', subject.id),
+            orderBy('createdAt', 'asc')
+          );
+
+          const themesSnapshot = await getDocs(themesQuery);
+          const themesData = themesSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as Theme[];
+
+          // Pour chaque thème, récupérer ses chapitres
+          const themesWithChapters = await Promise.all(
+            themesData.map(async (theme) => {
+              const chaptersRef = collection(db, 'chapters');
+              const chaptersQuery = query(
+                chaptersRef,
+                where('themeId', '==', theme.id),
+                orderBy('createdAt', 'asc')
+              );
+
+              const chaptersSnapshot = await getDocs(chaptersQuery);
+              const chapters = chaptersSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+              })) as Chapter[];
+
+              return {
+                ...theme,
+                chapters
+              };
+            })
+          );
+
+          setThemes(themesWithChapters);
         }
       }
     } catch (error) {
       console.error('Erreur lors du chargement du profil:', error);
-      setProgramme([]);
+      setThemes([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChapterContentPress = (chapterIndex: number, contentIndex: number) => {
-    const chapter = programme[chapterIndex];
-    const content = chapter.content[contentIndex];
-    
+  const handleChapterPress = (theme: Theme, chapter: Chapter) => {
     router.push({
       pathname: '/content/[subject]/[chapter]/[content]',
       params: {
         subject: subject.id,
         subjectLabel: subject.label,
-        chapterIndex: chapterIndex,
+        themeId: theme.id,
+        themeLabel: theme.title,
+        chapterId: chapter.id,
         chapterLabel: chapter.title,
-        contentId: contentIndex,
-        contentLabel: content.content,
       },
     } as any);
   };
@@ -113,42 +128,79 @@ const SubjectScene: React.FC<SubjectSceneProps> = ({ subject, themeColors }) => 
     );
   }
 
-  if (!programme || programme.length === 0) {
+  if (!themes || themes.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <Text style={[styles.noContentText, { color: themeColors.text }]}>
-          Aucun programme disponible pour votre niveau
+          Aucun thème disponible pour votre niveau
         </Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.content}>
-      {programme.map((chapter, chapterIndex) => (
+    <ScrollView 
+      style={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {themes.map((theme) => (
         <View
-          key={chapterIndex}
-          style={[styles.chapterCard, { backgroundColor: themeColors.card }]}
+          key={theme.id}
+          style={[styles.themeCard, { backgroundColor: themeColors.card }]}
         >
-          <Text style={[styles.chapterTitle, { color: themeColors.text }]}>
-            {chapter.title}
-          </Text>
-          {chapter.content.map((item: any, contentIndex: number) => (
-            <TouchableOpacity
-              key={contentIndex}
-              style={styles.contentItem}
-              onPress={() => handleChapterContentPress(chapterIndex, contentIndex)}
-            >
-              <Text style={[styles.contentText, { color: themeColors.text }]}>
-                {item.content}
-              </Text>
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={24}
-                color={themeColors.text}
-              />
-            </TouchableOpacity>
-          ))}
+          <LinearGradient
+            colors={parseGradient(subject.gradient)}
+            style={styles.themeHeader}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Text style={styles.themeTitle}>
+              {theme.title}
+            </Text>
+          </LinearGradient>
+          
+          <View style={styles.chaptersContainer}>
+            {theme.chapters.map((chapter, index) => (
+              <TouchableOpacity
+                key={chapter.id}
+                style={[
+                  styles.chapterItem,
+                  { 
+                    backgroundColor: themeColors.background,
+                    borderColor: themeColors.border,
+                  }
+                ]}
+                onPress={() => handleChapterPress(theme, chapter)}
+              >
+                <View style={styles.chapterContent}>
+                  <View style={styles.chapterHeader}>
+                    <View style={styles.chapterNumber}>
+                      <Text style={[styles.chapterNumberText, { color: themeColors.text }]}>
+                        {index + 1}
+                      </Text>
+                    </View>
+                    <View style={styles.chapterTitleContainer}>
+                      <Text style={[styles.chapterTitle, { color: themeColors.text }]}>
+                        {chapter.title}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text 
+                    style={[styles.chapterDescription, { color: themeColors.text }]}
+                    numberOfLines={2}
+                  >
+                    {chapter.cours.content}
+                  </Text>
+                </View>
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={24}
+                  color={themeColors.text}
+                  style={styles.chapterIcon}
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       ))}
     </ScrollView>
@@ -157,15 +209,9 @@ const SubjectScene: React.FC<SubjectSceneProps> = ({ subject, themeColors }) => 
 
 export default function EntrainementScreen() {
   const { isDarkMode } = useTheme();
-  const [subjects, setSubjects] = useState<Array<{
-    id: string;
-    label: string;
-    icon: string;
-    gradient: string;
-    key: string;
-  }>>([]);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState<any>(null);
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -174,7 +220,20 @@ export default function EntrainementScreen() {
     border: isDarkMode ? '#333333' : '#e0e0e0',
   };
 
-  const loadSubjects = async () => {
+  const { subjects, loading: subjectsLoading } = useSchoolData(
+    userProfile?.country,
+    userProfile?.schoolType,
+    userProfile?.class
+  );
+
+  // Sélectionner automatiquement le premier sujet lorsque les sujets sont chargés
+  useEffect(() => {
+    if (subjects && subjects.length > 0 && !selectedSubject) {
+      setSelectedSubject(subjects[0]);
+    }
+  }, [subjects]);
+
+  const loadUserProfile = async () => {
     setLoading(true);
     try {
       const user = auth.currentUser;
@@ -184,19 +243,11 @@ export default function EntrainementScreen() {
       if (!userDoc.exists()) return;
 
       const userData = userDoc.data();
-      if (!userData.profile || !userData.profile.subjects) return;
-
-      const userSubjects = await getSubjects(
-        userData.profile.subjects,
-        userData.profile.schoolType,
-        userData.profile.class
-      );
-      setSubjects(userSubjects);
-      if (userSubjects.length > 0) {
-        setSelectedSubject(userSubjects[0]);
+      if (userData.profile) {
+        setUserProfile(userData.profile);
       }
     } catch (error) {
-      console.error('Erreur lors du chargement des matières:', error);
+      console.error('Erreur lors du chargement du profil:', error);
     } finally {
       setLoading(false);
     }
@@ -204,11 +255,11 @@ export default function EntrainementScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      loadSubjects();
+      loadUserProfile();
     }, [])
   );
 
-  if (loading) {
+  if (loading || subjectsLoading) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.background }]}>
         <ActivityIndicator size="large" color="#60a5fa" />
@@ -216,7 +267,7 @@ export default function EntrainementScreen() {
     );
   }
 
-  if (subjects.length === 0) {
+  if (!subjects || subjects.length === 0) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.background }]}>
         <Text style={[styles.noSubjectsText, { color: themeColors.text }]}>
@@ -349,32 +400,85 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
   },
-  chapterCard: {
-    padding: 16,
-    borderRadius: 12,
+  themeCard: {
+    borderRadius: 16,
     marginTop: 16,
-    elevation: 2,
+    marginBottom: 8,
+    overflow: 'hidden',
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 8,
   },
-  chapterTitle: {
-    fontSize: 20,
+  themeHeader: {
+    padding: 20,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  themeTitle: {
+    fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 12,
+    color: '#ffffff',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  contentItem: {
+  chaptersContainer: {
+    padding: 16,
+  },
+  chapterItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    minHeight: 80,
   },
-  contentText: {
-    fontSize: 16,
+  chapterContent: {
     flex: 1,
-    marginRight: 8,
+    justifyContent: 'center',
+  },
+  chapterHeader: {
+    flexDirection: 'row',
+    paddingTop: 12,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  chapterNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(96, 165, 250, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  chapterNumberText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  chapterTitleContainer: {
+    flex: 3,
+    justifyContent: 'flex-end',
+  },
+  chapterTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  chapterDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    opacity: 0.8,
+  },
+  chapterIcon: {
+    opacity: 0.5,
+    marginLeft: 4,
   },
 }); 

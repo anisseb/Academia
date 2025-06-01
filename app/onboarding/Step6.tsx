@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSchoolTypes } from '../hooks/useSchoolTypes';
+import { useSchoolData } from '../hooks/useSchoolData';
 import { OnboardingButton } from '../components/OnboardingButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,15 +25,12 @@ export default function Step6({ onNext, onBack, data }: Step6Props) {
     data.subjects || []
   );
   const insets = useSafeAreaInsets();
-  const { schoolTypes, loading, error } = useSchoolTypes();
+  const { subjects, loading, error } = useSchoolData(data.country, data.schoolType, data.class);
 
-  const schoolType = schoolTypes.find(type => type.id === data.schoolType);
-  const selectedClass = schoolType?.classes[data.class || ''];
-  const availableSubjects = selectedClass ? Object.entries(selectedClass.matieres).map(([id, subject]) => ({
+  const availableSubjects = subjects.map(subject => ({
     ...subject,
-    id,
     gradientColors: parseGradient(subject.gradient || 'linear-gradient(to right, #60a5fa, #3b82f6)')
-  })) : [];
+  }));
 
   const toggleSubject = (subjectId: string, subjectLabel: string) => {
     setSelectedSubjects((prev) =>
@@ -111,7 +108,6 @@ export default function Step6({ onNext, onBack, data }: Step6Props) {
                     >
                       {subject.label}
                     </Text>
-                  <Text style={styles.description}>{subject.description}</Text>
                 </LinearGradient>
               </TouchableOpacity>
             );
@@ -193,12 +189,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 4,
-  },
-  description: {
-    color: '#fff',
-    fontSize: 10,
-    textAlign: 'center',
-    opacity: 0.8,
   },
   footer: {
     flexDirection: 'row',

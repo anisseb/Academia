@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { countries } from '../constants/education';
+import { getCountries } from '../services/firestoreService';
 import { OnboardingButton } from '../components/OnboardingButton';
+import { Country } from '../types/firestore';
 
 type Step3Props = {
   onNext: (data: { country: string }) => void;
@@ -13,6 +14,15 @@ type Step3Props = {
 export default function Step3({ onNext, onBack, data }: Step3Props) {
   const [selectedCountry, setSelectedCountry] = React.useState<string | undefined>(data?.country);
   const insets = useSafeAreaInsets();
+  const [countries, setCountries] = React.useState<Country[]>([]);
+
+  React.useEffect(() => {
+    const fetchCountries = async () => {
+      const countries = await getCountries();
+      setCountries(countries);
+    };
+    fetchCountries();
+  }, []);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
