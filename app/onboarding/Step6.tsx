@@ -1,11 +1,12 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSchoolData } from '../hooks/useSchoolData';
 import { OnboardingButton } from '../components/OnboardingButton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { parseGradient } from '../utils/subjectGradients';
+import * as Haptics from 'expo-haptics';
 
 type Step6Props = {
   onNext: (data: { subjects: Array<{ id: string; label: string }> }) => void;
@@ -27,6 +28,28 @@ export default function Step6({ onNext, onBack, data }: Step6Props) {
   const insets = useSafeAreaInsets();
   const { subjects, loading, error } = useSchoolData(data.country, data.schoolType, data.class);
 
+  // Animations d'entrée
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  // Animation de sélection
+  const buttonScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
+
   const availableSubjects = subjects.map(subject => ({
     ...subject,
     gradientColors: parseGradient(subject.gradient || 'linear-gradient(to right, #60a5fa, #3b82f6)')
@@ -38,6 +61,21 @@ export default function Step6({ onNext, onBack, data }: Step6Props) {
         ? prev.filter((subject) => subject.id !== subjectId)
         : [...prev, { id: subjectId, label: subjectLabel }]
     );
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Animation de sélection
+    Animated.sequence([
+      Animated.timing(buttonScale, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(buttonScale, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      })
+    ]).start();
   };
 
   if (loading) {
@@ -58,61 +96,83 @@ export default function Step6({ onNext, onBack, data }: Step6Props) {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Text style={styles.title}>Vos matières</Text>
-      <Text style={styles.subtitle}>
-        Sélectionnez les matières que vous souhaitez étudier
-      </Text>
+      <Animated.View
+        style={{
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }]
+        }}
+      >
+        <Text style={styles.title}>Vos matières</Text>
+        <Text style={styles.subtitle}>
+          Sélectionnez les matières que vous souhaitez étudier
+        </Text>
+      </Animated.View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.grid}>
-          {availableSubjects.map((subject) => {
-            const isSelected = selectedSubjects.some(s => s.id === subject.id);
-
-            return (
-              <TouchableOpacity
-                key={subject.id}
-                style={[
-                  styles.subjectButton,
-                  isSelected && styles.selectedSubject,
-                ]}
-                onPress={() => toggleSubject(subject.id, subject.label)}
-              >
-                <LinearGradient
-                  colors={subject.gradientColors}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
+        <Animated.View
+          style={{
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }]
+          }}
+        >
+          <View style={styles.grid}>
+            {availableSubjects.map((subject) => {
+              const isSelected = selectedSubjects.some(s => s.id === subject.id);
+              return (
+                <Animated.View
+                  key={subject.id}
                   style={[
-                    styles.gradient,
-                    isSelected && styles.selectedGradient,
+                    styles.subjectButton,
+                    isSelected && styles.selectedSubject,
+                    {
+                      transform: [
+                        ...(isSelected ? [{ scale: buttonScale }] : []),
+                      ]
+                    }
                   ]}
                 >
-                  {isSelected && (
-                    <View style={styles.checkmarkContainer}>
-                      <MaterialCommunityIcons
-                        name="check-circle"
-                        size={24}
-                        color="#22c55e"
-                      />
-                    </View>
-                  )}
-                  <MaterialCommunityIcons
-                    name={subject.icon as keyof typeof MaterialCommunityIcons.glyphMap}
-                    size={32}
-                    color="#fff"
-                    style={styles.icon}
-                  />
-                    <Text 
-                      style={styles.subjectLabel}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    onPress={() => toggleSubject(subject.id, subject.label)}
+                  >
+                    <LinearGradient
+                      colors={subject.gradientColors}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[
+                        styles.gradient,
+                        isSelected && styles.selectedGradient,
+                      ]}
                     >
-                      {subject.label}
-                    </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                      {isSelected && (
+                        <View style={styles.checkmarkContainer}>
+                          <MaterialCommunityIcons
+                            name="check-circle"
+                            size={24}
+                            color="#22c55e"
+                          />
+                        </View>
+                      )}
+                      <MaterialCommunityIcons
+                        name={subject.icon as keyof typeof MaterialCommunityIcons.glyphMap}
+                        size={32}
+                        color="#fff"
+                        style={styles.icon}
+                      />
+                      <Text 
+                        style={styles.subjectLabel}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        {subject.label}
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
+              );
+            })}
+          </View>
+        </Animated.View>
       </ScrollView>
 
       <View style={styles.footer}>

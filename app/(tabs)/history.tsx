@@ -231,55 +231,69 @@ export default function HistoryScreen() {
     const classeMessage = userClassLabel
       ? `Pour un élève de ${userClassLabel}, utilise un langage et des explications appropriés à son niveau.`
       : `Adapte tes réponses avec un langage simple et des explications claires.`;
-
+  
     const schoolTypeMessage = userSchoolTypeLabel
       ? `L'élève est dans un établissement de type ${userSchoolTypeLabel}.`
       : '';
-
+  
     const profileMessage = `IMPORTANT: utilise le ${AI_PROFILES[selectedAIProfile].description}`;
-
-    let baseMessage = `Tu es un assistant pédagogique. ${classeMessage} ${schoolTypeMessage} ${profileMessage}`;
-
+  
+    // Ajout de l'instruction de langue
+    let languageInstruction = '';
+    if (subject && subject.toLowerCase() === 'anglais') {
+      languageInstruction = 'IMPORTANT: Respond only in English. Do not respond in French. ne réponds pas en français.';
+    } else if (subject && subject.toLowerCase() === 'espagnol') {
+      languageInstruction = 'IMPORTANTE: Responder solo en español. No respondas en francés.';
+    } else if (subject && subject.toLowerCase() === 'allemand') {
+      languageInstruction = 'WICHTIG: Antwort nur auf Deutsch. Antworten Sie nicht auf Französisch.';
+    } else if (subject && subject.toLowerCase() === 'italien') {
+      languageInstruction = 'IMPORTANTE: Rispondere solo in italiano. non rispondere in francese.';
+    } else if (subject && subject.toLowerCase() === 'portugais') {
+      languageInstruction = 'IMPORTANTE: Responda somente em português. não responda em francês.';
+    }
+  
+    let baseMessage = `Tu es un assistant pédagogique. ${classeMessage} ${schoolTypeMessage} ${profileMessage} ${languageInstruction}`;
+  
     if (subject === 'discussion') {
       return `${baseMessage} Sois amical et ouvert à la discussion tout en restant pédagogique. IMPORTANT: Ta réponse doit être au format JSON avec la structure suivante: {"message": "ton message", "suggestions": ["suggestion 1", "suggestion 2"]}`;
     }
-
+  
     const scientificInstruction = (subject === 'Mathématiques' || subject === 'Physique Chimie')
       ? 'IMPORTANT: j\'aimerais que les formules soient au format latex. Réponds uniquement en JSON valide avec le format suivant, sans texte supplémentaire.'
       : '';
-
-    const resolutionInstruction = hasImage ? `IMPORTANT: Je veux que tu accompagnes l'élève dans la résolution du problème mais sans jamais donner la réponse.` : `IMPORTANT: Je veux que tu accompagnes l'élève`  ;
-
+  
+    const resolutionInstruction = hasImage ? `IMPORTANT: Je veux que tu accompagnes l'élève dans la résolution du problème mais sans jamais donner la réponse.` : `IMPORTANT: Je veux que tu accompagnes l'élève`;
+  
     // Structure JSON différente selon que l'utilisateur envoie une image ou non
     const jsonStructure = subject === 'Mathématiques'
-      ? `IMPORTANT: les formules mathematiques doivent etre au format latex, il faut que le format soit correcte pour etre pris en compte par katex. 
-        IMPORTANT: les formules doivent etre au format suivant : $\\frac{a}{b}$ 
+      ? `IMPORTANT: les formules mathematiques doivent etre au format latex, il faut que le format soit correcte pour etre pris en compte par katex.
+        IMPORTANT: les formules doivent etre au format suivant : $\\frac{a}{b}$
         IMPORTANT: les formules doivent etre entre les balises $$.r
-      {
-              "message": "ton message principal",
-              "steps": [
-                {
-                  "number": 1,
-                  "content": "contenu de l'étape 1"
-                },
-                {
-                  "number": 2,
-                  "content": "contenu de l'étape 2"
-                }
-              ],
-              "formulas": [
-                {
-                  "latex": "$\\frac{a}{b}$",
-                  "description": "description de la formule"
-                }
-              ],
-              "suggestions": ["suggestion 1", "suggestion 2"]
-            }`
+        {
+          "message": "ton message principal",
+          "steps": [
+            {
+              "number": 1,
+              "content": "contenu de l'étape 1"
+            },
+            {
+              "number": 2,
+              "content": "contenu de l'étape 2"
+            }
+          ],
+          "formulas": [
+            {
+              "latex": "$\\frac{a}{b}$",
+              "description": "description de la formule"
+            }
+          ],
+          "suggestions": ["suggestion 1", "suggestion 2"]
+        }`
       : `{
-              "message": "ton message principal"
-            }`;
-
-    return `${baseMessage} Dans le contexte de la matière "${subject}", je ne veux pas que tu donnes la solution aux problèmes. 
+          "message": "ton message principal"
+        }`;
+  
+    return `${baseMessage} Dans le contexte de la matière "${subject}", je ne veux pas que tu donnes la solution aux problèmes.
             ${resolutionInstruction} ${scientificInstruction}
             IMPORTANT: Ta réponse doit être au format JSON avec la structure suivante ${jsonStructure}
             TRÈS IMPORTANT: Ne mets pas de texte avant ou après le JSON. Ta réponse doit être UNIQUEMENT le JSON, sans aucun texte supplémentaire.`;
