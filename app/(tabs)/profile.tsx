@@ -13,8 +13,6 @@ import {
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
 import { useTheme } from '../context/ThemeContext';
-import { useSchoolTypes } from '../hooks/useSchoolTypes';
-import { countries } from '../constants/education';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showErrorAlert, showSuccessAlert } from '../utils/alerts';
@@ -101,7 +99,6 @@ export default function ProfileScreen() {
     profileData.schoolType,
     profileData.class
   );
-  const { schoolTypes: schoolDataTypes, loading: schoolTypesLoading, error: schoolTypesError } = useSchoolTypes();
   const [isEditing, setIsEditing] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
   const [usernameError, setUsernameError] = useState<string | null>(null);

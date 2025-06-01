@@ -9,7 +9,6 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Feather } from '@expo/vector-icons';
 import { SubjectSelector } from '../components/SubjectSelector';
 import { useTheme } from '../context/ThemeContext';
-import { getEducationLevelLabel, EducationLevel } from '../constants/education';
 import { renderMathText as MathText } from '../utils/mathRenderer';
 import { showErrorAlert } from '../utils/alerts';
 import AIProfileSelector, { AIProfile, AI_PROFILES } from '../components/AIProfileSelector';
@@ -17,7 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-const MISTRAL_API_KEY = '5YC1BWCbnpIqsViDDsK9zBbc1NgqjwAj';
+import { getSchoolTypeName, getClassName } from '../services/firestoreService';
 
 type Message = {
   id: string;
@@ -104,16 +103,15 @@ export default function HistoryScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showSubjectSelector, setShowSubjectSelector] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
-  const [userSubjects, setUserSubjects] = useState<string[]>([]);
-  const [userClass, setUserClass] = useState<string | null>(null);
-  const [userSchoolType, setUserSchoolType] = useState<EducationLevel | null>(null);
-  const client = new Mistral({ apiKey: MISTRAL_API_KEY });
+  const client = new Mistral({ apiKey: process.env.EXPO_PUBLIC_MISTRAL_API_KEY || '' });
   const scrollViewRef = useRef<ScrollView>(null);
   const [threadTitle, setThreadTitle] = useState('');
   const { isDarkMode } = useTheme();
   const [selectedAIProfile, setSelectedAIProfile] = useState<AIProfile>('professeur');
   const [showAIProfilePicker, setShowAIProfilePicker] = useState(false);
   const [showImageMenu, setShowImageMenu] = useState(false);
+  const [userSchoolTypeLabel, setUserSchoolTypeLabel] = useState<string>('');
+  const [userClassLabel, setUserClassLabel] = useState<string>('');
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -230,12 +228,12 @@ export default function HistoryScreen() {
   };
 
   const getSystemMessage = (subject: string, hasImage: boolean = false) => {
-    const classeMessage = userClass 
-      ? `Pour un élève de ${userClass} , utilise un langage et des explications appropriés à son niveau.`
+    const classeMessage = userClassLabel
+      ? `Pour un élève de ${userClassLabel}, utilise un langage et des explications appropriés à son niveau.`
       : `Adapte tes réponses avec un langage simple et des explications claires.`;
 
-    const schoolTypeMessage = userSchoolType
-      ? `L'élève est dans un établissement de type ${getEducationLevelLabel(userSchoolType)}.`
+    const schoolTypeMessage = userSchoolTypeLabel
+      ? `L'élève est dans un établissement de type ${userSchoolTypeLabel}.`
       : '';
 
     const profileMessage = `IMPORTANT: utilise le ${AI_PROFILES[selectedAIProfile].description}`;
@@ -500,6 +498,27 @@ export default function HistoryScreen() {
       showErrorAlert('Erreur', 'Impossible de sélectionner le fichier. Veuillez réessayer.');
     }
   };
+
+  useEffect(() => {
+    // Charger les labels de la classe et du type d'établissement
+    const loadLabels = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) return;
+      const userData = userDoc.data();
+      const profile = userData.profile || {};
+      if (profile.country && profile.schoolType) {
+        const schoolTypeLabel = await getSchoolTypeName(profile.country, profile.schoolType);
+        setUserSchoolTypeLabel(schoolTypeLabel);
+      }
+      if (profile.country && profile.schoolType && profile.class) {
+        const classLabel = await getClassName(profile.country, profile.schoolType, profile.class);
+        setUserClassLabel(classLabel);
+      }
+    };
+    loadLabels();
+  }, []);
 
   return (
     <KeyboardAvoidingView 
