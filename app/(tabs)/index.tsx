@@ -754,6 +754,14 @@ export default function HomeScreen() {
               backgroundColor={themeColors.danger}
               color={themeColors.text}
             />
+            <QuickAction
+              icon="credit-card"
+              title="Abonnement"
+              description="Voir les offres"
+              onPress={() => router.push('/(tabs)/subscriptions')}
+              backgroundColor={themeColors.primary}
+              color={themeColors.text}
+            />
           </View>
         </View>
 
