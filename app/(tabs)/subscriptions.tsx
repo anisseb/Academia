@@ -1,56 +1,60 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as InAppPurchases from 'expo-in-app-purchases';
+import Purchases from 'react-native-purchases';
+import { Platform } from 'react-native';
 
-const PRIX_MENSUEL = 16;
-const PRIX_ANNUEL = 192;
-const PRIX_FAMILLE = 24;
-
-// Identifiants Apple
-const PRODUCT_IDS = {
-  premium: {
-    mois: 'academia.reussite.monthly',
-    an: 'academia.reussite.years',
-  },
-  famille: {
-    mois: 'academia.famille.monthly',
-    an: 'academia.famille.years',
-  },
-};
+const ENTITLEMENT_ID = 'premium'; // À adapter selon ton entitlement RevenueCat
 
 export default function Subscriptions() {
   const [mode, setMode] = useState<'mois' | 'an'>('mois');
+  const [offerings, setOfferings] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    InAppPurchases.connectAsync();
-    InAppPurchases.setPurchaseListener(({ responseCode, results }) => {
-      if (responseCode === InAppPurchases.IAPResponseCode.OK) {
-        if (results) {
-          results.forEach(async (purchase) => {
-            if (!purchase.acknowledged) {
-              Alert.alert('Merci !', 'Achat réussi.');
-              await InAppPurchases.finishTransactionAsync(purchase, false);
-            }
-          });
-        }
-      } else if (responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
-        Alert.alert('Achat annulé');
-      } else {
-        Alert.alert('Erreur', 'Une erreur est survenue lors de l’achat.');
+    if (Platform.OS === 'ios') {
+        Purchases.configure({apiKey: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS || ''});
+     } else if (Platform.OS === 'android') {
+        Purchases.configure({apiKey: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID || ''});
+    }
+
+    const fetchOfferings = async () => {
+      try {
+        const res = await Purchases.getOfferings();
+        setOfferings(res.current);
+      } catch (e) {
+        Alert.alert('Erreur', "Impossible de charger les offres d'abonnement.");
+      } finally {
+        setLoading(false);
       }
-    });
-    return () => {
-      InAppPurchases.disconnectAsync();
     };
+    fetchOfferings();
   }, []);
 
   const handlePurchase = async (type: 'premium' | 'famille') => {
-    const productId = PRODUCT_IDS[type][mode];
+    if (!offerings) return;
+    let packageId = '';
+    if (type === 'premium') {
+      packageId = mode === 'mois' ? 'academia.reussite.monthly' : 'academia.reussite.years';
+    } else {
+      packageId = mode === 'mois' ? 'academia.famille.monthly' : 'academia.famille.years';
+    }
+    const selectedPackage = offerings.availablePackages.find((p: any) => p.product.identifier === packageId);
+    if (!selectedPackage) {
+      Alert.alert('Erreur', 'Offre non trouvée.');
+      return;
+    }
     try {
-      await InAppPurchases.purchaseItemAsync(productId);
-    } catch (e) {
-      Alert.alert('Erreur', 'Impossible de lancer l’achat.');
+      const { customerInfo } = await Purchases.purchasePackage(selectedPackage);
+      if (customerInfo.entitlements.active[ENTITLEMENT_ID]) {
+        Alert.alert('Merci !', 'Abonnement activé.');
+      } else {
+        Alert.alert('Erreur', 'Achat effectué mais abonnement non activé.');
+      }
+    } catch (e: any) {
+      if (!e.userCancelled) {
+        Alert.alert('Erreur', 'Achat impossible : ' + e.message);
+      }
     }
   };
 
@@ -71,6 +75,8 @@ export default function Subscriptions() {
           <Text style={[styles.toggleText, mode === 'an' && styles.toggleTextActive]}>Par an</Text>
         </TouchableOpacity>
       </View>
+
+      {loading && <ActivityIndicator color="#FFD700" size="large" style={{ marginVertical: 40 }} />}
 
       {/* Offre gratuite */}
       <View style={styles.card}>
@@ -95,7 +101,11 @@ export default function Subscriptions() {
           <MaterialCommunityIcons name="star-circle" size={32} color="#FFD700" />
           <Text style={styles.cardTitle}>Academia Réussite</Text>
           <Text style={styles.pricePremium}>
-            {mode === 'mois' ? '14,99€ / mois' : '163,99€ / an'}
+            {offerings ? (
+              mode === 'mois'
+                ? (offerings.availablePackages.find((p: any) => p.product.identifier === 'academia.reussite.monthly')?.product.priceString || '14,99€ / mois')
+                : (offerings.availablePackages.find((p: any) => p.product.identifier === 'academia.reussite.years')?.product.priceString || '163,99€ / an')
+            ) : (mode === 'mois' ? '14,99€ / mois' : '163,99€ / an')}
           </Text>
         </View>
         <View style={styles.features}>
@@ -105,7 +115,7 @@ export default function Subscriptions() {
           <Text style={styles.feature}>✅ Pas de publicités</Text>
           <Text style={styles.feature}>✅ Statistiques détaillées par matière</Text>
         </View>
-        <TouchableOpacity style={styles.ctaButton} onPress={() => handlePurchase('premium')}>
+        <TouchableOpacity style={styles.ctaButton} onPress={() => handlePurchase('premium')} disabled={loading}>
           <Text style={styles.ctaText}>Passer à Academia Réussite</Text>
         </TouchableOpacity>
       </View>
@@ -116,14 +126,18 @@ export default function Subscriptions() {
           <MaterialCommunityIcons name="account-group" size={32} color="#FF6B6B" />
           <Text style={styles.cardTitle}>Pack Famille</Text>
           <Text style={styles.priceFamily}>
-            {mode === 'mois' ? '29,99€ / mois' : '329,99€ / an'}
+            {offerings ? (
+              mode === 'mois'
+                ? (offerings.availablePackages.find((p: any) => p.product.identifier === 'academia.famille.monthly')?.product.priceString || '29,99€ / mois')
+                : (offerings.availablePackages.find((p: any) => p.product.identifier === 'academia.famille.years')?.product.priceString || '329,99€ / an')
+            ) : (mode === 'mois' ? '29,99€ / mois' : '329,99€ / an')}
           </Text>
         </View>
         <View style={styles.features}>
           <Text style={styles.feature}>👤👤👤 3 profils (idéal pour les fratries)</Text>
           <Text style={styles.feature}>✅ Toutes les fonctionnalités Academia Réussite</Text>
         </View>
-        <TouchableOpacity style={[styles.ctaButton, styles.familyButton]} onPress={() => handlePurchase('famille')}>
+        <TouchableOpacity style={[styles.ctaButton, styles.familyButton]} onPress={() => handlePurchase('famille')} disabled={loading}>
           <Text style={styles.ctaText}>Choisir le Pack Famille</Text>
         </TouchableOpacity>
       </View>
