@@ -16,11 +16,18 @@ const firebaseConfig = {
   measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
-export const auth = initializeAuth(app, {
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+
+// Initialize Auth with persistence
+const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(AsyncStorage)
 });
+
+// Initialize other services
+const db = getFirestore(app);
+const storage = getStorage(app);
+
+export { app, auth, db, storage };
 // For more information on how to access Firebase in your project,
 // see the Firebase documentation: https://firebase.google.com/docs/web/setup#access-firebase
