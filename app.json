@@ -35,7 +35,7 @@
       "permissions": [
         "CAMERA"
       ],
-      "privacyPolicy": "https://academiaforkids.com/politique-de-confidentialite-academia/",
+      "privacyPolicy": "https://academiaforkids.com/fr/politique-de-confidentialite-academia/",
       "facebookScheme": "fb653735364141256",
       "facebookAppId": "653735364141256",
       "facebookClientToken": "4a146c687260212ea9d812f5209cecc7"
@@ -47,7 +47,9 @@
     },
     "react-native-google-mobile-ads": {
       "android_app_id": "ca-app-pub-9849575862637315~4909955983",
-      "ios_app_id": "ca-app-pub-9849575862637315~3948002761"
+      "ios_app_id": "ca-app-pub-9849575862637315~3948002761",
+      "androidAppId": "ca-app-pub-9849575862637315~4909955983",
+      "iosAppId": "ca-app-pub-9849575862637315~3948002761"
     },
     "plugins": [
       "expo-router",
@@ -67,10 +69,17 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash_icon.png",
+          "enableFullScreenImage_legacy": true,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
-          "enableFullScreenImage_legacy": true
+          "ios": {
+            "backgroundColor": "#ffffff",
+            "image": "./assets/images/splash_icon.png"
+          },
+          "android": {
+            "backgroundColor": "#ffffff",
+            "image": "./assets/images/splash_screen_android.png",
+            "imageWidth": 195
+          }
         }
       ],
       [
@@ -130,7 +139,8 @@
       },
       "eas": {
         "projectId": "05388435-4c2f-49e4-83a2-1ed0d62649b4"
-      }
+      },
+      "EXPO_PUBLIC_REVENUECAT_API_KEY_IOS": "appl_YPDPIHytWWRxjTtvctxgrFmpmbB"
     },
     "owner": "anisse3000"
   }

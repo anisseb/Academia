@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Purchases from 'react-native-purchases';
 import { Platform } from 'react-native';
+import { auth, db } from '../../firebaseConfig';
+import { doc, updateDoc } from 'firebase/firestore';
+import { showErrorAlert, showSuccessAlert } from '../utils/alerts';
 
-const ENTITLEMENT_ID = 'premium'; // À adapter selon ton entitlement RevenueCat
+const ENTITLEMENT_ID = 'AcademIA Réussite'; // À adapter selon ton entitlement RevenueCat
 
 export default function Subscriptions() {
   const [mode, setMode] = useState<'mois' | 'an'>('mois');
@@ -12,10 +15,14 @@ export default function Subscriptions() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let apiKey = '';
     if (Platform.OS === 'ios') {
-        Purchases.configure({apiKey: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS || ''});
-     } else if (Platform.OS === 'android') {
-        Purchases.configure({apiKey: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID || ''});
+      apiKey = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS || '';
+    } else if (Platform.OS === 'android') {
+      apiKey = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID || '';
+    }
+    if (apiKey) {
+      Purchases.configure({ apiKey });
     }
 
     const fetchOfferings = async () => {
@@ -23,7 +30,7 @@ export default function Subscriptions() {
         const res = await Purchases.getOfferings();
         setOfferings(res.current);
       } catch (e) {
-        Alert.alert('Erreur', "Impossible de charger les offres d'abonnement.");
+        showErrorAlert('Erreur ❌', "Impossible de charger les offres d'abonnement. 😕");
       } finally {
         setLoading(false);
       }
@@ -32,29 +39,71 @@ export default function Subscriptions() {
   }, []);
 
   const handlePurchase = async (type: 'premium' | 'famille') => {
-    if (!offerings) return;
     let packageId = '';
-    if (type === 'premium') {
-      packageId = mode === 'mois' ? 'academia.reussite.monthly' : 'academia.reussite.years';
-    } else {
-      packageId = mode === 'mois' ? 'academia.famille.monthly' : 'academia.famille.years';
+
+    if (Platform.OS === 'ios') {
+      if (type === 'premium') {
+        packageId = mode === 'mois' ? 'academia.reussite.monthly' : 'academia.reussite.years';
+      } else {
+        packageId = mode === 'mois' ? 'academia.famille.monthly' : 'academia.famille.years';
+      }
+    } else if (Platform.OS === 'android') {
+      if (type === 'premium') {
+        packageId = mode === 'mois'
+          ? 'academia_reussite:academia-reussite-monthly'
+          : 'academia_reussite:academia-reussite-years';
+      } else {
+        packageId = mode === 'mois'
+          ? 'academia_pack_famille:academia-pack-famille-monthly'
+          : 'academia_pack_famille:academia-pack-famille-years';
+      }
     }
+
     const selectedPackage = offerings.availablePackages.find((p: any) => p.product.identifier === packageId);
     if (!selectedPackage) {
-      Alert.alert('Erreur', 'Offre non trouvée.');
+      showErrorAlert('Erreur ❌', 'Offre non trouvée. 😕');
       return;
     }
     try {
       const { customerInfo } = await Purchases.purchasePackage(selectedPackage);
-      if (customerInfo.entitlements.active[ENTITLEMENT_ID]) {
-        Alert.alert('Merci !', 'Abonnement activé.');
+      const user = auth.currentUser;
+      if (user) {
+        const userRef = doc(db, 'users', user.uid);
+
+        if (customerInfo.entitlements.active[ENTITLEMENT_ID].isActive == true) {
+          await updateDoc(userRef, {
+            abonnement: {
+              packageId,
+              originalPurchaseDate: customerInfo.entitlements.active[ENTITLEMENT_ID].originalPurchaseDate,
+              active: true,
+            }
+          });
+          showSuccessAlert('Merci ! 🎉', 'Abonnement activé avec succès ! 🚀');
+        } else {
+          await updateDoc(userRef, {
+            abonnement: {
+              packageId,
+              active: false,
+            }
+          });
+          showErrorAlert('Erreur ❌', "Achat effectué mais abonnement non activé. Veuillez contacter le support. 🛠️");
+        }
       } else {
-        Alert.alert('Erreur', 'Achat effectué mais abonnement non activé.');
+        showErrorAlert('Erreur ❌', 'Utilisateur non authentifié. 🙅‍♂️');
       }
     } catch (e: any) {
-      if (!e.userCancelled) {
-        Alert.alert('Erreur', 'Achat impossible : ' + e.message);
+      // RevenueCat : PurchaseCancelledError ou userCancelled
+      if (
+        e.code === 'PurchaseCancelledError' ||
+        e.code === 'USER_CANCELED' ||
+        e.code === 'PurchaseCancelledError' ||
+        e.userCancelled === true ||
+        (typeof e.message === 'string' && e.message.toLowerCase().includes('cancel'))
+      ) {
+        // Achat annulé par l'utilisateur : on ne fait rien
+        return;
       }
+      showErrorAlert('Erreur ❌', 'Achat impossible : ' + e.message + ' 😢');
     }
   };
 
@@ -102,11 +151,36 @@ export default function Subscriptions() {
           <Text style={styles.cardTitle}>Academia Réussite</Text>
           <Text style={styles.pricePremium}>
             {offerings ? (
-              mode === 'mois'
-                ? (offerings.availablePackages.find((p: any) => p.product.identifier === 'academia.reussite.monthly')?.product.priceString || '14,99€ / mois')
-                : (offerings.availablePackages.find((p: any) => p.product.identifier === 'academia.reussite.years')?.product.priceString || '163,99€ / an')
-            ) : (mode === 'mois' ? '14,99€ / mois' : '163,99€ / an')}
+              (() => {
+                let id = '';
+                if (Platform.OS === 'ios') {
+                  id = mode === 'mois' ? 'academia.reussite.monthly' : 'academia.reussite.years';
+                } else {
+                  id = mode === 'mois'
+                    ? 'academia_reussite:academia-reussite-monthly'
+                    : 'academia_reussite:academia-reussite-years';
+                }
+                if (mode === 'an') {
+                  const annualPackage = offerings.availablePackages.find((p: any) => p.product.identifier === id);
+                  console.log('annualPackage', annualPackage);
+                  const prixMois = annualPackage?.product.priceString || '';
+                  const prixAnnee = annualPackage?.product.pricePerYearString || '';
+
+                  return prixMois && prixAnnee
+                    ? `${prixMois} / mois (${prixAnnee} / an)`
+                    : (prixAnnee || '163,99€ / an');
+                } else {
+                  return (
+                    offerings.availablePackages.find((p: any) => p.product.identifier === id)?.product.priceString ||
+                    '14,99€ / mois'
+                  );
+                }
+              })()
+            ) : (mode === 'mois' ? '14,99€ / mois' : '13,67€ / mois (163,99€ / an)')}
           </Text>
+          {mode === 'an' && (
+            <Text style={styles.offerText}>🎁 2 mois offerts avec l'abonnement annuel</Text>
+          )}
         </View>
         <View style={styles.features}>
           <Text style={styles.feature}>✅ Accès aux cours illimités en hors ligne</Text>
@@ -127,11 +201,34 @@ export default function Subscriptions() {
           <Text style={styles.cardTitle}>Pack Famille</Text>
           <Text style={styles.priceFamily}>
             {offerings ? (
-              mode === 'mois'
-                ? (offerings.availablePackages.find((p: any) => p.product.identifier === 'academia.famille.monthly')?.product.priceString || '29,99€ / mois')
-                : (offerings.availablePackages.find((p: any) => p.product.identifier === 'academia.famille.years')?.product.priceString || '329,99€ / an')
-            ) : (mode === 'mois' ? '29,99€ / mois' : '329,99€ / an')}
+              (() => {
+                let id = '';
+                if (Platform.OS === 'ios') {
+                  id = mode === 'mois' ? 'academia.famille.monthly' : 'academia.famille.years';
+                } else {
+                  id = mode === 'mois'
+                    ? 'academia_pack_famille:academia-pack-famille-monthly'
+                    : 'academia_pack_famille:academia-pack-famille-years';
+                }
+                if (mode === 'an') {
+                  const annualPackage = offerings.availablePackages.find((p: any) => p.product.identifier === id);
+                  const prixMois = annualPackage?.product.priceString || '';
+                  const prixAnnee = annualPackage?.product.pricePerYearString || '';
+                  return prixMois && prixAnnee
+                    ? `${prixMois} / mois (${prixAnnee} / an)`
+                    : (prixAnnee || '329,99€ / an');
+                } else {
+                  return (
+                    offerings.availablePackages.find((p: any) => p.product.identifier === id)?.product.priceString ||
+                    '29,99€ / mois'
+                  );
+                }
+              })()
+            ) : (mode === 'mois' ? '29,99€ / mois' : '27,50€ / mois (329,99€ / an)')}
           </Text>
+          {mode === 'an' && (
+            <Text style={styles.offerText}>🎁 2 mois offerts avec l'abonnement annuel</Text>
+          )}
         </View>
         <View style={styles.features}>
           <Text style={styles.feature}>👤👤👤 3 profils (idéal pour les fratries)</Text>
@@ -253,5 +350,13 @@ const styles = StyleSheet.create({
   },
   familyButton: {
     backgroundColor: '#FF6B6B',
+  },
+  offerText: {
+    color: '#FFD700',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 2,
+    marginBottom: 4,
+    textAlign: 'center',
   },
 }); 
