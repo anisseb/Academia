@@ -20,6 +20,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -752,14 +754,6 @@ export default function HomeScreen() {
               description="Comparez vos résultats"
               onPress={() => router.push('/classement')}
               backgroundColor={themeColors.danger}
-              color={themeColors.text}
-            />
-            <QuickAction
-              icon="credit-card"
-              title="Abonnement"
-              description="Voir les offres"
-              onPress={() => router.push('/(tabs)/subscriptions')}
-              backgroundColor={themeColors.primary}
               color={themeColors.text}
             />
           </View>

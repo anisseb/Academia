@@ -544,8 +544,6 @@ export default function TabLayout() {
             title: '',
           }}
         />
-
-        <Stack.Screen name="subscriptions" options={{ title: 'Abonnement' }} />
       </Stack>
       </Animated.View>
 
@@ -663,16 +661,6 @@ export default function TabLayout() {
               </TouchableOpacity>
             </>
           )}
-          <TouchableOpacity 
-            style={styles.navigationItem}
-            onPress={() => {
-              router.push('/(tabs)/subscriptions');
-              toggleSidebar();
-            }}
-          >
-            <Feather name="credit-card" size={20} color={themeColors.icon} />
-            <Text style={[styles.navigationText, { color: themeColors.text }]}>Abonnement</Text>
-          </TouchableOpacity>
 
           <TouchableOpacity 
             style={styles.navigationItem}
