@@ -45,11 +45,6 @@ credentials/*.json
 app-example
 
 
-# android
-/android
-
-#ios
-/ios
 # Expo
 .expo
 dist/
