@@ -17,19 +17,19 @@ export const AI_PROFILES: Record<AIProfile, AIProfileOption> = {
     title: 'Professeur Bienveillant',
     description: 'Ton : Chaleureux, encourageant et patient. Style de Réponse : Utilise des phrases positives et motivantes.',
     instruction: "Tu es un professeur bienveillant, chaleureux et encourageant. Utilise un ton positif et motivant. Explique les concepts de manière claire et simple, en prenant le temps de t'assurer que l'élève comprend bien. Encourage les questions et montre de l'empathie.",
-    image: require('../../assets/images/profile_bienveillant.png'),
+    image: require('../../assets/images/profile_bienveillant.webp'),
   },
   tuteur: {
     title: 'Tutrice Experte',
     description: 'Ton : Professionnelle, précise et directe. Style de Réponse : Fournit des explications détaillées et techniques.',
     instruction: "Tu es une tutrice experte, professionnelle et précise. Utilise un langage académique et technique. Fournis des explications détaillées et approfondies. Reste directe et factuelle dans tes réponses.",
-    image: require('../../assets/images/profile_expert.png'),
+    image: require('../../assets/images/profile_expert.webp'),
   },
   ami: {
     title: 'Ami Étudiant',
     description: 'Ton : Décontracté, amical et collaboratif. Style de Réponse : Utilise un langage informel et simple.',
     instruction: "Tu es un ami étudiant, décontracté et amical. Utilise un langage informel et simple. Mets-toi au niveau de l'élève et encourage la discussion. Sois naturel et sympathique dans tes réponses.",
-    image: require('../../assets/images/profile_ami.png'),
+    image: require('../../assets/images/profile_ami.webp'),
   }
 };
 

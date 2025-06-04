@@ -17,7 +17,7 @@ export const COURSE_PROGRESSION_ACHIEVEMENTS: Achievement[] = [
     icon: '🎓',
     category: 'Progression dans les cours',
     maxProgress: 1,
-    imagePath: require('../../assets/images/success/cours/first_course.png')
+    imagePath: require('../../assets/images/success/cours/first_course.webp')
   },
   {
     id: 'scholar',
@@ -26,7 +26,7 @@ export const COURSE_PROGRESSION_ACHIEVEMENTS: Achievement[] = [
     icon: '📚',
     category: 'Progression dans les cours',
     maxProgress: 10,
-    imagePath: require('../../assets/images/success/cours/scholar.png')
+    imagePath: require('../../assets/images/success/cours/scholar.webp')
   },
   {
     id: 'daily_expert',
@@ -35,7 +35,7 @@ export const COURSE_PROGRESSION_ACHIEVEMENTS: Achievement[] = [
     icon: '🔥',
     category: 'Progression dans les cours',
     maxProgress: 7,
-    imagePath: require('../../assets/images/success/cours/daily_expert.png')
+    imagePath: require('../../assets/images/success/cours/daily_expert.webp')
   }
 ];
 
@@ -47,7 +47,7 @@ export const EXERCISE_ACHIEVEMENTS: Achievement[] = [
     icon: '✅',
     category: 'QCM',
     maxProgress: 1,
-    imagePath: require('../../assets/images/success/exercices/first_quiz.png')
+    imagePath: require('../../assets/images/success/exercices/first_quiz.webp')
   },
   {
     id: 'perfectionist',
@@ -56,7 +56,7 @@ export const EXERCISE_ACHIEVEMENTS: Achievement[] = [
     icon: '💯',
     category: 'QCM',
     maxProgress: 1,
-    imagePath: require('../../assets/images/success/exercices/perfectionist.png')
+    imagePath: require('../../assets/images/success/exercices/perfectionist.webp')
   },
   {
     id: 'perfect_series',
@@ -65,7 +65,7 @@ export const EXERCISE_ACHIEVEMENTS: Achievement[] = [
     icon: '🔥',
     category: 'QCM',
     maxProgress: 5,
-    imagePath: require('../../assets/images/success/exercices/perfect_series.png')
+    imagePath: require('../../assets/images/success/exercices/perfect_series.webp')
   },
   {
     id: 'level_explorer',
@@ -74,7 +74,7 @@ export const EXERCISE_ACHIEVEMENTS: Achievement[] = [
     icon: '🎲',
     category: 'QCM',
     maxProgress: 3,
-    imagePath: require('../../assets/images/success/exercices/level_explorer.png')
+    imagePath: require('../../assets/images/success/exercices/level_explorer.webp')
   },
   {
     id: 'scientific_rigor',
@@ -83,7 +83,7 @@ export const EXERCISE_ACHIEVEMENTS: Achievement[] = [
     icon: '🧪',
     category: 'QCM',
     maxProgress: 1,
-    imagePath: require('../../assets/images/success/exercices/scientific_rigor.png')
+    imagePath: require('../../assets/images/success/exercices/scientific_rigor.webp')
   }
 ];
 
@@ -95,7 +95,7 @@ export const IA_ACHIEVEMENTS: Achievement[] = [
     icon: '🤖',
     category: 'Interaction avec l\'IA',
     maxProgress: 5,
-    imagePath: require('../../assets/images/success/IA/curious.png')
+    imagePath: require('../../assets/images/success/IA/curious.webp')
   },
   {
     id: 'scanner_genius',
@@ -104,7 +104,7 @@ export const IA_ACHIEVEMENTS: Achievement[] = [
     icon: '📷',
     category: 'Interaction avec l\'IA',
     maxProgress: 1,
-    imagePath: require('../../assets/images/success/IA/scanner_genius.png')
+    imagePath: require('../../assets/images/success/IA/scanner_genius.webp')
   },
   {
     id: 'scanner_documents',
@@ -113,7 +113,7 @@ export const IA_ACHIEVEMENTS: Achievement[] = [
     icon: '📄',
     category: 'Interaction avec l\'IA',
     maxProgress: 10,
-    imagePath: require('../../assets/images/success/IA/scanner_documents.png')
+    imagePath: require('../../assets/images/success/IA/scanner_documents.webp')
   },
   {
     id: 'homework_helper',
@@ -122,7 +122,7 @@ export const IA_ACHIEVEMENTS: Achievement[] = [
     icon: '💬',
     category: 'Interaction avec l\'IA',
     maxProgress: 1,
-    imagePath: require('../../assets/images/success/IA/homework_helper.png')
+    imagePath: require('../../assets/images/success/IA/homework_helper.webp')
   },
   {
     id: 'all_professors',
@@ -131,7 +131,7 @@ export const IA_ACHIEVEMENTS: Achievement[] = [
     icon: '🧑‍🎤',
     category: 'Interaction avec l\'IA',
     maxProgress: 1,
-    imagePath: require('../../assets/images/success/IA/all_professors.png')
+    imagePath: require('../../assets/images/success/IA/all_professors.webp')
   }
 ];
 
@@ -143,7 +143,7 @@ export const SPECIAL_BADGES_ACHIEVEMENTS: Achievement[] = [
     icon: '🎯',
     category: 'Badges spéciaux',
     maxProgress: 20,
-    imagePath: require('../../assets/images/success/special_badges/daily_quest_master.png')
+    imagePath: require('../../assets/images/success/special_badges/daily_quest_master.webp')
   },
   {
     id: 'all_terrain',
@@ -152,7 +152,7 @@ export const SPECIAL_BADGES_ACHIEVEMENTS: Achievement[] = [
     icon: '🧩',
     category: 'Badges spéciaux',
     maxProgress: 5,
-    imagePath: require('../../assets/images/success/special_badges/all_terrain.png')
+    imagePath: require('../../assets/images/success/special_badges/all_terrain.webp')
   },
   {
     id: 'perseverant',
@@ -161,7 +161,7 @@ export const SPECIAL_BADGES_ACHIEVEMENTS: Achievement[] = [
     icon: '🐢',
     category: 'Badges spéciaux',
     maxProgress: 1,
-    imagePath: require('../../assets/images/success/special_badges/perseverant.png')
+    imagePath: require('../../assets/images/success/special_badges/perseverant.webp')
   },
   {
     id: 'analyst',
@@ -170,7 +170,7 @@ export const SPECIAL_BADGES_ACHIEVEMENTS: Achievement[] = [
     icon: '📊',
     category: 'Badges spéciaux',
     maxProgress: 1,
-    imagePath: require('../../assets/images/success/special_badges/analyst.png')
+    imagePath: require('../../assets/images/success/special_badges/analyst.webp')
   },
   {
     id: 'sharer',
@@ -179,7 +179,7 @@ export const SPECIAL_BADGES_ACHIEVEMENTS: Achievement[] = [
     icon: '💌',
     category: 'Badges spéciaux',
     maxProgress: 10,
-    imagePath: require('../../assets/images/success/special_badges/sharer.png')
+    imagePath: require('../../assets/images/success/special_badges/sharer.webp')
   },
   {
     id: 'suggester',
@@ -188,7 +188,7 @@ export const SPECIAL_BADGES_ACHIEVEMENTS: Achievement[] = [
     icon: '📝',
     category: 'Badges spéciaux',
     maxProgress: 1,
-    imagePath: require('../../assets/images/success/special_badges/suggester.png')
+    imagePath: require('../../assets/images/success/special_badges/suggester.webp')
   },
   {
     id: 'satisfaction',
@@ -197,7 +197,7 @@ export const SPECIAL_BADGES_ACHIEVEMENTS: Achievement[] = [
     icon: '💡',
     category: 'Badges spéciaux',
     maxProgress: 1,
-    imagePath: require('../../assets/images/success/special_badges/satisfaction.png')
+    imagePath: require('../../assets/images/success/special_badges/satisfaction.webp')
   }
 ];
 
