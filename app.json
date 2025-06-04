@@ -19,7 +19,24 @@
         "FacebookDisplayName": "AcademIA",
         "LSApplicationQueriesSchemes": [
           "fbapi",
+          "fb-messenger-share-api",
+          "fbapi",
           "fb-messenger-share-api"
+        ],
+        "NSUserTrackingUsageDescription": "Nous utilisons cette autorisation pour vous proposer une expérience personnalisée.",
+        "SKAdNetworkItems": [
+          {
+            "SKAdNetworkIdentifier": "v9wttpbfk9.skadnetwork"
+          },
+          {
+            "SKAdNetworkIdentifier": "n38lu8286q.skadnetwork"
+          },
+          {
+            "SKAdNetworkIdentifier": "v9wttpbfk9.skadnetwork"
+          },
+          {
+            "SKAdNetworkIdentifier": "n38lu8286q.skadnetwork"
+          }
         ]
       },
       "entitlements": {
@@ -29,27 +46,28 @@
     "android": {
       "googleServicesFile": "./credentials/google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive_icon.png"
+        "foregroundImage": "./assets/images/splash_screen_android.png"
       },
       "package": "com.anisse3000.academia",
       "permissions": [
-        "CAMERA"
-      ],
-      "privacyPolicy": "https://academiaforkids.com/fr/politique-de-confidentialite-academia/",
-      "facebookScheme": "fb653735364141256",
-      "facebookAppId": "653735364141256",
-      "facebookClientToken": "4a146c687260212ea9d812f5209cecc7"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.INTERNET",
+        "com.google.android.gms.permission.AD_ID",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.INTERNET",
+        "com.google.android.gms.permission.AD_ID"
+      ]
     },
     "web": {
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/favicon.png"
-    },
-    "react-native-google-mobile-ads": {
-      "android_app_id": "ca-app-pub-9849575862637315~4909955983",
-      "ios_app_id": "ca-app-pub-9849575862637315~3948002761",
-      "androidAppId": "ca-app-pub-9849575862637315~4909955983",
-      "iosAppId": "ca-app-pub-9849575862637315~3948002761"
     },
     "plugins": [
       "expo-router",
@@ -104,7 +122,9 @@
         "react-native-google-mobile-ads",
         {
           "androidAppId": "ca-app-pub-9849575862637315~4909955983",
-          "iosAppId": "ca-app-pub-9849575862637315~3948002761"
+          "iosAppId": "ca-app-pub-9849575862637315~3948002761",
+          "android_app_id": "ca-app-pub-9849575862637315~4909955983",
+          "ios_app_id": "ca-app-pub-9849575862637315~3948002761"
         }
       ],
       [
@@ -142,6 +162,10 @@
       },
       "EXPO_PUBLIC_REVENUECAT_API_KEY_IOS": "appl_YPDPIHytWWRxjTtvctxgrFmpmbB"
     },
-    "owner": "anisse3000"
+    "owner": "anisse3000",
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/05388435-4c2f-49e4-83a2-1ed0d62649b4"
+    }
   }
 }

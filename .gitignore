@@ -43,3 +43,14 @@ credentials/*.json
 
 # example
 app-example
+
+
+# android
+/android
+
+#ios
+/ios
+# Expo
+.expo
+dist/
+web-build/
