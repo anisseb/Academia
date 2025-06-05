@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { useRef, useState, useEffect } from 'react';
-import { Animated, Alert, Keyboard, Platform, AlertButton, PanResponder } from 'react-native';
+import { Animated, Alert, Keyboard, Platform, AlertButton, PanResponder, StatusBar } from 'react-native';
 import { StyleSheet, Pressable, View, Text, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -17,6 +17,7 @@ import { storage } from '../../firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LoginManager } from 'react-native-fbsdk-next';
 import NetInfo from '@react-native-community/netinfo';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Thread = {
   id: string;
@@ -234,6 +235,8 @@ export default function TabLayout() {
   const [isOnline, setIsOnline] = useState(true);
   const auth = getAuth();
   const db = getFirestore();
+  const insets = useSafeAreaInsets();
+  const paddingTop = Platform.OS === 'android' ? insets.top : 0;
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -446,6 +449,8 @@ export default function TabLayout() {
           styles.mainContent,
           {
             transform: [{ translateX: slideAnim }],
+            backgroundColor: themeColors.background,
+            paddingTop: paddingTop
           }
         ]}
       >
@@ -453,11 +458,10 @@ export default function TabLayout() {
         screenOptions={{
             headerLeft: () => <MenuButton onPress={handleMenuPress} color={themeColors.icon} />,
           headerStyle: {
-            backgroundColor: themeColors.background,
+            backgroundColor: themeColors.background
           },
           headerTintColor: themeColors.text,
           animation: 'simple_push',
-            gestureEnabled: false,
         }}
       >
         <Stack.Screen

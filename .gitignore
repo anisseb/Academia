@@ -39,7 +39,13 @@ yarn-error.*
 *.tsbuildinfo
 
 # secrets
-credentials/*.json
+credentials/*
 
 # example
 app-example
+
+
+# Expo
+.expo
+dist/
+web-build/
