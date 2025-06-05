@@ -39,7 +39,7 @@ yarn-error.*
 *.tsbuildinfo
 
 # secrets
-credentials/*.json
+credentials/*
 
 # example
 app-example
