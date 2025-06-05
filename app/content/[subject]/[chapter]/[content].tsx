@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, SafeAreaView, RefreshControl, Platform, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, SafeAreaView, RefreshControl, Platform, StatusBar, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../../../context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Exercise } from '../../../types/exercise';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../../../../firebaseConfig';
 import * as Haptics from 'expo-haptics';
 
@@ -30,6 +30,9 @@ export default function ContentPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [userCountry, setUserCountry] = useState<string>('');
   const [userClass, setUserClass] = useState<string>('');
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [remainingExercises, setRemainingExercises] = useState(2);
+  const [completedExercises, setCompletedExercises] = useState<string[]>([]);
   const statusBarHeight = StatusBar.currentHeight || 0;
 
   const themeColors = {
@@ -50,16 +53,46 @@ export default function ContentPage() {
   }, [userCountry, userClass]);
 
   const loadUserData = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
 
-    const userDoc = await getDoc(doc(db, 'users', user.uid));
-    if (userDoc.exists()) { 
-      const userData = userDoc.data();
-      setUserCountry(userData.profile.country || '');
-      setUserClass(userData.profile.class || '');
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) { 
+        const userData = userDoc.data();
+        setUserCountry(userData.profile?.country || '');
+        setUserClass(userData.profile?.class || '');
+        setHasActiveSubscription(userData.abonnement?.active === true);
+        
+        // S'assurer que completedExercises est toujours un tableau
+        const userCompletedExercises = userData.profile?.completedExercises;
+        setCompletedExercises(Array.isArray(userCompletedExercises) ? userCompletedExercises : []);
+
+        if (!userData.abonnement?.active) {
+          // Vérifier le nombre d'exercices déjà effectués aujourd'hui
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          const dailyExercises = userData.dailyExercisesNonActive || {};
+          const lastReset = dailyExercises.lastReset ? new Date(dailyExercises.lastReset.toDate()) : today;
+          
+          if (lastReset < today) {
+            // Si c'est un nouveau jour, on réinitialise le compteur
+            setRemainingExercises(2);
+          } else {
+            // Sinon on vérifie le nombre d'exercices restants
+            const completedCount = dailyExercises.count || 0;
+            setRemainingExercises(Math.max(0, 2 - completedCount));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des données utilisateur:', error);
+      setCompletedExercises([]); // En cas d'erreur, on initialise avec un tableau vide
+    } finally {
+      setLoading(false);
     }
-  };  
+  };
 
   const loadChapterAndExercises = async () => {
     try {
@@ -121,7 +154,26 @@ export default function ContentPage() {
     await loadChapterAndExercises();
   };
 
-  const handleExercisePress = (exercise: Exercise) => {
+  const handleExercisePress = async (exercise: Exercise) => {
+    if (!hasActiveSubscription && remainingExercises <= 0) {
+      Alert.alert(
+        "Limite d'exercices atteinte",
+        "Vous avez atteint votre limite d'exercices gratuits pour aujourd'hui. Passez à Academia Réussite pour un accès illimité !",
+        [
+          {
+            text: "Voir les abonnements",
+            onPress: () => router.push('/settings/subscriptions'),
+            style: "default"
+          },
+          {
+            text: "Annuler",
+            style: "cancel"
+          }
+        ]
+      );
+      return;
+    }
+
     router.push({
       pathname: "/content/exercise/[id]",
       params: { 
@@ -175,26 +227,57 @@ export default function ContentPage() {
     </View>
   );
 
-  const renderExerciseCard = (exercise: Exercise) => (
-    <TouchableOpacity
-      key={exercise.id}
-      style={[styles.exerciseCard, { backgroundColor: themeColors.card }]}
-      onPress={() => handleExercisePress(exercise)}
-    >
-      <View style={styles.exerciseHeader}>
-        <Text style={[styles.exerciseTitle, { color: themeColors.text }]}>
-          {exercise.title}
+  const renderExerciseCard = (exercise: Exercise) => {
+    const isCompleted = Array.isArray(completedExercises) && completedExercises.includes(exercise.id);
+    
+    return (
+      <TouchableOpacity
+        key={exercise.id}
+        style={[styles.exerciseCard, { backgroundColor: themeColors.card }]}
+        onPress={() => handleExercisePress(exercise)}
+      >
+        <View style={styles.exerciseHeader}>
+          <Text style={[styles.exerciseTitle, { color: themeColors.text }]}>
+            {exercise.title}
+          </Text>
+          {isCompleted && (
+            <MaterialCommunityIcons name="check-circle" size={24} color="#4CAF50" />
+          )}
+        </View>
+        <View style={[styles.difficultyBadge, styles[`difficulty${exercise.difficulty}`]]}>
+          <Text style={styles.difficultyText}>
+            {exercise.difficulty}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderMessageLimitContainer = () => (
+    <View style={styles.messageLimitContainer}>
+      <View style={styles.messageLimitContent}>
+        <MaterialCommunityIcons 
+          name="crown" 
+          size={32} 
+          color="#FFD700" 
+          style={styles.crownIcon}
+        />
+        <Text style={[styles.messageLimitTitle, { color: themeColors.text }]}>
+          Limite d'exercices atteinte
         </Text>
-        {exercise.isCompleted && (
-          <MaterialCommunityIcons name="check-circle" size={24} color="#4CAF50" />
-        )}
-      </View>
-      <View style={[styles.difficultyBadge, styles[`difficulty${exercise.difficulty}`]]}>
-        <Text style={styles.difficultyText}>
-          {exercise.difficulty}
+        <Text style={[styles.messageLimitText, { color: themeColors.text }]}>
+          Vous avez atteint votre limite d'exercices gratuits pour aujourd'hui. Passez à Academia Réussite pour un accès illimité !
         </Text>
+        <TouchableOpacity 
+          style={styles.subscribeButton}
+          onPress={() => router.push('/settings/subscriptions')}
+        >
+          <Text style={styles.subscribeButtonText}>
+            Voir les abonnements
+          </Text>
+        </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 
   if (isLoading) {
@@ -279,12 +362,30 @@ export default function ContentPage() {
               />
             </View>
           </TouchableOpacity>
+
+          {remainingExercises > 0 && (
+            <>
+              {!hasActiveSubscription && (
+                <View style={styles.exerciseLimitContainer}>
+                  <Text style={[styles.exerciseLimitText, { color: themeColors.text }]}>
+                    {remainingExercises > 0
+                      ? `${remainingExercises} exercice${remainingExercises > 1 ? 's' : ''} restant${remainingExercises > 1 ? 's' : ''} aujourd'hui`
+                      : "Limite d'exercices atteinte pour aujourd'hui"}
+                  </Text>
+                </View>
+              )}
+              <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
+                Exercices
+              </Text>
+              
+              {exercises.map(renderExerciseCard)}
+            </>
+          )}
+
+          {!hasActiveSubscription && remainingExercises == 0 && (
+            renderMessageLimitContainer()
+          )}
           
-          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
-            Exercices
-          </Text>
-          
-          {exercises.map(renderExerciseCard)}
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -450,5 +551,58 @@ const styles = StyleSheet.create({
   },
   courseArrow: {
     marginLeft: 12,
+  },
+  exerciseLimitContainer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  exerciseLimitText: {
+    fontSize: 12,
+    opacity: 0.8,
+  },
+  messageLimitContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    marginTop: 20,
+  },
+  messageLimitContent: {
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    borderRadius: 15,
+    padding: 20,
+    alignItems: 'center',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  crownIcon: {
+    marginBottom: 15,
+  },
+  messageLimitTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  messageLimitText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+    opacity: 0.8,
+  },
+  subscribeButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    marginTop: 10,
+  },
+  subscribeButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 }); 

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useState, useEffect } from 'react';
 import { auth, db } from '../../firebaseConfig';
@@ -8,6 +8,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { parseGradient } from '../utils/subjectGradients';
 import React from 'react';
 import { setSuccessStats } from './_layout';
+import { router } from 'expo-router';
 
 interface SubjectStats {
   averageScore: number;
@@ -25,6 +26,7 @@ export default function StatistiquesScreen() {
     const [profileData, setProfileData] = useState<any>(null);
     const [subjectInfos, setSubjectInfos] = useState<Record<string, any>>({});
     const [isLoadingSubjects, setIsLoadingSubjects] = useState(false);
+    const [hasActiveSubscription, setHasActiveSubscription] = useState(true);
   
     const themeColors = {
       background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -53,6 +55,15 @@ export default function StatistiquesScreen() {
         const userData = userDoc.data();
         const profile = userData.profile || {};
         setProfileData(profile);
+        
+        // Vérifier si l'utilisateur a un abonnement actif
+        const hasSubscription = userData.abonnement?.active === true;
+        setHasActiveSubscription(hasSubscription);
+        
+        if (!hasSubscription) {
+          setIsLoading(false);
+          return;
+        }
         
         // Récupérer les exercices complétés depuis la collection completedExercises
         const completedExercisesMap = profile.completedExercises || {};
@@ -331,7 +342,28 @@ export default function StatistiquesScreen() {
       style={[styles.container, { backgroundColor: themeColors.background }]}
       contentContainerStyle={{ paddingBottom: 40 }}
     >
-      {Object.keys(stats).length === 0 ? (
+      {!hasActiveSubscription ? (
+        <View style={styles.subscriptionContainer}>
+          <MaterialCommunityIcons 
+            name="star-circle" 
+            size={64} 
+            color="#FFD700" 
+            style={styles.subscriptionIcon}
+          />
+          <Text style={[styles.subscriptionTitle, { color: themeColors.text }]}>
+            Débloquez des statistiques détaillées
+          </Text>
+          <Text style={[styles.subscriptionDescription, { color: themeColors.text }]}>
+            Accédez à des statistiques détaillées et suivez votre progression avec Academia Réussite
+          </Text>
+          <TouchableOpacity 
+            style={styles.subscriptionButton}
+            onPress={() => router.push('/settings/subscriptions')}
+          >
+            <Text style={styles.subscriptionButtonText}>Voir les abonnements</Text>
+          </TouchableOpacity>
+        </View>
+      ) : Object.keys(stats).length === 0 ? (
         <View style={styles.emptyStatsContainer}>
           <MaterialCommunityIcons 
             name="chart-line" 
@@ -529,6 +561,49 @@ const styles = StyleSheet.create({
       alignItems: 'center',
     },
     loadingText: {
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
+    subscriptionContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+      marginTop: 40,
+    },
+    subscriptionIcon: {
+      marginBottom: 24,
+      shadowColor: '#FFD700',
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.5,
+      shadowRadius: 10,
+    },
+    subscriptionTitle: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      marginBottom: 12,
+    },
+    subscriptionDescription: {
+      fontSize: 16,
+      textAlign: 'center',
+      opacity: 0.8,
+      marginBottom: 32,
+      lineHeight: 24,
+    },
+    subscriptionButton: {
+      backgroundColor: '#FFD700',
+      borderRadius: 12,
+      paddingVertical: 16,
+      paddingHorizontal: 32,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    subscriptionButtonText: {
+      color: '#1e293b',
       fontSize: 16,
       fontWeight: 'bold',
     },

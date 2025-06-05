@@ -529,13 +529,6 @@ export default function TabLayout() {
         />
 
         <Stack.Screen
-          name="avatar"
-          options={{
-            title: '',
-          }}
-        />
-
-        <Stack.Screen
           name="amis"
           options={{
             title: 'Amis',
@@ -667,16 +660,6 @@ export default function TabLayout() {
               </TouchableOpacity>
             </>
           )}
-          <TouchableOpacity 
-            style={styles.navigationItem}
-            onPress={() => {
-              router.push('/(tabs)/subscriptions');
-              toggleSidebar();
-            }}
-          >
-            <Feather name="credit-card" size={20} color={themeColors.icon} />
-            <Text style={[styles.navigationText, { color: themeColors.text }]}>Abonnement</Text>
-          </TouchableOpacity>
 
           <TouchableOpacity 
             style={styles.navigationItem}
@@ -698,17 +681,6 @@ export default function TabLayout() {
           >
             <Feather name="star" size={20} color={themeColors.icon} />
             <Text style={[styles.navigationText, { color: themeColors.text }]}>Favoris</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.navigationItem}
-            onPress={() => {
-              router.push('/(tabs)/avatar');
-              toggleSidebar();
-            }}
-          >
-            <Feather name="smile" size={20} color={themeColors.icon} />
-            <Text style={[styles.navigationText, { color: themeColors.text }]}>Avatar</Text>
           </TouchableOpacity>
 
           {isOnline && (

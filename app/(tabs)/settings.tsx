@@ -152,6 +152,60 @@ export default function SettingsScreen() {
 
       <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+          Academia Réussite
+        </Text>
+        <TouchableOpacity
+          style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
+          onPress={() => {
+            router.push('/(tabs)/settings/subscriptions');
+          }}
+        >
+          <View style={styles.viewContent}>
+            <View style={styles.notificationLeft}>
+              <Ionicons 
+                name="wallet-outline" 
+                size={24} 
+                color={isDarkMode ? '#ffffff' : '#000000'} 
+              />
+              <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+                Abonnement
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward" 
+              size={20} 
+              color={isDarkMode ? '#666666' : '#999999'} 
+            />
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
+          onPress={() => {
+            router.push('/(tabs)/settings/restore-purchase');
+          }}
+        >
+          <View style={styles.viewContent}>
+            <View style={styles.notificationLeft}>
+              <Ionicons 
+                name="refresh-outline" 
+                size={24} 
+                color={isDarkMode ? '#ffffff' : '#000000'} 
+              />
+              <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+                Restaurer un achat
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward" 
+              size={20} 
+              color={isDarkMode ? '#666666' : '#999999'} 
+            />
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
+        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
           Apparence
         </Text>
         <View style={styles.settingItem}>
@@ -346,6 +400,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  abonnementContent:{
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   notificationLeft: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -362,6 +421,16 @@ const styles = StyleSheet.create({
   },
   notificationStatus: {
     fontSize: 14,
+    fontWeight: '500',
+  },
+  abonnementButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    gap: 12,
+  },
+  abonnementLabel: {
+    fontSize: 16,
     fontWeight: '500',
   },
 });

@@ -230,6 +230,9 @@ export default function ExercisePage() {
       }
 
       const userData = userDoc.data();
+      console.log('Données utilisateur actuelles:', userData);
+      console.log('Statut abonnement:', userData.abonnement?.active);
+
       const profile = userData.profile as UserProfile || {};
       
       // Créer l'objet exercice complété
@@ -250,10 +253,50 @@ export default function ExercisePage() {
         }
       };
 
-      // Mettre à jour le document utilisateur
-      await updateDoc(userDocRef, {
+      // Préparer les mises à jour
+      const updates: any = {
         profile: updatedProfile
+      };
+
+      // Si l'utilisateur n'a pas d'abonnement actif, mettre à jour dailyExercisesNonActive
+      if (!userData.abonnement?.active) {
+        console.log('Utilisateur sans abonnement actif - Mise à jour du compteur');
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const dailyExercises = userData.dailyExercisesNonActive || {};
+        console.log('Exercices quotidiens actuels:', dailyExercises);
+        
+        const lastReset = dailyExercises.lastReset ? new Date(dailyExercises.lastReset.toDate()) : today;
+        console.log('Dernière réinitialisation:', lastReset);
+        console.log('Date aujourd\'hui:', today);
+        
+        if (lastReset < today) {
+          console.log('Nouveau jour - Réinitialisation du compteur');
+          // Réinitialiser le compteur si c'est un nouveau jour
+          updates.dailyExercisesNonActive = {
+            count: 1,
+            lastReset: today
+          };
+        } else {
+          console.log('Même jour - Incrémentation du compteur');
+          // Incrémenter le compteur
+          const currentCount = dailyExercises.count || 0;
+          updates.dailyExercisesNonActive = {
+            count: currentCount + 1,
+            lastReset: dailyExercises.lastReset || today
+          };
+        }
+        console.log('Mise à jour préparée:', updates.dailyExercisesNonActive);
+      }
+
+      // Mettre à jour le document utilisateur
+      console.log('Mise à jour finale:', updates);
+      await updateDoc(userDocRef, {
+        ...updates,
+        dailyExercisesNonActive: updates.dailyExercisesNonActive
       });
+      console.log('Mise à jour effectuée avec succès');
 
     } catch (error) {
       console.error('Erreur lors de la sauvegarde de l\'exercice:', error);

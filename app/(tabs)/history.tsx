@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput, Alert, Animated, Keyboard, Platform as RNPlatform, AlertButton } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput, Alert, Animated, Keyboard, Platform as RNPlatform, AlertButton, TouchableWithoutFeedback } from 'react-native';
 import { Mistral } from '@mistralai/mistralai';
 import { Camera as CameraIcon, X, Plus, Image as ImageIcon, FileText, Send } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { doc, updateDoc, arrayUnion, onSnapshot, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, onSnapshot, getDoc, increment } from 'firebase/firestore';
 import { db, auth, storage } from '../../firebaseConfig';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Feather } from '@expo/vector-icons';
@@ -17,6 +17,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { getSchoolTypeName, getClassName } from '../services/firestoreService';
+import { format, addDays, differenceInMilliseconds } from 'date-fns';
+import * as Clipboard from 'expo-clipboard';
 
 type Message = {
   id: string;
@@ -30,6 +32,7 @@ const Message = ({ message, isLast }: { message: Message, isLast: boolean }) => 
   const { isDarkMode } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(message.isAI ? -50 : 50)).current;
+  const [showCopyButton, setShowCopyButton] = useState(false);
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -39,7 +42,18 @@ const Message = ({ message, isLast }: { message: Message, isLast: boolean }) => 
     inputBackground: isDarkMode ? '#2d2d2d' : '#f5f5f5',
     placeholder: isDarkMode ? '#808080' : '#a0a0a0',
     messageBackground: isDarkMode ? '#2d2d2d' : '#f5f5f5',
-    aiMessageBackground: isDarkMode ? '#1e293b' : '#e8f0fe'
+    aiMessageBackground: isDarkMode ? '#1e293b' : '#e8f0fe',
+    tabActive: isDarkMode ? '#3b82f6' : '#2563eb'
+  };
+
+  const handleCopy = async () => {
+    try {
+      await Clipboard.setStringAsync(message.content);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowCopyButton(false);
+    } catch (error) {
+      console.error('Erreur lors de la copie:', error);
+    }
   };
 
   useEffect(() => {
@@ -59,39 +73,64 @@ const Message = ({ message, isLast }: { message: Message, isLast: boolean }) => 
   }, []);
 
   return (
-    <Animated.View
-      style={[
-        styles.messageContainer,
-        message.isAI ? styles.aiMessage : styles.userMessage,
-        message.isAI ? { backgroundColor: themeColors.aiMessageBackground } : { backgroundColor: themeColors.messageBackground },
-        { opacity: fadeAnim, transform: [{ translateX: slideAnim }], }
-      ]}
+    <TouchableOpacity
+      onLongPress={() => {
+        if (message.isAI) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setShowCopyButton(true);
+        }
+      }}
+      onPress={() => {
+        if (message.isAI) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+      }}
+      activeOpacity={1}
     >
-      {message.imageUrl && (
-        <View style={[styles.selectedImageContainer, { backgroundColor: themeColors.messageBackground }]}>
-          <Image
-            source={{ uri: message.imageUrl }}
-            style={styles.messageImage}
-            resizeMode="contain"
-          />
-        </View>
-      )}
-      {message.isAI ? (
-        <FormattedMessage content={message.content} isDarkMode={isDarkMode} />
-      ) : (
-        <Text style={[styles.messageText, { color: themeColors.text }]}>{message.content}</Text>
-      )}
-      {isLast && message.isAI && (
-        <View style={[styles.aiIndicator, { backgroundColor: themeColors.aiMessageBackground }]}>
-          <Feather name="cpu" size={16} color={themeColors.text} />
-        </View>
-      )}
-      {isLast && !message.isAI && (
-        <View style={styles.userIndicator}>
-          <Feather name="check" size={16} color={themeColors.text} />
-        </View>
-      )}
-    </Animated.View>
+      <Animated.View
+        style={[
+          styles.messageContainer,
+          message.isAI ? styles.aiMessage : styles.userMessage,
+          message.isAI ? { backgroundColor: themeColors.aiMessageBackground } : { backgroundColor: themeColors.messageBackground },
+          { opacity: fadeAnim, transform: [{ translateX: slideAnim }], }
+        ]}
+      >
+        {message.imageUrl && (
+          <View style={[styles.selectedImageContainer, { backgroundColor: themeColors.messageBackground }]}>
+            <Image
+              source={{ uri: message.imageUrl }}
+              style={styles.messageImage}
+              contentFit="contain"
+            />
+          </View>
+        )}
+        {message.isAI ? (
+          <View style={styles.aiMessageContent}>
+            <FormattedMessage content={message.content} isDarkMode={isDarkMode} />
+            {showCopyButton && (
+              <TouchableOpacity 
+                style={[styles.copyButton, { backgroundColor: themeColors.card }]}
+                onPress={handleCopy}
+              >
+                <Feather name="copy" size={16} color={themeColors.text} />
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          <Text style={[styles.messageText, { color: themeColors.text }]}>{message.content}</Text>
+        )}
+        {isLast && message.isAI && (
+          <View style={[styles.aiIndicator, { backgroundColor: themeColors.aiMessageBackground }]}>
+            <Feather name="cpu" size={16} color={themeColors.text} />
+          </View>
+        )}
+        {isLast && !message.isAI && (
+          <View style={styles.userIndicator}>
+            <Feather name="check" size={16} color={themeColors.text} />
+          </View>
+        )}
+      </Animated.View>
+    </TouchableOpacity>
   );
 };
 
@@ -112,6 +151,9 @@ export default function HistoryScreen() {
   const [showImageMenu, setShowImageMenu] = useState(false);
   const [userSchoolTypeLabel, setUserSchoolTypeLabel] = useState<string>('');
   const [userClassLabel, setUserClassLabel] = useState<string>('');
+  const [remainingMessages, setRemainingMessages] = useState<number>(3);
+  const [nextResetTime, setNextResetTime] = useState<Date | null>(null);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(true);
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -299,8 +341,125 @@ export default function HistoryScreen() {
             TRÈS IMPORTANT: Ne mets pas de texte avant ou après le JSON. Ta réponse doit être UNIQUEMENT le JSON, sans aucun texte supplémentaire.`;
   };
 
+  useEffect(() => {
+    const loadUserData = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const threadRef = doc(db, 'threads', user.uid);
+      const threadDoc = await getDoc(threadRef);
+      if (!threadDoc.exists()) return;
+
+      // Écouter les changements du document utilisateur
+      const userRef = doc(db, 'users', user.uid);
+      const unsubscribe = onSnapshot(userRef, (userDoc) => {
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          const hasSubscription = userData.abonnement?.active === true;
+          setHasActiveSubscription(hasSubscription);
+        }
+      });
+
+      const threadData = threadDoc.data();
+      if (!hasActiveSubscription) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const messageCount = threadData.dailyMessageCount || 0;
+        const lastReset = threadData.lastMessageReset ? new Date(threadData.lastMessageReset.toDate()) : today;
+        
+        if (lastReset < today) {
+          // Réinitialiser le compteur si c'est un nouveau jour
+          updateDoc(threadRef, {
+            dailyMessageCount: 0,
+            lastMessageReset: today
+          });
+          setRemainingMessages(3);
+        } else {
+          setRemainingMessages(3 - messageCount);
+        }
+
+        // Calculer le temps jusqu'à la prochaine réinitialisation
+        const nextDay = addDays(today, 1);
+        setNextResetTime(nextDay);
+      }
+
+      return () => unsubscribe();
+    };
+
+    loadUserData();
+  }, []);
+
+  // Effet pour vérifier et réinitialiser le compteur
+  useEffect(() => {
+    const checkAndResetCounter = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const threadRef = doc(db, 'threads', user.uid);
+      const threadDoc = await getDoc(threadRef);
+      if (!threadDoc.exists()) return;
+
+      const threadData = threadDoc.data();
+      const hasSubscription = threadData.abonnement?.active === true;
+      
+      if (!hasSubscription) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const lastReset = threadData.lastMessageReset ? new Date(threadData.lastMessageReset.toDate()) : today;
+        
+        if (lastReset < today) {
+          // Réinitialiser le compteur si c'est un nouveau jour
+          updateDoc(threadRef, {
+            dailyMessageCount: 0,
+            lastMessageReset: today
+          });
+          setRemainingMessages(3);
+        }
+      }
+    };
+
+    // Vérifier toutes les minutes
+    const interval = setInterval(checkAndResetCounter, 60000);
+    
+    // Vérifier immédiatement au chargement
+    checkAndResetCounter();
+
+    return () => clearInterval(interval);
+  }, []);
+
   const callMistralAPI = async () => {
     if (!question.trim() || !threadId || !selectedSubject) return;
+
+    const user = auth.currentUser;
+    if (!user) return;
+
+    // Vérifier si l'utilisateur a un abonnement actif
+    const threadRef = doc(db, 'threads', user.uid);
+    const threadDoc = await getDoc(threadRef);
+    if (!threadDoc.exists()) return;
+
+    const threadData = threadDoc.data();
+    const userRef = doc(db, 'users', user.uid);
+    const userDoc = await getDoc(userRef);
+    if (!userDoc.exists()) return;
+    const userData = userDoc.data();
+    const hasSubscription = userData.abonnement?.active === true;
+
+    if (!hasSubscription) {
+      const messageCount = threadData.dailyMessageCount || 0;
+      if (messageCount >= 3) {
+        showErrorAlert('Limite atteinte', 'Vous avez utilisé tous vos messages gratuits pour aujourd\'hui. Réessayez demain ou passez à Academia Réussite pour discuter en illimité.');
+        return;
+      }
+
+      // Incrémenter le compteur de messages
+      await updateDoc(threadRef, {
+        dailyMessageCount: increment(1)
+      });
+      setRemainingMessages(prev => prev - 1);
+    }
 
     try {
       setIsLoading(true);
@@ -534,160 +693,226 @@ export default function HistoryScreen() {
     loadLabels();
   }, []);
 
+  const formatTimeRemaining = () => {
+    if (!nextResetTime) return '';
+    
+    const now = new Date();
+    const diff = differenceInMilliseconds(nextResetTime, now);
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    return `${hours}h ${minutes}m`;
+  };
+
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.container, { backgroundColor: themeColors.background }]}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <SubjectSelector
-        visible={showSubjectSelector}
-        onSelect={handleSubjectSelect}
-        onClose={() => setShowSubjectSelector(false)}
-        selectedSubject={selectedSubject}
-      />
-      <AIProfileSelector
-        visible={showAIProfilePicker}
-        onSelect={handleAIProfileSelect}
-        onClose={() => setShowAIProfilePicker(false)}
-        selectedProfile={selectedAIProfile}
-        themeColors={themeColors}
-      />
-      <View style={[styles.chatArea, { backgroundColor: themeColors.background }]}>
-        <View style={[styles.chatHeader, { borderBottomColor: themeColors.border }]}>
-          <View style={styles.chatHeaderContent}>
-            <TouchableOpacity 
-              style={styles.subjectButton}
-              onPress={() => setShowSubjectSelector(true)}
-            >
-              <Text style={styles.subjectButtonText}>
-                {selectedSubject ? selectedSubject : 'Choisir matière'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.profileIAButton}
-              onPress={() => setShowAIProfilePicker(true)}
-            >
-              <View style={styles.profileContainer}>
-                <Image 
-                  source={AI_PROFILES[selectedAIProfile].image} 
-                  style={styles.profileImage}
-                  cachePolicy="memory-disk"
-                />
-
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-        <ScrollView 
-          style={styles.messagesContainer}
-          ref={scrollViewRef}
-          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-          keyboardShouldPersistTaps="handled"
-        >
-          {messages.map((message, index) => (
-            <Message 
-              key={message.id} 
-              message={message}
-              isLast={index === messages.length - 1}
-            />
-          ))}
-          {isLoading && (
-            <View style={[styles.messageContainer, styles.aiMessage, { backgroundColor: themeColors.aiMessageBackground }]}>
-              <TypingIndicator textColor={themeColors.text} />
-            </View>
-          )}
-        </ScrollView>
-
-        <View style={[styles.inputContainer, { backgroundColor: themeColors.card }]}>
-          <View style={styles.inputContent}>
-            {selectedImageUri && (
-              <View style={styles.selectedImageContainer}>
-                <Image 
-                  source={{ uri: selectedImageUri }} 
-                  style={styles.selectedImagePreview}
-                />
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={{ flex: 1 }}>
+          <SubjectSelector
+            visible={showSubjectSelector}
+            onSelect={handleSubjectSelect}
+            onClose={() => setShowSubjectSelector(false)}
+            selectedSubject={selectedSubject}
+          />
+          <AIProfileSelector
+            visible={showAIProfilePicker}
+            onSelect={handleAIProfileSelect}
+            onClose={() => setShowAIProfilePicker(false)}
+            selectedProfile={selectedAIProfile}
+            themeColors={themeColors}
+          />
+          <View style={[styles.chatArea, { backgroundColor: themeColors.background }]}>
+            <View style={[styles.chatHeader, { borderBottomColor: themeColors.border }]}>
+              <View style={styles.chatHeaderContent}>
                 <TouchableOpacity 
-                  style={styles.removeImageButton}
-                  onPress={() => {
-                    setSelectedImageUri(null);
-                  }}
+                  style={styles.subjectButton}
+                  onPress={() => setShowSubjectSelector(true)}
                 >
-                  <X size={20} color={themeColors.text} />
+                  <Text style={styles.subjectButtonText}>
+                    {selectedSubject ? selectedSubject : 'Choisir matière'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.profileIAButton}
+                  onPress={() => setShowAIProfilePicker(true)}
+                >
+                  <View style={styles.profileContainer}>
+                    <Image 
+                      source={AI_PROFILES[selectedAIProfile].image} 
+                      style={styles.profileImage}
+                      cachePolicy="memory-disk"
+                    />
+
+                  </View>
                 </TouchableOpacity>
               </View>
-            )}
-            <View style={[styles.inputWrapper, { backgroundColor: themeColors.inputBackground }]}>
-              <TextInput
-                style={[styles.input, { color: themeColors.text }]}
-                placeholder="Écris ton message..."
-                placeholderTextColor={themeColors.text + '80'}
-                value={question}
-                onChangeText={setQuestion}
-                multiline
-                numberOfLines={6}
-                textAlignVertical="top"
-              />
             </View>
-          </View>
-
-          <View style={styles.footerButtons}>
-            <TouchableOpacity 
-              style={styles.plusButton}
-              onPress={() => {
+            <ScrollView 
+              style={styles.messagesContainer}
+              ref={scrollViewRef}
+              onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+              keyboardShouldPersistTaps="handled"
+              onScrollBeginDrag={() => {
+                Keyboard.dismiss();
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowImageMenu(!showImageMenu)
               }}
             >
-              <Plus color={themeColors.text} size={24} />
-            </TouchableOpacity>
+              {messages.map((message, index) => (
+                <Message 
+                  key={message.id} 
+                  message={message}
+                  isLast={index === messages.length - 1}
+                />
+              ))}
+              {isLoading && (
+                <View style={[styles.messageContainer, styles.aiMessage, { backgroundColor: themeColors.aiMessageBackground }]}>
+                  <TypingIndicator textColor={themeColors.text} />
+                </View>
+              )}
+            </ScrollView>
 
-            <TouchableOpacity 
-              style={[styles.sendButton, !question.trim() && { opacity: 0.5 }]}
-              onPress={callMistralAPI}
-              disabled={!question.trim()}
-            >
-              <Send color={question.trim() ? '#60a5fa' : themeColors.text} size={24} />
-            </TouchableOpacity>
-          </View>
+            <View style={[styles.inputContainer, { backgroundColor: themeColors.card }]}>
+              {(hasActiveSubscription || remainingMessages > 0) && (
+                <>
+                  <View style={styles.inputContent}>
+                    {selectedImageUri && (
+                      <View style={styles.selectedImageContainer}>
+                        <Image 
+                          source={{ uri: selectedImageUri }} 
+                          style={styles.selectedImagePreview}
+                        />
+                        <TouchableOpacity 
+                          style={styles.removeImageButton}
+                          onPress={() => {
+                            setSelectedImageUri(null);
+                          }}
+                        >
+                          <X size={20} color={themeColors.text} />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    <View style={[styles.inputWrapper, { backgroundColor: themeColors.inputBackground }]}>
+                      <TextInput
+                        style={[styles.input, { color: themeColors.text }]}
+                        placeholder="Écris ton message..."
+                        placeholderTextColor={themeColors.text + '80'}
+                        value={question}
+                        onChangeText={setQuestion}
+                        multiline
+                        numberOfLines={6}
+                        textAlignVertical="top"
+                        onFocus={() => {
+                          setTimeout(() => {
+                            scrollViewRef.current?.scrollToEnd({ animated: true });
+                          }, 100);
+                        }}
+                      />
+                    </View>
+                  </View>
 
-          {showImageMenu && (
-            <View style={[styles.menuContainer, { backgroundColor: themeColors.card }]}>
-              <TouchableOpacity 
-                style={styles.menuOption}
-                onPress={() => {
-                  handleImagePicker('library');
-                  setShowImageMenu(false);
-                }}
-              >
-                <ImageIcon color={themeColors.text} size={20} />
-                <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Bibliothèque</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.menuOption}
-                onPress={() => {
-                  handleImagePicker('camera');
-                  setShowImageMenu(false);
-                }}
-              >
-                <CameraIcon color={themeColors.text} size={20} />
-                <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Appareil photo</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.menuOption}
-                onPress={() => {
-                  handleImagePicker('document');
-                  setShowImageMenu(false);
-                }}
-              >
-                <FileText color={themeColors.text} size={20} />
-                <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Document</Text>
-              </TouchableOpacity>
+                  <View style={styles.footerButtons}>
+                    <TouchableOpacity 
+                      style={styles.plusButton}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setShowImageMenu(!showImageMenu)
+                      }}
+                      disabled={!hasActiveSubscription && remainingMessages === 0}
+                    >
+                      <Plus color={!hasActiveSubscription && remainingMessages === 0 ? themeColors.placeholder : themeColors.text} size={24} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                      style={[
+                        styles.sendButton, 
+                        (!question.trim() || (!hasActiveSubscription && remainingMessages === 0)) && { opacity: 0.5 }
+                      ]}
+                      onPress={callMistralAPI}
+                      disabled={!question.trim() || (!hasActiveSubscription && remainingMessages === 0)}
+                    >
+                      <Send 
+                        color={
+                          !question.trim() || (!hasActiveSubscription && remainingMessages === 0) 
+                            ? themeColors.placeholder 
+                            : '#60a5fa'
+                        } 
+                        size={24} 
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  {showImageMenu && (
+                    <View style={[styles.menuContainer, { backgroundColor: themeColors.card }]}>
+                      <TouchableOpacity 
+                        style={styles.menuOption}
+                        onPress={() => {
+                          handleImagePicker('library');
+                          setShowImageMenu(false);
+                        }}
+                      >
+                        <ImageIcon color={themeColors.text} size={20} />
+                        <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Bibliothèque</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={styles.menuOption}
+                        onPress={() => {
+                          handleImagePicker('camera');
+                          setShowImageMenu(false);
+                        }}
+                      >
+                        <CameraIcon color={themeColors.text} size={20} />
+                        <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Appareil photo</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={styles.menuOption}
+                        onPress={() => {
+                          handleImagePicker('document');
+                          setShowImageMenu(false);
+                        }}
+                      >
+                        <FileText color={themeColors.text} size={20} />
+                        <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Document</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </>
+              )}
+              {!hasActiveSubscription && (
+                <View style={[styles.messageLimitContainer, { backgroundColor: themeColors.inputBackground }]}>
+                  {remainingMessages > 0 ? (
+                    <Text style={[styles.messageLimitText, { color: themeColors.text }]}>
+                      Messages restants aujourd'hui : {remainingMessages}
+                    </Text>
+                  ) : (
+                    <View style={styles.limitReachedContainer}>
+                      <Text style={[styles.limitReachedText, { color: themeColors.text }]}>
+                        Vous avez utilisé tous vos messages gratuits pour aujourd'hui
+                      </Text>
+                      <Text style={[styles.resetTimeText, { color: themeColors.text }]}>
+                        Réinitialisation dans {formatTimeRemaining()}
+                      </Text>
+                      <TouchableOpacity 
+                        style={styles.upgradeButton}
+                        onPress={() => router.push('/settings/subscriptions')}
+                      >
+                        <Text style={styles.upgradeButtonText}>
+                          Passer à Academia Réussite pour discuter en illimité
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              )}
+
             </View>
-          )}
+          </View>
         </View>
-      </View>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }
@@ -1306,6 +1531,59 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '500',
+  },
+  messageLimitContainer: {
+    width: '100%',
+    marginTop: 10,
+  },
+  messageLimitText: {
+    fontSize: 10,
+    textAlign: 'right',
+    fontWeight: '500',
+  },
+  limitReachedContainer: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  limitReachedText: {
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  resetTimeText: {
+    fontSize: 12,
+    opacity: 0.8,
+  },
+  upgradeButton: {
+    backgroundColor: '#FFD700',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  upgradeButtonText: {
+    color: '#1e293b',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  aiMessageContent: {
+    position: 'relative',
+    width: '100%',
+  },
+  copyButton: {
+    position: 'absolute',
+    top: -15,
+    right: -15,
+    padding: 8,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 });
 

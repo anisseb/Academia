@@ -216,10 +216,7 @@ export default function CoursScreen() {
       const favorites = userData.favorites || [];
       
       const isInFavorites = favorites.some(
-        (fav: any) => 
-          fav.subjectId === params.subject &&
-          fav.themeId === params.themeId &&
-          fav.chapterId === params.chapterId
+        (fav: any) => fav.chapterId === params.chapterId
       );
       
       setIsFavorite(isInFavorites);
@@ -245,10 +242,7 @@ export default function CoursScreen() {
       if (isFavorite) {
         // Retirer des favoris
         const newFavorites = favorites.filter(
-          (fav: any) => 
-            !(fav.subjectId === params.subject &&
-              fav.themeId === params.themeId &&
-              fav.chapterId === params.chapterId)
+          (fav: any) => fav.chapterId !== params.chapterId
         );
         
         await updateDoc(userRef, {
@@ -257,17 +251,24 @@ export default function CoursScreen() {
         // Supprimer du cache local
         await AsyncStorage.removeItem(`@offline_course_${params.chapterId}`);
       } else {
-        // Ajouter aux favoris
-        const newFavorite = {
-          chapterId: params.chapterId,
-          timestamp: Date.now()
-        };
-        
-        await updateDoc(userRef, {
-          favorites: [...favorites, newFavorite]
-        });
-        // Sauvegarder le contenu du cours dans AsyncStorage
-        await AsyncStorage.setItem(`@offline_course_${params.chapterId}`, JSON.stringify(coursContent));
+        // Vérifier si le chapitre est déjà dans les favoris
+        const isAlreadyFavorite = favorites.some(
+          (fav: any) => fav.chapterId === params.chapterId
+        );
+
+        if (!isAlreadyFavorite) {
+          // Ajouter aux favoris seulement s'il n'est pas déjà présent
+          const newFavorite = {
+            chapterId: params.chapterId,
+            timestamp: Date.now()
+          };
+          
+          await updateDoc(userRef, {
+            favorites: [...favorites, newFavorite]
+          });
+          // Sauvegarder le contenu du cours dans AsyncStorage
+          await AsyncStorage.setItem(`@offline_course_${params.chapterId}`, JSON.stringify(coursContent));
+        }
       }
       
       setIsFavorite(!isFavorite);

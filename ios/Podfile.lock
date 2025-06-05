@@ -289,6 +289,8 @@ PODS:
     - ExpoModulesCore
     - ZXingObjC/OneD
     - ZXingObjC/PDF417
+  - ExpoClipboard (7.1.4):
+    - ExpoModulesCore
   - ExpoDevice (7.1.4):
     - ExpoModulesCore
   - ExpoDocumentPicker (13.1.5):
@@ -366,8 +368,6 @@ PODS:
   - ExpoSystemUI (5.0.7):
     - ExpoModulesCore
   - ExpoTrackingTransparency (5.2.4):
-    - ExpoModulesCore
-  - ExpoVideo (2.1.9):
     - ExpoModulesCore
   - ExpoWebBrowser (14.1.6):
     - ExpoModulesCore
@@ -2679,6 +2679,7 @@ DEPENDENCIES:
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
   - ExpoCamera (from `../node_modules/expo-camera/ios`)
+  - ExpoClipboard (from `../node_modules/expo-clipboard/ios`)
   - ExpoDevice (from `../node_modules/expo-device/ios`)
   - ExpoDocumentPicker (from `../node_modules/expo-document-picker/ios`)
   - ExpoFileSystem (from `../node_modules/expo-file-system/ios`)
@@ -2702,7 +2703,6 @@ DEPENDENCIES:
   - ExpoSymbols (from `../node_modules/expo-symbols/ios`)
   - ExpoSystemUI (from `../node_modules/expo-system-ui/ios`)
   - ExpoTrackingTransparency (from `../node_modules/expo-tracking-transparency/ios`)
-  - ExpoVideo (from `../node_modules/expo-video/ios`)
   - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
   - EXStructuredHeaders (from `../node_modules/expo-structured-headers/ios`)
   - EXUpdates (from `../node_modules/expo-updates/ios`)
@@ -2864,6 +2864,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-blur/ios"
   ExpoCamera:
     :path: "../node_modules/expo-camera/ios"
+  ExpoClipboard:
+    :path: "../node_modules/expo-clipboard/ios"
   ExpoDevice:
     :path: "../node_modules/expo-device/ios"
   ExpoDocumentPicker:
@@ -2910,8 +2912,6 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-system-ui/ios"
   ExpoTrackingTransparency:
     :path: "../node_modules/expo-tracking-transparency/ios"
-  ExpoVideo:
-    :path: "../node_modules/expo-video/ios"
   ExpoWebBrowser:
     :path: "../node_modules/expo-web-browser/ios"
   EXStructuredHeaders:
@@ -3103,6 +3103,7 @@ SPEC CHECKSUMS:
   ExpoAsset: 3ea3275cca6a7793b3d36fbf1075c590f803fbcb
   ExpoBlur: 5d95f7ca771a0f3b9618466525dd68e46dc95f3a
   ExpoCamera: e88fc30631e63e5504ce19d52c563a6ec49e17d2
+  ExpoClipboard: c187b3101e5f38cce4c6321788e0047f1c29e152
   ExpoDevice: 7a961caede6638aa0d37d0d3aa884ab957a2e3d3
   ExpoDocumentPicker: d1bb0c63fc686a74455bd7c2cd54545fa6231b66
   ExpoFileSystem: 3a98ca2a6f13674ecfd97327d1b44a8ace444cbd
@@ -3126,7 +3127,6 @@ SPEC CHECKSUMS:
   ExpoSymbols: b5dbeee7d8d901d15016d4084a7096b64644e3bb
   ExpoSystemUI: 5ae7571742a69d0fc29145b6512f53879a3f42e5
   ExpoTrackingTransparency: 843029c42d70de59bb0503f6fc747b9d2fe67f7b
-  ExpoVideo: 54ce43735b4ceb6b3828e3eec3b750b0fe10314c
   ExpoWebBrowser: 1051486eb45a2f4d1ee075712604f43f3009f90e
   EXStructuredHeaders: 32bec6771c2db18c4cd47cecae530d1d06cdf972
   EXUpdates: 581f73524beb53c1c46052b776a130743be28507
