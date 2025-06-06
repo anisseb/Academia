@@ -7,6 +7,8 @@ import { Exercise } from '../../../types/exercise';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../../../../firebaseConfig';
 import * as Haptics from 'expo-haptics';
+import { Icon } from 'lucide-react-native';
+import { Feather } from '@expo/vector-icons';
 
 interface ChapterContent {
   id: string;
@@ -15,7 +17,8 @@ interface ChapterContent {
 
 export default function ContentPage() {
   const { 
-    subject, 
+    subject,
+    subjectIcon,
     subjectLabel,
     themeId,
     themeLabel,
@@ -324,11 +327,22 @@ export default function ContentPage() {
         >
           <View style={[styles.contentCard, { backgroundColor: themeColors.card }]}>
             <View style={styles.headerContainer}>
-              <View style={styles.breadcrumbRow}>
-                <Text style={styles.breadcrumbText}>{subjectLabel}</Text>
+              <View style={styles.breadcrumbContainer}>
+                <View style={styles.breadcrumbRow}>
+                  <MaterialCommunityIcons
+                    name={subjectIcon as any}
+                    size={20}
+                    color={themeColors.text}
+                  />
+                  <Text style={styles.breadcrumbText}>{subjectLabel}</Text>
+                  <Feather name="chevron-right" size={14} color={themeColors.text} style={styles.breadcrumbSeparator} />
+                  <Text style={styles.breadcrumbText}>{themeLabel}</Text>
+                </View>
               </View>
-              <Text style={styles.chapterMainTitle}>{chapterLabel}</Text>
-              <Text style={styles.themeSubtitle}>{themeLabel}</Text>
+              <View style={styles.titleContainer}>
+                <Text style={styles.chapterMainTitle}>{chapterLabel}</Text>
+                <View style={styles.titleUnderline} />
+              </View>
             </View>
           </View>
           <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
@@ -424,24 +438,44 @@ const styles = StyleSheet.create({
   headerContainer: {
     paddingHorizontal: 20,
     paddingTop: 10,
-    paddingBottom: 18,
+    paddingBottom: 15,
     backgroundColor: 'transparent',
+  },
+  breadcrumbContainer: {
+    marginBottom: 12,
   },
   breadcrumbRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    justifyContent: 'center',
+    width: '100%',
+    flexWrap: 'wrap',
+  },
+  breadcrumbIcon: {
+    marginRight: 6,
+    opacity: 0.7,
   },
   breadcrumbText: {
-    fontSize: 13,
-    color: '#aaa',
-    marginHorizontal: 2,
+    fontSize: 14,
+    color: '#666',
+  },
+  breadcrumbSeparator: {
+    marginHorizontal: 4,
+    opacity: 0.5,
+  },
+  titleContainer: {
+    marginTop: 4,
   },
   chapterMainTitle: {
     fontSize: 22,
     fontWeight: '700',
     color: '#fff',
-    marginBottom: 2,
+    marginBottom: 8,
+  },
+  titleUnderline: {
+    height: 3,
+    backgroundColor: '#60a5fa',
+    borderRadius: 2,
   },
   themeSubtitle: {
     fontSize: 15,

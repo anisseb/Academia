@@ -112,6 +112,8 @@ const SubjectScene: React.FC<SubjectSceneProps> = ({ subject, themeColors }) => 
       params: {
         subject: subject.id,
         subjectLabel: subject.label,
+        subjectIcon: subject.icon,
+        subjectGradient: subject.gradient,
         themeId: theme.id,
         themeLabel: theme.title,
         chapterId: chapter.id,

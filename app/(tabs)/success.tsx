@@ -41,104 +41,76 @@ export default function SuccessScreen() {
   const { isDarkMode } = useTheme();
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingCategory, setLoadingCategory] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadAchievements = async () => {
-      const newAchievements = await checkAchievements();
-      setAchievements(newAchievements);
-      setLoading(false);
-    };
     loadAchievements();
   }, []);
 
-  const checkAchievements = async (): Promise<Achievement[]> => {
+  const loadAchievements = async () => {
     try {
-      const achievements: Achievement[] = [];
-      const completedAchievements: string[] = [];
+      setLoading(true);
       const netInfo = await NetInfo.fetch();
       const isOnline = netInfo.isConnected;
-
-      // Si hors ligne, charger depuis AsyncStorage
-      if (!isOnline) {
-        const savedAchievements = await AsyncStorage.getItem(OFFLINE_ACHIEVEMENTS_KEY);
-        if (savedAchievements) {
-          return JSON.parse(savedAchievements);
-        }
-      }
-
-      // Vérifier les succès de progression des cours
-      for (const achievement of COURSE_PROGRESSION_ACHIEVEMENTS) {
-        const progress = await checkAchievementProgress(achievement.id);
-        const completed = progress === achievement.maxProgress;
-        achievements.push({
-          ...achievement,
-          progress
-        });
-        if (completed) {
-          completedAchievements.push(achievement.id);
-        }
-      }
-
-      // Vérifier les succès liés aux exercices
-      for (const achievement of EXERCISE_ACHIEVEMENTS) {
-        const progress = await checkAchievementProgress(achievement.id);
-        const completed = progress === achievement.maxProgress;
-        achievements.push({
-          ...achievement,
-          progress
-        });
-        if (completed) {
-          completedAchievements.push(achievement.id);
-        }
-      }
-
-      // Vérifier les succès liés à l'IA
-      for (const achievement of IA_ACHIEVEMENTS) {
-        const progress = await checkAchievementProgress(achievement.id);
-        const completed = progress === achievement.maxProgress;
-        achievements.push({
-          ...achievement,
-          progress
-        });
-        if (completed) {
-          completedAchievements.push(achievement.id);
-        }
-      }
-
-      // Vérifier les badges spéciaux
-      for (const achievement of SPECIAL_BADGES_ACHIEVEMENTS) {
-        const progress = await checkAchievementProgress(achievement.id);
-        const completed = progress === achievement.maxProgress;
-        achievements.push({
-          ...achievement,
-          progress
-        });
-        if (completed) {
-          completedAchievements.push(achievement.id);
-        }
-      }
-
-      // Stocker les succès complétés dans le profil de l'utilisateur et AsyncStorage
       const user = auth.currentUser;
+
+      // Charger les succès depuis AsyncStorage immédiatement
+      const savedAchievements = await AsyncStorage.getItem(OFFLINE_ACHIEVEMENTS_KEY);
+      if (savedAchievements) {
+        setAchievements(JSON.parse(savedAchievements));
+      }
+
+      // Si hors ligne, on garde les données du cache
+      if (!isOnline) {
+        setLoading(false);
+        return;
+      }
+
+      // Charger les succès par catégorie
+      const categories = [
+        { name: 'Progression des cours', achievements: COURSE_PROGRESSION_ACHIEVEMENTS },
+        { name: 'Exercices', achievements: EXERCISE_ACHIEVEMENTS },
+        { name: 'IA', achievements: IA_ACHIEVEMENTS },
+        { name: 'Badges spéciaux', achievements: SPECIAL_BADGES_ACHIEVEMENTS }
+      ];
+
+      const newAchievements: Achievement[] = [];
+      const completedAchievements: string[] = [];
+
+      for (const category of categories) {
+        setLoadingCategory(category.name);
+        for (const achievement of category.achievements) {
+          const progress = await checkAchievementProgress(achievement.id);
+          const completed = progress === achievement.maxProgress;
+          newAchievements.push({
+            ...achievement,
+            progress
+          });
+          if (completed) {
+            completedAchievements.push(achievement.id);
+          }
+        }
+      }
+
+      // Mettre à jour l'état avec les nouveaux succès
+      setAchievements(newAchievements);
+
+      // Mettre à jour Firestore et AsyncStorage
       if (user) {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
           const currentData = userDoc.data();
           const currentProfile = currentData.profile || {};
           
-          // Mettre à jour Firestore si en ligne
-          if (isOnline) {
-            await updateDoc(doc(db, 'users', user.uid), {
-              ...currentData,
-              profile: {
-                ...currentProfile,
-                completedAchievements
-              }
-            });
-          }
+          await updateDoc(doc(db, 'users', user.uid), {
+            ...currentData,
+            profile: {
+              ...currentProfile,
+              completedAchievements
+            }
+          });
 
-          // Sauvegarder dans AsyncStorage
-          await AsyncStorage.setItem(OFFLINE_ACHIEVEMENTS_KEY, JSON.stringify(achievements));
+          await AsyncStorage.setItem(OFFLINE_ACHIEVEMENTS_KEY, JSON.stringify(newAchievements));
           await AsyncStorage.setItem(OFFLINE_USER_KEY, JSON.stringify({
             ...currentData,
             profile: {
@@ -148,16 +120,11 @@ export default function SuccessScreen() {
           }));
         }
       }
-
-      return achievements;
     } catch (error) {
-      console.error('Erreur lors de la vérification des succès:', error);
-      // En cas d'erreur, essayer de charger depuis AsyncStorage
-      const savedAchievements = await AsyncStorage.getItem(OFFLINE_ACHIEVEMENTS_KEY);
-      if (savedAchievements) {
-        return JSON.parse(savedAchievements);
-      }
-      return [];
+      console.error('Erreur lors du chargement des succès:', error);
+    } finally {
+      setLoading(false);
+      setLoadingCategory(null);
     }
   };
 
@@ -266,6 +233,11 @@ export default function SuccessScreen() {
     return (
       <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff', justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color="#60a5fa" />
+        {loadingCategory && (
+          <Text style={[styles.loadingText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+            Chargement des {loadingCategory.toLowerCase()}...
+          </Text>
+        )}
       </View>
     );
   }
@@ -407,6 +379,11 @@ const styles = StyleSheet.create({
   globalProgressText: {
     fontSize: 14,
     fontWeight: '500',
+    textAlign: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
     textAlign: 'center',
   },
 }); 

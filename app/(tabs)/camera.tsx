@@ -5,7 +5,7 @@ import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { Camera as CameraIcon, ArrowLeft, Crop, Check, X, Zap } from 'lucide-react-native';
 import { showErrorAlert } from '../utils/alerts';
 import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
+import { useImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { ResizableFrame } from '../components/ResizableFrame';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -29,6 +29,9 @@ export default function CameraScreen() {
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const { threadId } = useLocalSearchParams();
   const statusBarHeight = StatusBar.currentHeight || 0;
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+  const [isManipulatorReady, setIsManipulatorReady] = useState(false);
+  const manipulator = useImageManipulator(imageToCrop || '');
 
   useEffect(() => {
     (async () => {
@@ -36,6 +39,17 @@ export default function CameraScreen() {
       setHasPermission(status === 'granted');
     })();
   }, []);
+
+  // Effet pour gérer l'initialisation du manipulator
+  useEffect(() => {
+    if (imageToCrop) {
+      setIsManipulatorReady(false);
+      const timer = setTimeout(() => {
+        setIsManipulatorReady(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [imageToCrop]);
 
   const onCameraReady = () => {
     setIsReady(true);
@@ -53,7 +67,7 @@ export default function CameraScreen() {
 
       let finalImageUri = photo;
       if (cropFrame) {
-        finalImageUri = await cropImage(photo, cropFrame);
+        finalImageUri = previewUri || photo;
       }
 
       // D'abord nettoyer l'état
@@ -61,6 +75,7 @@ export default function CameraScreen() {
       setCropFrame(null);
       setIsCropping(false);
       setPreviewUri(null);
+      setImageToCrop(null);
 
       // Puis fermer la modal
       router.back();
@@ -71,7 +86,7 @@ export default function CameraScreen() {
           pathname: '/(tabs)/history',
           params: { 
             threadId: threadId as string,
-            imageBase64: finalImageUri
+            imageUri: finalImageUri
           }
         });
       }, 100);
@@ -82,16 +97,86 @@ export default function CameraScreen() {
   };
 
   const handleCrop = async () => {
-    if (!photo || !cropFrame) return;
-    
+    if (!photo || !cropFrame || !isManipulatorReady) return;
+
     try {
-      const croppedUri = await cropImage(photo, cropFrame);
-      setPreviewUri(croppedUri);
+      // Obtenir les dimensions de l'image originale
+      const imageInfo = await Image.getSize(photo);
+      const originalWidth = imageInfo.width;
+      const originalHeight = imageInfo.height;
+
+      // Calculer les dimensions de l'image affichée
+      const imageAspectRatio = originalWidth / originalHeight;
+      let displayWidth = SCREEN_WIDTH;
+      let displayHeight = SCREEN_WIDTH / imageAspectRatio;
+
+      // Si l'image est plus haute que l'écran, ajuster la hauteur
+      if (displayHeight > SCREEN_HEIGHT) {
+        displayHeight = SCREEN_HEIGHT;
+        displayWidth = SCREEN_HEIGHT * imageAspectRatio;
+      }
+
+      // Calculer les marges pour centrer l'image
+      const marginX = (SCREEN_WIDTH - displayWidth) / 2;
+      const marginY = (SCREEN_HEIGHT - displayHeight) / 2;
+
+      // Calculer les ratios pour convertir les coordonnées de l'écran en coordonnées de l'image
+      const widthRatio = originalWidth / displayWidth;
+      const heightRatio = originalHeight / displayHeight;
+
+      // Convertir les coordonnées de l'écran en coordonnées de l'image
+      const cropX = Math.round((cropFrame.x - marginX) * widthRatio);
+      const cropY = Math.round((cropFrame.y - marginY) * heightRatio);
+      const cropWidth = Math.round(cropFrame.width * widthRatio);
+      const cropHeight = Math.round(cropFrame.height * heightRatio);
+
+      // Vérifier que les coordonnées sont valides
+      if (cropX < 0 || cropY < 0 || 
+          cropX + cropWidth > originalWidth || 
+          cropY + cropHeight > originalHeight) {
+        console.error('Coordonnées de recadrage invalides:', {
+          cropX, cropY, cropWidth, cropHeight,
+          originalWidth, originalHeight,
+          displayWidth, displayHeight,
+          marginX, marginY
+        });
+        return;
+      }
+
+      console.log('Dimensions de recadrage:', {
+        cropX, cropY, cropWidth, cropHeight,
+        originalWidth, originalHeight,
+        displayWidth, displayHeight,
+        marginX, marginY
+      });
+
+      // Appliquer le recadrage
+      manipulator.crop({
+        originX: cropX,
+        originY: cropY,
+        width: cropWidth,
+        height: cropHeight
+      });
+
+      // Rendre et sauvegarder l'image
+      const result = await manipulator.renderAsync();
+      const savedImage = await result.saveAsync({ format: SaveFormat.JPEG, compress: 1 });
+      
+      // Mettre à jour l'état
+      setPreviewUri(savedImage.uri);
       setIsCropping(false);
+      setImageToCrop(null);
+      setIsManipulatorReady(false);
     } catch (error) {
       console.error('Erreur lors du recadrage:', error);
       showErrorAlert('Erreur', 'Erreur lors du recadrage de l\'image. Veuillez réessayer.');
     }
+  };
+
+  const startCropping = () => {
+    if (!photo) return;
+    setImageToCrop(photo);
+    setIsCropping(true);
   };
 
   const takePicture = async () => {
@@ -127,42 +212,6 @@ export default function CameraScreen() {
   }
     });
   };
-
-  const cropImage = async (imageUri: string, cropDimensions: { x: number, y: number, width: number, height: number }) => {
-    try {
-      // Obtenir les dimensions de l'image originale
-      const imageInfo = await Image.getSize(imageUri);
-      const originalWidth = imageInfo.width;
-      const originalHeight = imageInfo.height;
-
-      // Calculer les ratios pour convertir les coordonnées de l'écran en coordonnées de l'image
-      const widthRatio = originalWidth / SCREEN_WIDTH;
-      const heightRatio = originalHeight / SCREEN_HEIGHT;
-
-      // Convertir les coordonnées de l'écran en coordonnées de l'image
-      const cropX = Math.round(cropDimensions.x * widthRatio);
-      const cropY = Math.round(cropDimensions.y * heightRatio);
-      const cropWidth = Math.round(cropDimensions.width * widthRatio);
-      const cropHeight = Math.round(cropDimensions.height * heightRatio);
-
-      const manipulatedImage = await ImageManipulator.manipulateAsync(
-        imageUri,
-        [{
-          crop: {
-            originX: cropX,
-            originY: cropY,
-            width: cropWidth,
-            height: cropHeight
-          }
-        }],
-        { compress: 1, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      return manipulatedImage.uri;
-    } catch (error) {
-      console.error('Erreur lors du recadrage:', error);
-      throw error;
-    }
-  }
 
   if (hasPermission === null) {
     return (
@@ -274,7 +323,7 @@ export default function CameraScreen() {
                 {!isCropping ? (
                   <TouchableOpacity
                     style={[styles.button, styles.cropButton]}
-                    onPress={() => setIsCropping(true)}
+                    onPress={startCropping}
                   >
                     <Crop color="white" size={24} />
                   </TouchableOpacity>

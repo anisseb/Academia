@@ -59,7 +59,7 @@ export default function AmisScreen() {
   const [sentRequests, setSentRequests] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
-  const searchTimeout = useRef<NodeJS.Timeout>();
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedUser, setSelectedUser] = useState<Friend | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [schoolTypeName, setSchoolTypeName] = useState<string>('');

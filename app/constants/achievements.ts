@@ -130,7 +130,7 @@ export const IA_ACHIEVEMENTS: Achievement[] = [
     description: 'Poser une question à au moins tous les professeurs',
     icon: '🧑‍🎤',
     category: 'Interaction avec l\'IA',
-    maxProgress: 1,
+    maxProgress: 3,
     imagePath: require('../../assets/images/success/IA/all_professors.webp')
   }
 ];

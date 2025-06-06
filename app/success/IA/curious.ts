@@ -6,20 +6,17 @@ export const checkCurious = async (): Promise<number> => {
     const user = auth.currentUser;
     if (!user) return 0;
 
-    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    // Récupérer le document utilisateur pour vérifier le nombre de messages déjà enregistré
+    const userRef = doc(db, 'users', user.uid);
+    const userDoc = await getDoc(userRef);
     if (!userDoc.exists()) return 0;
 
     const userData = userDoc.data();
-    const threads = userData.threads || {};
-    
-    // Compter le nombre total de messages de l'utilisateur dans tous les threads
-    let totalUserMessages = 0;
-    Object.values(threads).forEach((thread: any) => {
-      const messages = thread.messages || [];
-      totalUserMessages += messages.filter((msg: any) => !msg.isAI).length;
-    });
-
-    return totalUserMessages;
+    if (userData.success?.totalMessages >= 5) {
+      return 5;
+    } else {
+      return userData.success?.totalMessages || 0;
+    }
   } catch (error) {
     console.error('Erreur lors de la vérification du succès Curieux:', error);
     return 0;

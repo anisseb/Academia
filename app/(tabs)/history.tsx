@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput, Alert, Animated, Keyboard, Platform as RNPlatform, AlertButton, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput, Alert, Animated, Keyboard, Platform as RNPlatform, AlertButton, TouchableWithoutFeedback, Modal } from 'react-native';
 import { Mistral } from '@mistralai/mistralai';
 import { Camera as CameraIcon, X, Plus, Image as ImageIcon, FileText, Send } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -17,7 +17,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { getSchoolTypeName, getClassName } from '../services/firestoreService';
-import { format, addDays, differenceInMilliseconds } from 'date-fns';
+import { format, addDays, differenceInMilliseconds, startOfDay } from 'date-fns';
 import * as Clipboard from 'expo-clipboard';
 
 type Message = {
@@ -81,8 +81,8 @@ const Message = ({ message, isLast }: { message: Message, isLast: boolean }) => 
         }
       }}
       onPress={() => {
-        if (message.isAI) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (message.isAI && showCopyButton) {
+          setShowCopyButton(false);
         }
       }}
       activeOpacity={1}
@@ -134,6 +134,28 @@ const Message = ({ message, isLast }: { message: Message, isLast: boolean }) => 
   );
 };
 
+function useKeyboard() {
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const show = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hide = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const onShow = (e: any) => setKeyboardHeight(e.endCoordinates.height);
+    const onHide = () => setKeyboardHeight(0);
+
+    const showSub = Keyboard.addListener(show, onShow);
+    const hideSub = Keyboard.addListener(hide, onHide);
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  return keyboardHeight;
+}
+
 export default function HistoryScreen() {
   const { threadId, imageUri: initialImageUri } = useLocalSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -154,6 +176,8 @@ export default function HistoryScreen() {
   const [remainingMessages, setRemainingMessages] = useState<number>(3);
   const [nextResetTime, setNextResetTime] = useState<Date | null>(null);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(true);
+  const [messageCount, setMessageCount] = useState<number>(0);
+  const keyboardHeight = useKeyboard();
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -227,17 +251,45 @@ export default function HistoryScreen() {
           setMessages(threadData.messages || []);
           setSelectedSubject(threadData.subject || null);
           setSelectedAIProfile(threadData.aiProfile || 'professeur');
+
+          // Mettre à jour le messageCount
+          const count = data.dailyMessageCount || 0;
+          setMessageCount(count);
+          setRemainingMessages(3 - count);
+
           if (!threadData.subject) {
             setShowSubjectSelector(true);
           } else {
             setShowSubjectSelector(false);
           }
+
+          // Mettre à jour le temps de réinitialisation
+          const lastMessageDate = data.lastMessageDate?.toDate();
+          if (lastMessageDate) {
+            const nextReset = addDays(startOfDay(lastMessageDate), 1);
+            setNextResetTime(nextReset);
+          } else {
+            setNextResetTime(null);
+          }
         } else {
+          // Nouvelle conversation
           setMessages([]);
           setThreadTitle('Nouvelle conversation');
           setSelectedSubject(null);
           setSelectedAIProfile('professeur');
           setShowSubjectSelector(false);
+
+          // Initialiser success.totalMessages si nécessaire
+          const userRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userRef);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            if (userData.success?.totalMessages === undefined) {
+              await updateDoc(userRef, {
+                'success.totalMessages': 0
+              });
+            }
+          }
         }
       } else {
         setMessages([]);
@@ -245,6 +297,18 @@ export default function HistoryScreen() {
         setSelectedSubject(null);
         setSelectedAIProfile('professeur');
         setShowSubjectSelector(false);
+
+        // Initialiser success.totalMessages si nécessaire
+        const userRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userRef);
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          if (userData.success?.totalMessages === undefined) {
+            await updateDoc(userRef, {
+              'success.totalMessages': 0
+            });
+          }
+        }
       }
     });
 
@@ -310,7 +374,7 @@ export default function HistoryScreen() {
     const jsonStructure = subject === 'Mathématiques'
       ? `IMPORTANT: les formules mathematiques doivent etre au format latex, il faut que le format soit correcte pour etre pris en compte par katex.
         IMPORTANT: les formules doivent etre au format suivant : $\\frac{a}{b}$
-        IMPORTANT: les formules doivent etre entre les balises $$.r
+        IMPORTANT: les formules doivent etre entre les balises $ formule $
         {
           "message": "ton message principal",
           "steps": [
@@ -323,10 +387,10 @@ export default function HistoryScreen() {
               "content": "contenu de l'étape 2"
             }
           ],
-          "formulas": [
+          "formulesImportantes": [
             {
-              "latex": "$\\frac{a}{b}$",
-              "description": "description de la formule"
+              "latex": "$ formule $",
+              "description": "description de la $formule$"
             }
           ],
           "suggestions": ["suggestion 1", "suggestion 2"]
@@ -347,12 +411,29 @@ export default function HistoryScreen() {
       if (!user) return;
 
       const threadRef = doc(db, 'threads', user.uid);
-      const threadDoc = await getDoc(threadRef);
-      if (!threadDoc.exists()) return;
+      
+      // Écouter les changements du document threads
+      const unsubscribeThreads = onSnapshot(threadRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const threadData = docSnap.data();
+          if (!hasActiveSubscription) {
+            const count = threadData.dailyMessageCount || 0;
+            setMessageCount(count);
+            setRemainingMessages(3 - count);
+
+            // Si on a atteint la limite, on calcule le temps jusqu'à la réinitialisation
+            if (count >= 3) {
+              const lastMessageDate = threadData.lastMessageDate ? new Date(threadData.lastMessageDate.toDate()) : new Date();
+              const nextResetDate = addDays(lastMessageDate, 1);
+              setNextResetTime(nextResetDate);
+            }
+          }
+        }
+      });
 
       // Écouter les changements du document utilisateur
       const userRef = doc(db, 'users', user.uid);
-      const unsubscribe = onSnapshot(userRef, (userDoc) => {
+      const unsubscribeUser = onSnapshot(userRef, (userDoc) => {
         if (userDoc.exists()) {
           const userData = userDoc.data();
           const hasSubscription = userData.abonnement?.active === true;
@@ -360,73 +441,13 @@ export default function HistoryScreen() {
         }
       });
 
-      const threadData = threadDoc.data();
-      if (!hasActiveSubscription) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        const messageCount = threadData.dailyMessageCount || 0;
-        const lastReset = threadData.lastMessageReset ? new Date(threadData.lastMessageReset.toDate()) : today;
-        
-        if (lastReset < today) {
-          // Réinitialiser le compteur si c'est un nouveau jour
-          updateDoc(threadRef, {
-            dailyMessageCount: 0,
-            lastMessageReset: today
-          });
-          setRemainingMessages(3);
-        } else {
-          setRemainingMessages(3 - messageCount);
-        }
-
-        // Calculer le temps jusqu'à la prochaine réinitialisation
-        const nextDay = addDays(today, 1);
-        setNextResetTime(nextDay);
-      }
-
-      return () => unsubscribe();
+      return () => {
+        unsubscribeThreads();
+        unsubscribeUser();
+      };
     };
 
     loadUserData();
-  }, []);
-
-  // Effet pour vérifier et réinitialiser le compteur
-  useEffect(() => {
-    const checkAndResetCounter = async () => {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      const threadRef = doc(db, 'threads', user.uid);
-      const threadDoc = await getDoc(threadRef);
-      if (!threadDoc.exists()) return;
-
-      const threadData = threadDoc.data();
-      const hasSubscription = threadData.abonnement?.active === true;
-      
-      if (!hasSubscription) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        const lastReset = threadData.lastMessageReset ? new Date(threadData.lastMessageReset.toDate()) : today;
-        
-        if (lastReset < today) {
-          // Réinitialiser le compteur si c'est un nouveau jour
-          updateDoc(threadRef, {
-            dailyMessageCount: 0,
-            lastMessageReset: today
-          });
-          setRemainingMessages(3);
-        }
-      }
-    };
-
-    // Vérifier toutes les minutes
-    const interval = setInterval(checkAndResetCounter, 60000);
-    
-    // Vérifier immédiatement au chargement
-    checkAndResetCounter();
-
-    return () => clearInterval(interval);
   }, []);
 
   const callMistralAPI = async () => {
@@ -454,10 +475,12 @@ export default function HistoryScreen() {
         return;
       }
 
-      // Incrémenter le compteur de messages
+      // Incrémenter le compteur de messages et sauvegarder la date du dernier message
       await updateDoc(threadRef, {
-        dailyMessageCount: increment(1)
+        dailyMessageCount: increment(1),
+        lastMessageDate: new Date()
       });
+
       setRemainingMessages(prev => prev - 1);
     }
 
@@ -475,6 +498,13 @@ export default function HistoryScreen() {
       let imageUrl = null;
       if (currentImage) {
         imageUrl = await uploadImage(currentImage);
+        // Incrémenter cameraCount dans success de l'utilisateur
+        const userDoc = await getDoc(userRef);
+        const userData = userDoc.exists() ? userDoc.data() : {};
+        const currentCount = userData.success?.cameraCount || 0;
+        await updateDoc(userRef, {
+          'success.cameraCount': currentCount + 1
+        });
       }
 
       const userMessage: Message = {
@@ -497,7 +527,6 @@ export default function HistoryScreen() {
         await updateDoc(threadRef, {
           [`threads.${threadId}.messages`]: updatedMessages,
           [`threads.${threadId}.lastUpdated`]: new Date(),
-          ...(imageUrl && { [`threads.${threadId}.cameraCount`]: (threadData.threads[threadId as string].cameraCount || 0) + 1 })
         });
 
         // Créer l'historique des messages pour l'API Mistral
@@ -522,7 +551,12 @@ export default function HistoryScreen() {
 
         const apiResponse = await client.chat.complete({
           model: "pixtral-12b",
-          messages: messageHistory
+          messages: messageHistory,
+          maxTokens: 8000,
+          responseFormat: {
+            type: "json_object"
+          },
+          temperature: 0.5,
         });
 
         let aiMessageContent = "";
@@ -533,7 +567,6 @@ export default function HistoryScreen() {
           const responseText = typeof apiResponse.choices?.[0]?.message?.content === 'string' 
             ? apiResponse.choices[0].message.content 
             : "Pas de réponse";
-          
           
           // Rechercher un objet JSON dans la réponse
           let cleanedContent = responseText
@@ -548,7 +581,6 @@ export default function HistoryScreen() {
           if (jsonMatch) {
             // Extraire uniquement la partie JSON
             cleanedContent = jsonMatch[0];
-            console.log('Contenu JSON extrait:', cleanedContent);
             
             try {
               parsedResponse = JSON.parse(cleanedContent.replace(/\\/g, '\\\\'));
@@ -584,6 +616,11 @@ export default function HistoryScreen() {
           isAI: true,
           timestamp: new Date(),
         };
+
+        // Incrémenter le nombre total de messages dans le document utilisateur
+        await updateDoc(userRef, {
+          'success.totalMessages': increment(1)
+        });
 
         await updateDoc(threadRef, {
           [`threads.${threadId}.messages`]: [...updatedMessages, aiMessage],
@@ -624,7 +661,6 @@ export default function HistoryScreen() {
         if (!result.canceled) {
           // Vérifier que le fichier sélectionné est bien une image
           const asset = result.assets[0];
-          console.log('asset', asset);
           if (asset.type && asset.type.startsWith('image')) {
             router.push({
               pathname: '/(tabs)/history',
@@ -698,10 +734,34 @@ export default function HistoryScreen() {
     
     const now = new Date();
     const diff = differenceInMilliseconds(nextResetTime, now);
+    
+    if (diff <= 0) {
+      // Si le temps est écoulé, réinitialiser le compteur
+      const user = auth.currentUser;
+      if (user) {
+        const threadRef = doc(db, 'threads', user.uid);
+        updateDoc(threadRef, {
+          dailyMessageCount: 0,
+          lastMessageDate: null
+        });
+        setRemainingMessages(3);
+        setNextResetTime(null);
+        setMessageCount(0);
+      }
+      return '';
+    }
+    
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     
     return `${hours}h ${minutes}m`;
+  };
+
+  const handleScreenPress = () => {
+    // Fermer le clavier
+    Keyboard.dismiss();
+    // Fermer le menu d'image s'il est ouvert
+    setShowImageMenu(false);
   };
 
   return (
@@ -710,216 +770,227 @@ export default function HistoryScreen() {
       style={[styles.container, { backgroundColor: themeColors.background }]}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={{ flex: 1 }}>
-          <SubjectSelector
-            visible={showSubjectSelector}
-            onSelect={handleSubjectSelect}
-            onClose={() => setShowSubjectSelector(false)}
-            selectedSubject={selectedSubject}
-          />
-          <AIProfileSelector
-            visible={showAIProfilePicker}
-            onSelect={handleAIProfileSelect}
-            onClose={() => setShowAIProfilePicker(false)}
-            selectedProfile={selectedAIProfile}
-            themeColors={themeColors}
-          />
-          <View style={[styles.chatArea, { backgroundColor: themeColors.background }]}>
-            <View style={[styles.chatHeader, { borderBottomColor: themeColors.border }]}>
-              <View style={styles.chatHeaderContent}>
-                <TouchableOpacity 
-                  style={styles.subjectButton}
-                  onPress={() => setShowSubjectSelector(true)}
-                >
-                  <Text style={styles.subjectButtonText}>
-                    {selectedSubject ? selectedSubject : 'Choisir matière'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={styles.profileIAButton}
-                  onPress={() => setShowAIProfilePicker(true)}
-                >
-                  <View style={styles.profileContainer}>
-                    <Image 
-                      source={AI_PROFILES[selectedAIProfile].image} 
-                      style={styles.profileImage}
-                      cachePolicy="memory-disk"
-                    />
-
-                  </View>
-                </TouchableOpacity>
-              </View>
-            </View>
-            <ScrollView 
-              style={styles.messagesContainer}
-              ref={scrollViewRef}
-              onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-              keyboardShouldPersistTaps="handled"
-              onScrollBeginDrag={() => {
-                Keyboard.dismiss();
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      {showImageMenu && (
+        <>
+          <TouchableWithoutFeedback onPress={() => setShowImageMenu(false)}>
+            <View style={{
+              ...StyleSheet.absoluteFillObject,
+              backgroundColor: 'rgba(0,0,0,0.3)',
+              zIndex: 1000,
+            }} />
+          </TouchableWithoutFeedback>
+          <View style={[
+            styles.menuContainer,
+            {
+              backgroundColor: themeColors.card,
+              position: 'absolute',
+              bottom: 80 + keyboardHeight,
+              left: 30,
+              zIndex: 1001,
+            }
+          ]}>
+            <TouchableOpacity 
+              style={styles.menuOption}
+              onPress={() => {
+                handleImagePicker('library');
+                setShowImageMenu(false);
               }}
             >
-              {messages.map((message, index) => (
-                <Message 
-                  key={message.id} 
-                  message={message}
-                  isLast={index === messages.length - 1}
+              <ImageIcon color={themeColors.text} size={20} />
+              <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Bibliothèque</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.menuOption}
+              onPress={() => {
+                handleImagePicker('camera');
+                setShowImageMenu(false);
+              }}
+            >
+              <CameraIcon color={themeColors.text} size={20} />
+              <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Appareil photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.menuOption}
+              onPress={() => {
+                handleImagePicker('document');
+                setShowImageMenu(false);
+              }}
+            >
+              <FileText color={themeColors.text} size={20} />
+              <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Document</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+      <SubjectSelector
+        visible={showSubjectSelector}
+        onSelect={handleSubjectSelect}
+        onClose={() => setShowSubjectSelector(false)}
+        selectedSubject={selectedSubject}
+      />
+      <AIProfileSelector
+        visible={showAIProfilePicker}
+        onSelect={handleAIProfileSelect}
+        onClose={() => setShowAIProfilePicker(false)}
+        selectedProfile={selectedAIProfile}
+        themeColors={themeColors}
+      />
+      <View style={[styles.chatArea, { backgroundColor: themeColors.background }]}>
+        <View style={[styles.chatHeader, { borderBottomColor: themeColors.border }]}>
+          <View style={styles.chatHeaderContent}>
+            <TouchableOpacity 
+              style={styles.subjectButton}
+              onPress={() => setShowSubjectSelector(true)}
+            >
+              <Text style={styles.subjectButtonText}>
+                {selectedSubject ? selectedSubject : 'Choisir matière'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.profileIAButton}
+              onPress={() => setShowAIProfilePicker(true)}
+            >
+              <View style={styles.profileContainer}>
+                <Image 
+                  source={AI_PROFILES[selectedAIProfile].image} 
+                  style={styles.profileImage}
+                  cachePolicy="memory-disk"
                 />
-              ))}
-              {isLoading && (
-                <View style={[styles.messageContainer, styles.aiMessage, { backgroundColor: themeColors.aiMessageBackground }]}>
-                  <TypingIndicator textColor={themeColors.text} />
-                </View>
-              )}
-            </ScrollView>
 
-            <View style={[styles.inputContainer, { backgroundColor: themeColors.card }]}>
-              {(hasActiveSubscription || remainingMessages > 0) && (
-                <>
-                  <View style={styles.inputContent}>
-                    {selectedImageUri && (
-                      <View style={styles.selectedImageContainer}>
-                        <Image 
-                          source={{ uri: selectedImageUri }} 
-                          style={styles.selectedImagePreview}
-                        />
-                        <TouchableOpacity 
-                          style={styles.removeImageButton}
-                          onPress={() => {
-                            setSelectedImageUri(null);
-                          }}
-                        >
-                          <X size={20} color={themeColors.text} />
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                    <View style={[styles.inputWrapper, { backgroundColor: themeColors.inputBackground }]}>
-                      <TextInput
-                        style={[styles.input, { color: themeColors.text }]}
-                        placeholder="Écris ton message..."
-                        placeholderTextColor={themeColors.text + '80'}
-                        value={question}
-                        onChangeText={setQuestion}
-                        multiline
-                        numberOfLines={6}
-                        textAlignVertical="top"
-                        onFocus={() => {
-                          setTimeout(() => {
-                            scrollViewRef.current?.scrollToEnd({ animated: true });
-                          }, 100);
-                        }}
-                      />
-                    </View>
-                  </View>
-
-                  <View style={styles.footerButtons}>
-                    <TouchableOpacity 
-                      style={styles.plusButton}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setShowImageMenu(!showImageMenu)
-                      }}
-                      disabled={!hasActiveSubscription && remainingMessages === 0}
-                    >
-                      <Plus color={!hasActiveSubscription && remainingMessages === 0 ? themeColors.placeholder : themeColors.text} size={24} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity 
-                      style={[
-                        styles.sendButton, 
-                        (!question.trim() || (!hasActiveSubscription && remainingMessages === 0)) && { opacity: 0.5 }
-                      ]}
-                      onPress={callMistralAPI}
-                      disabled={!question.trim() || (!hasActiveSubscription && remainingMessages === 0)}
-                    >
-                      <Send 
-                        color={
-                          !question.trim() || (!hasActiveSubscription && remainingMessages === 0) 
-                            ? themeColors.placeholder 
-                            : '#60a5fa'
-                        } 
-                        size={24} 
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  {showImageMenu && (
-                    <View style={[styles.menuContainer, { backgroundColor: themeColors.card }]}>
-                      <TouchableOpacity 
-                        style={styles.menuOption}
-                        onPress={() => {
-                          handleImagePicker('library');
-                          setShowImageMenu(false);
-                        }}
-                      >
-                        <ImageIcon color={themeColors.text} size={20} />
-                        <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Bibliothèque</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={styles.menuOption}
-                        onPress={() => {
-                          handleImagePicker('camera');
-                          setShowImageMenu(false);
-                        }}
-                      >
-                        <CameraIcon color={themeColors.text} size={20} />
-                        <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Appareil photo</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={styles.menuOption}
-                        onPress={() => {
-                          handleImagePicker('document');
-                          setShowImageMenu(false);
-                        }}
-                      >
-                        <FileText color={themeColors.text} size={20} />
-                        <Text style={[styles.menuOptionText, { color: themeColors.text }]}>Document</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </>
-              )}
-              {!hasActiveSubscription && (
-                <View style={[styles.messageLimitContainer, { backgroundColor: themeColors.inputBackground }]}>
-                  {remainingMessages > 0 ? (
-                    <Text style={[styles.messageLimitText, { color: themeColors.text }]}>
-                      Messages restants aujourd'hui : {remainingMessages}
-                    </Text>
-                  ) : (
-                    <View style={styles.limitReachedContainer}>
-                      <Text style={[styles.limitReachedText, { color: themeColors.text }]}>
-                        Vous avez utilisé tous vos messages gratuits pour aujourd'hui
-                      </Text>
-                      <Text style={[styles.resetTimeText, { color: themeColors.text }]}>
-                        Réinitialisation dans {formatTimeRemaining()}
-                      </Text>
-                      <TouchableOpacity 
-                        style={styles.upgradeButton}
-                        onPress={() => router.push('/settings/subscriptions')}
-                      >
-                        <Text style={styles.upgradeButtonText}>
-                          Passer à Academia Réussite pour discuter en illimité
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              )}
-
-            </View>
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
-      </TouchableWithoutFeedback>
+        <ScrollView 
+          style={styles.messagesContainer}
+          ref={scrollViewRef}
+          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+          keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={() => {
+            Keyboard.dismiss();
+          }}
+        >
+          {messages.map((message, index) => (
+            <Message 
+              key={message.id} 
+              message={message}
+              isLast={index === messages.length - 1}
+            />
+          ))}
+          {isLoading && (
+            <View style={[styles.messageContainer, styles.aiMessage, { backgroundColor: themeColors.aiMessageBackground }]}>
+              <TypingIndicator textColor={themeColors.text} />
+            </View>
+          )}
+        </ScrollView>
+
+        <View style={[styles.inputContainer, { backgroundColor: themeColors.card }]}>
+          {(hasActiveSubscription || messageCount < 3) && (
+            <>
+              <View style={styles.inputContent}>
+                {selectedImageUri && (
+                  <View style={styles.selectedImageContainer}>
+                    <Image 
+                      source={{ uri: selectedImageUri }} 
+                      style={styles.selectedImagePreview}
+                    />
+                    <TouchableOpacity 
+                      style={styles.removeImageButton}
+                      onPress={() => {
+                        setSelectedImageUri(null);
+                      }}
+                    >
+                      <X size={20} color={themeColors.text} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                <View style={[styles.inputWrapper, { backgroundColor: themeColors.inputBackground }]}>
+                  <TextInput
+                    style={[styles.input, { color: themeColors.text }]}
+                    placeholder="Écris ton message..."
+                    placeholderTextColor={themeColors.text + '80'}
+                    value={question}
+                    onChangeText={setQuestion}
+                    multiline
+                    numberOfLines={6}
+                    textAlignVertical="top"
+                    onFocus={() => {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollToEnd({ animated: true });
+                      }, 100);
+                    }}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.footerButtons}>
+                <TouchableOpacity 
+                  style={styles.plusButton}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowImageMenu(!showImageMenu)
+                  }}
+                  disabled={!hasActiveSubscription && remainingMessages === 0}
+                >
+                  <Plus color={!hasActiveSubscription && remainingMessages === 0 ? themeColors.placeholder : themeColors.text} size={24} />
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[
+                    styles.sendButton, 
+                    (!question.trim() || (!hasActiveSubscription && remainingMessages === 0)) && { opacity: 0.5 }
+                  ]}
+                  onPress={callMistralAPI}
+                  disabled={!question.trim() || (!hasActiveSubscription && remainingMessages === 0)}
+                >
+                  <Send 
+                    color={
+                      !question.trim() || (!hasActiveSubscription && remainingMessages === 0) 
+                        ? themeColors.placeholder 
+                        : '#60a5fa'
+                    } 
+                    size={24} 
+                  />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+          {!hasActiveSubscription && (
+            <View style={[styles.messageLimitContainer, { backgroundColor: themeColors.inputBackground }]}>
+              {messageCount < 3 ? (
+                <Text style={[styles.messageLimitText, { color: themeColors.text }]}>
+                  Messages restants aujourd'hui : {3 - messageCount}
+                </Text>
+              ) : (
+                <View style={styles.limitReachedContainer}>
+                  <Text style={[styles.limitReachedText, { color: themeColors.text }]}>
+                    Vous avez utilisé tous vos messages gratuits pour aujourd'hui
+                  </Text>
+                  <Text style={[styles.resetTimeText, { color: themeColors.text }]}>
+                    Réinitialisation dans {formatTimeRemaining()}
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.upgradeButton}
+                    onPress={() => router.push('/settings/subscriptions')}
+                  >
+                    <Text style={styles.upgradeButtonText}>
+                      Passer à Academia Réussite pour discuter en illimité
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
+
+        </View>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const FormattedMessage = ({ content, isDarkMode }: { content: string, isDarkMode: boolean }) => {
   // Essayer de parser le contenu comme JSON
-  console.log('content22', content);
   let parsedContent = null;
   try {
     // Rechercher un objet JSON dans le contenu
@@ -935,11 +1006,9 @@ const FormattedMessage = ({ content, isDarkMode }: { content: string, isDarkMode
     if (jsonMatch) {
       // Extraire uniquement la partie JSON
       const jsonContent = jsonMatch[0];
-      console.log('jsonmatch', jsonContent);
       
       try {
         parsedContent = JSON.parse(jsonContent.replace(/\\/g, '\\\\'));
-        console.log('Contenu JSON parsé:', parsedContent);
       } catch (parseError) {
         console.error('Erreur lors du parsing du JSON extrait:', parseError);
       }
@@ -951,7 +1020,7 @@ const FormattedMessage = ({ content, isDarkMode }: { content: string, isDarkMode
   // Si le contenu est un JSON valide, l'utiliser directement
   if (parsedContent) {
     // Vérifier si le message contient des étapes, des formules ou des suggestions
-    const hasStructuredContent = parsedContent.steps || parsedContent.formulas || parsedContent.suggestions;
+    const hasStructuredContent = parsedContent.steps || parsedContent.formulesImportantes || parsedContent.suggestions;
     
     if (hasStructuredContent) {
       return (
@@ -986,12 +1055,12 @@ const FormattedMessage = ({ content, isDarkMode }: { content: string, isDarkMode
           )}
 
           {/* Formules */}
-          {parsedContent.formulas && parsedContent.formulas.length > 0 && (
-            <View style={styles.formulasContainer}>
-              <Text style={[styles.formulasTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
+          {parsedContent.formulesImportantes && parsedContent.formulesImportantes.length > 0 && (
+            <View style={styles.formulesImportantesContainer}>
+              <Text style={[styles.formulesImportantesTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
                 Formules importantes:
               </Text>
-              {parsedContent.formulas.map((formula: any, index: number) => (
+              {parsedContent.formulesImportantes.map((formula: any, index: number) => (
                 <View key={`formula-${index}`} style={styles.formulaItem}>
                   <View style={styles.mathContainer}>
                     <MathText
@@ -1482,11 +1551,11 @@ const styles = StyleSheet.create({
     width: '100%',
     padding: 10,
   },
-  formulasContainer: {
+  formulesImportantesContainer: {
     marginTop: 10,
     marginBottom: 10,
   },
-  formulasTitle: {
+  formulesImportantesTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 8,
@@ -1562,7 +1631,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   upgradeButtonText: {
-    color: '#1e293b',
+    color: '#000',
+    textAlign: 'center',
     fontSize: 14,
     fontWeight: '600',
   },

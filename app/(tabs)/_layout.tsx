@@ -3,7 +3,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Animated, Alert, Keyboard, Platform, AlertButton, PanResponder, StatusBar } from 'react-native';
 import { StyleSheet, Pressable, View, Text, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { Feather, FontAwesome } from '@expo/vector-icons';
 import { onSnapshot, doc, updateDoc, getDoc, deleteField, collection, query, where, addDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import React from 'react';
@@ -230,13 +230,13 @@ export default function TabLayout() {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const { threadId } = useLocalSearchParams();
-  const [isAdmin, setIsAdmin] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
   const auth = getAuth();
   const db = getFirestore();
   const insets = useSafeAreaInsets();
-  const paddingTop = Platform.OS === 'android' ? insets.top : 0;
+  const paddingTop = Platform.OS === 'ios' ? insets.top : StatusBar.currentHeight || 0;
+  const pathname = usePathname();
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -249,45 +249,32 @@ export default function TabLayout() {
     placeholder: isDarkMode ? '#666666' : '#999999',
   };
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: (_, gestureState) => {
-        return gestureState.x0 < 20;
-      },
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return gestureState.dx > 5 && Math.abs(gestureState.dy) < 10 && gestureState.x0 < 20;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        const multiplier = Platform.OS === 'ios' ? 1.5 : 1;
-        const newX = Math.min(Math.max(gestureState.dx * multiplier, 0), 320);
-        slideAnim.setValue(newX);
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        const threshold = Platform.OS === 'ios' ? 50 : 100;
-        if (gestureState.dx > threshold) {
-          setShowSidebar(true);
-          Animated.spring(slideAnim, {
-            toValue: 320,
-            useNativeDriver: true,
-            friction: 20,
-            tension: 70,
-          }).start(() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          });
-        } else {
-          setShowSidebar(false);
-          Animated.spring(slideAnim, {
-            toValue: 0,
-            useNativeDriver: true,
-            friction: 20,
-            tension: 70,
-          }).start(() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          });
-        }
-      },
-    })
-  ).current;
+  const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => {
+      // Désactiver le slide menu sur la page des abonnements
+      return !pathname.includes('settings/subscriptions');
+    },
+    onMoveShouldSetPanResponder: (_, gestureState) => {
+      return !pathname.includes('settings/subscriptions') && Math.abs(gestureState.dx) > 10;
+    },
+    onPanResponderMove: (_, gestureState) => {
+      if (gestureState.dx > 0) {
+        slideAnim.setValue(Math.min(gestureState.dx, 320));
+      }
+    },
+    onPanResponderRelease: (_, gestureState) => {
+      if (gestureState.dx > 160) {
+        toggleSidebar();
+      } else {
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 20,
+          tension: 70,
+        }).start();
+      }
+    },
+  });
 
   // Mettre à jour activeThreadId quand threadId change
   useEffect(() => {
@@ -456,12 +443,14 @@ export default function TabLayout() {
       >
       <Stack
         screenOptions={{
-            headerLeft: () => <MenuButton onPress={handleMenuPress} color={themeColors.icon} />,
+          headerLeft: () => <MenuButton onPress={handleMenuPress} color={themeColors.icon} />,
           headerStyle: {
             backgroundColor: themeColors.background
           },
           headerTintColor: themeColors.text,
-          animation: 'simple_push',
+          animation: 'none',
+          animationDuration: 0,
+          gestureEnabled: false
         }}
       >
         <Stack.Screen
@@ -480,26 +469,24 @@ export default function TabLayout() {
             };
           }}
         />
-          <Stack.Screen
-            name="camera"
-            options={{
-              headerShown: false,
-              animation: 'slide_from_left',
-              presentation: 'fullScreenModal',
-              contentStyle: { backgroundColor: '#000' },
-              gestureEnabled: false
-            }}
-          />
+        <Stack.Screen
+          name="camera"
+          options={{
+            headerShown: false,
+            presentation: 'fullScreenModal',
+            contentStyle: { backgroundColor: '#000' },
+          }}
+        />
         <Stack.Screen
           name="profile"
           options={{
-            title: '',
+            title: 'Profil',
           }}
         />
         <Stack.Screen name="settings" options={{ title: 'Paramètres' }} />
-        {isAdmin && (
-          <Stack.Screen name="admin" options={{ title: 'Admin' }} />
-        )}
+        <Stack.Screen name="settings/notifications" options={{ title: 'Notifications' }} />
+        <Stack.Screen name="settings/restore-purchase" options={{ title: 'Restaurer les achats' }} />
+        <Stack.Screen name="settings/subscriptions" options={{ title: 'Abonnement' }} />
         <Stack.Screen
           name="entrainement"
           options={{
@@ -541,8 +528,6 @@ export default function TabLayout() {
             title: '',
           }}
         />
-
-        <Stack.Screen name="subscriptions" options={{ title: 'Abonnement' }} />
       </Stack>
       </Animated.View>
 

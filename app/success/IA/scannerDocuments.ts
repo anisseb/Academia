@@ -8,19 +8,13 @@ export const checkScannerDocuments = async (): Promise<number> => {
 
     const userDoc = await getDoc(doc(db, 'users', user.uid));
     if (!userDoc.exists()) return 0;
-
     const userData = userDoc.data();
-    const threads = userData.threads || {};
-    
-    // Compter le nombre total d'utilisations du scanner dans tous les threads
-    let totalScannerUses = 0;
-    Object.values(threads).forEach((thread: any) => {
-      if (thread.cameraCount) {
-        totalScannerUses += thread.cameraCount;
-      }
-    });
-
-    return totalScannerUses;
+  
+    if (userData.success?.cameraCount >= 10) {
+      return 10;
+    } else {
+      return userData.success?.cameraCount || 0;
+    }
   } catch (error) {
     console.error('Erreur lors de la vérification du succès Scanner de documents:', error);
     return 0;
