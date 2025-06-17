@@ -348,9 +348,17 @@ export default function HistoryScreen() {
     let languageInstruction = '';
     if (subject && subject.toLowerCase() === 'anglais') {
       languageInstruction = 'IMPORTANT: Respond only in English. Do not respond in French. ne réponds pas en français.';
+    } else if (subject && subject.toLowerCase() === 'anglais lv1') {
+      languageInstruction = 'IMPORTANT: Respond only in English. Do not respond in French.';
+    } else if (subject && subject.toLowerCase() === 'anglais lv2') {
+      languageInstruction = 'IMPORTANT: Respond only in English. Do not respond in French.';
     } else if (subject && subject.toLowerCase() === 'espagnol') {
       languageInstruction = 'IMPORTANTE: Responder solo en español. No respondas en francés.';
     } else if (subject && subject.toLowerCase() === 'allemand') {
+      languageInstruction = 'WICHTIG: Antwort nur auf Deutsch. Antworten Sie nicht auf Französisch.';
+    } else if (subject && subject.toLowerCase() === 'allemand lv1') {
+      languageInstruction = 'WICHTIG: Antwort nur auf Deutsch. Antworten Sie nicht auf Französisch.';
+    } else if (subject && subject.toLowerCase() === 'allemand lv2') {
       languageInstruction = 'WICHTIG: Antwort nur auf Deutsch. Antworten Sie nicht auf Französisch.';
     } else if (subject && subject.toLowerCase() === 'italien') {
       languageInstruction = 'IMPORTANTE: Rispondere solo in italiano. non rispondere in francese.';
@@ -364,7 +372,7 @@ export default function HistoryScreen() {
       return `${baseMessage} Sois amical et ouvert à la discussion tout en restant pédagogique. IMPORTANT: Ta réponse doit être au format JSON avec la structure suivante: {"message": "ton message", "suggestions": ["suggestion 1", "suggestion 2"]}`;
     }
   
-    const scientificInstruction = (subject === 'Mathématiques' || subject === 'Physique Chimie')
+    const scientificInstruction = (subject === 'Mathématiques' || subject === 'Physique-Chimie' || subject === 'Enseignement scientifique')
       ? 'IMPORTANT: j\'aimerais que les formules soient au format latex. Réponds uniquement en JSON valide avec le format suivant, sans texte supplémentaire.'
       : '';
   

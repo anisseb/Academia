@@ -7,19 +7,15 @@ import { Exercise } from '../../../types/exercise';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../../../../firebaseConfig';
 import * as Haptics from 'expo-haptics';
-import { Icon } from 'lucide-react-native';
 import { Feather } from '@expo/vector-icons';
-
-interface ChapterContent {
-  id: string;
-  content: string;
-}
+import { parseGradient } from '../../../utils/subjectGradients';
 
 export default function ContentPage() {
   const { 
     subject,
     subjectIcon,
     subjectLabel,
+    subjectGradient,
     themeId,
     themeLabel,
     chapterId,
@@ -199,6 +195,7 @@ export default function ContentPage() {
       params: {
         subject: subject as string,
         subjectLabel: subjectLabel as string,
+        subjectGradient: subjectGradient,
         themeId: themeId as string,
         themeLabel: themeLabel as string,
         chapterId: chapterId as string,
@@ -230,6 +227,20 @@ export default function ContentPage() {
     </View>
   );
 
+    // Fonction pour traduire le label de difficulté
+    const translateDifficulty = (difficulty: string) => {
+      switch (difficulty.toLowerCase()) {
+        case 'facile':
+          return 'Basique';
+        case 'moyen':
+          return 'Intermédiaire';
+        case 'difficile':
+          return 'Avancé';
+        default:
+          return difficulty;
+      }
+    };
+
   const renderExerciseCard = (exercise: Exercise) => {
     const isCompleted = Array.isArray(completedExercises) && completedExercises.includes(exercise.id);
     
@@ -249,7 +260,7 @@ export default function ContentPage() {
         </View>
         <View style={[styles.difficultyBadge, styles[`difficulty${exercise.difficulty}`]]}>
           <Text style={styles.difficultyText}>
-            {exercise.difficulty}
+            {translateDifficulty(exercise.difficulty)}
           </Text>
         </View>
       </TouchableOpacity>
@@ -332,15 +343,28 @@ export default function ContentPage() {
                   <MaterialCommunityIcons
                     name={subjectIcon as any}
                     size={20}
-                    color={themeColors.text}
+                    color={parseGradient(subjectGradient as string)[0]}
                   />
-                  <Text style={styles.breadcrumbText}>{subjectLabel}</Text>
-                  <Feather name="chevron-right" size={14} color={themeColors.text} style={styles.breadcrumbSeparator} />
-                  <Text style={styles.breadcrumbText}>{themeLabel}</Text>
+                  <Text style={[styles.breadcrumbText, { color: parseGradient(subjectGradient as string)[0] }]} numberOfLines={1} ellipsizeMode="tail">
+                    {subjectLabel}
+                  </Text>
+                  <View style={styles.breadcrumbColumn}>
+                    <Feather name="chevron-down" size={14} color={themeColors.text} style={styles.breadcrumbSeparator} />
+                    <Text style={styles.breadcrumbText}>
+                      {themeLabel}
+                    </Text>
+                  </View>
                 </View>
+                <Feather name="chevron-down" size={14} color={themeColors.text} style={styles.breadcrumbSeparator} />
               </View>
               <View style={styles.titleContainer}>
-                <Text style={styles.chapterMainTitle}>{chapterLabel}</Text>
+                <Text
+                  style={styles.chapterMainTitle}
+                  numberOfLines={3}
+                  adjustsFontSizeToFit
+                >
+                  {chapterLabel}
+                </Text>
                 <View style={styles.titleUnderline} />
               </View>
             </View>
@@ -443,39 +467,51 @@ const styles = StyleSheet.create({
   },
   breadcrumbContainer: {
     marginBottom: 12,
+    alignItems: 'center',
   },
   breadcrumbRow: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
     flexWrap: 'wrap',
+    maxWidth: '100%',
+  },
+  breadcrumbColumn: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    marginTop: 2,
   },
   breadcrumbIcon: {
     marginRight: 6,
     opacity: 0.7,
   },
   breadcrumbText: {
-    fontSize: 14,
-    color: '#666',
+    color: '#aaa',
+    fontSize: 16,
+    textAlign: 'center',
   },
   breadcrumbSeparator: {
-    marginHorizontal: 4,
-    opacity: 0.5,
+    marginTop: 10,
+    marginBottom: 8,
   },
   titleContainer: {
-    marginTop: 4,
+    alignItems: 'flex-start',
+    width: '100%',
+    maxWidth: '100%',
   },
   chapterMainTitle: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: 'bold',
     color: '#fff',
     marginBottom: 8,
+    flexWrap: 'wrap',
+    textAlign: 'center',
   },
   titleUnderline: {
-    height: 3,
+    height: 4,
     backgroundColor: '#60a5fa',
     borderRadius: 2,
+    width: '100%',
+    marginTop: 4,
   },
   themeSubtitle: {
     fontSize: 15,

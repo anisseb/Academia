@@ -163,8 +163,7 @@ export default function Subscriptions() {
           <View style={styles.features}>
             <Text style={styles.feature}>✅ Accès aux cours de toutes les matières (connexion requise)</Text>
             <Text style={styles.feature}>✅ 3 QCM par chapitre</Text>
-            <Text style={styles.feature}>✅ 1 interaction IA par jour pour de l'aide au devoir personnalisé</Text>
-            <Text style={styles.feature}>✅ Pub dans l'application (publicité éducative)</Text>
+            <Text style={styles.feature}>✅ 1 interaction IA par jour pour de l'aide au devoir personnalisée</Text>
             <Text style={styles.feature}>❌ Pas de statistiques détaillées</Text>
             <Text style={styles.feature}>❌ Pas d'accès hors ligne</Text>
           </View>
@@ -211,7 +210,6 @@ export default function Subscriptions() {
             <Text style={styles.feature}>✅ Accès aux cours illimités en hors ligne</Text>
             <Text style={styles.feature}>✅ QCM illimités</Text>
             <Text style={styles.feature}>✅ Aide personnalisée avec une IA pour les devoirs</Text>
-            <Text style={styles.feature}>✅ Pas de publicités</Text>
             <Text style={styles.feature}>✅ Statistiques détaillées par matière</Text>
           </View>
           <TouchableOpacity style={styles.ctaButton} onPress={() => handlePurchase('premium')} disabled={loading}>

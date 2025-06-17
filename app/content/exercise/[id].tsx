@@ -106,6 +106,7 @@ export default function ExercisePage() {
     }
   };
 
+/*
   useEffect(() => {
     // Initialiser l'annonce
     const ad = InterstitialAd.createForAdRequest(TestIds.INTERSTITIAL, {
@@ -142,6 +143,7 @@ export default function ExercisePage() {
       unsubscribeClosed();
     };
   }, []);
+*/
 
   const handleBack = async () => {
     router.back();
@@ -179,6 +181,7 @@ export default function ExercisePage() {
       await handleExerciseComplete(score);
       
       // Puis on montre l'annonce
+      /*
       if (interstitialAd && adLoaded) {
         try {
           interstitialAd.show();
@@ -186,6 +189,7 @@ export default function ExercisePage() {
           console.error('Erreur lors de l\'affichage de l\'annonce:', error);
         }
       }
+      */
     }
   };
 
@@ -230,8 +234,6 @@ export default function ExercisePage() {
       }
 
       const userData = userDoc.data();
-      console.log('Données utilisateur actuelles:', userData);
-      console.log('Statut abonnement:', userData.abonnement?.active);
 
       const profile = userData.profile as UserProfile || {};
       
@@ -260,26 +262,20 @@ export default function ExercisePage() {
 
       // Si l'utilisateur n'a pas d'abonnement actif, mettre à jour dailyExercisesNonActive
       if (!userData.abonnement?.active) {
-        console.log('Utilisateur sans abonnement actif - Mise à jour du compteur');
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
         const dailyExercises = userData.dailyExercisesNonActive || {};
-        console.log('Exercices quotidiens actuels:', dailyExercises);
         
         const lastReset = dailyExercises.lastReset ? new Date(dailyExercises.lastReset.toDate()) : today;
-        console.log('Dernière réinitialisation:', lastReset);
-        console.log('Date aujourd\'hui:', today);
         
         if (lastReset < today) {
-          console.log('Nouveau jour - Réinitialisation du compteur');
           // Réinitialiser le compteur si c'est un nouveau jour
           updates.dailyExercisesNonActive = {
             count: 1,
             lastReset: today
           };
         } else {
-          console.log('Même jour - Incrémentation du compteur');
           // Incrémenter le compteur
           const currentCount = dailyExercises.count || 0;
           updates.dailyExercisesNonActive = {
@@ -287,16 +283,18 @@ export default function ExercisePage() {
             lastReset: dailyExercises.lastReset || today
           };
         }
-        console.log('Mise à jour préparée:', updates.dailyExercisesNonActive);
       }
-
-      // Mettre à jour le document utilisateur
-      console.log('Mise à jour finale:', updates);
-      await updateDoc(userDocRef, {
+      
+      // Créer l'objet de mise à jour en fonction de l'abonnement
+      const updateData = {
         ...updates,
-        dailyExercisesNonActive: updates.dailyExercisesNonActive
-      });
-      console.log('Mise à jour effectuée avec succès');
+        // Ne pas inclure dailyExercisesNonActive si l'utilisateur a un abonnement
+        ...(userData?.abonnement?.active !== true && {
+          dailyExercisesNonActive: updates.dailyExercisesNonActive
+        })
+      };
+
+      await updateDoc(userDocRef, updateData);
 
     } catch (error) {
       console.error('Erreur lors de la sauvegarde de l\'exercice:', error);
@@ -351,6 +349,20 @@ export default function ExercisePage() {
     }
   };
 
+  // Fonction pour traduire le label de difficulté
+  const translateDifficulty = (difficulty: string) => {
+    switch (difficulty.toLowerCase()) {
+      case 'facile':
+        return 'Basique';
+      case 'moyen':
+        return 'Intermédiaire';
+      case 'difficile':
+        return 'Avancé';
+      default:
+        return difficulty;
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
       <View style={styles.mainContainer}>
@@ -360,30 +372,32 @@ export default function ExercisePage() {
           marginTop: Platform.OS === 'android' ? 10 : 0,
         }]}>
           {currentQuestionIndex === 0 && (
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={handleBack}
-            >
-              <MaterialCommunityIcons
-                name="arrow-left" 
-                size={24}
-                color={themeColors.text} 
-              />
-            </TouchableOpacity>
-          )}
-          <View style={styles.headerContent}>
-            <View style={styles.headerTitleRow}>
-              <Text style={[styles.headerTitle, { color: themeColors.text }]}>
-                {exercise.title || "Exercice"}
-              </Text>
+            <View style={styles.topRow}>
+              <TouchableOpacity 
+                style={styles.backButton}
+                onPress={handleBack}
+              >
+                <MaterialCommunityIcons
+                  name="arrow-left" 
+                  size={24}
+                  color={themeColors.text} 
+                />
+              </TouchableOpacity>
               <View style={[
                 styles.difficultyBadge, 
                 { backgroundColor: getDifficultyColor(exercise.difficulty) }
               ]}>
                 <Text style={styles.difficultyText}>
-                  {exercise.difficulty}
+                  {translateDifficulty(exercise.difficulty)}
                 </Text>
               </View>
+            </View>
+          )}
+          <View style={styles.headerContent}>
+            <View style={styles.headerTitleContainer}>
+              <Text style={[styles.headerTitle, { color: themeColors.text }]}>
+                {exercise.title || "Exercice"}
+              </Text>
             </View>
             <View style={styles.progressContainer}>
               <Text style={[styles.progressText, { color: themeColors.text }]}>
@@ -542,16 +556,23 @@ const styles = StyleSheet.create({
   headerContent: {
     width: '100%',
   },
-  headerTitleRow: {
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
+  backButton: {
+    padding: 8,
+    borderRadius: 8,
+  },
+  headerTitleContainer: {
+    marginBottom: 16,
+  },
   headerTitle: {
     fontSize: 18,
-    width: '80%',
     fontWeight: '600',
+    flexWrap: 'wrap',
   },
   difficultyBadge: {
     paddingHorizontal: 12,
@@ -707,19 +728,14 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '600',
   },
-  backButton: {
-    padding: 8,
-    borderRadius: 8,
+  footer: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.1)',
   },
-  fixedButtonsContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+  footerButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 5,
-    zIndex: 1000,
+    gap: 12,
   },
   actionButton: {
     flexDirection: 'row',
@@ -751,15 +767,6 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 16,
     color: '#000000',
-  },
-  footer: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  footerButtons: {
-    flexDirection: 'row',
-    gap: 12,
   },
 }); 
 

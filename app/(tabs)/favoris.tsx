@@ -29,6 +29,7 @@ interface FavoriteMinimal {
 interface FavoriteDisplay {
   chapterId: string;
   chapterTitle: string;
+  themeLabel: string;
   subjectId: string;
   subjectLabel: string;
   subjectIcon: keyof typeof MaterialCommunityIcons.glyphMap;
@@ -143,6 +144,7 @@ export default function FavorisScreen() {
         if (!chapterData.title || !subjectData.label || !subjectData.icon) {
           continue;
         }
+        console.log(subjectData.gradient);
         // Sécurisation du gradient
         const safeGradient = typeof subjectData.gradient === 'string' && subjectData.gradient.includes('linear-gradient')
           ? subjectData.gradient
@@ -150,6 +152,7 @@ export default function FavorisScreen() {
         displayFavorites.push({
           chapterId: fav.chapterId,
           chapterTitle: chapterData.title,
+          themeLabel: themeData.title,
           subjectId: themeData.subjectId,
           subjectLabel: subjectData.label,
           subjectIcon: subjectData.icon as keyof typeof MaterialCommunityIcons.glyphMap,
@@ -191,6 +194,8 @@ export default function FavorisScreen() {
         subject: course.subjectId,
         subjectLabel: course.subjectLabel,
         chapterLabel: course.chapterTitle,
+        themeLabel: course.themeLabel,
+        subjectGradient: course.subjectGradient,
       },
     } as any);
   };

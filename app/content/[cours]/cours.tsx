@@ -24,6 +24,8 @@ import katex from 'katex';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import { parseGradient } from '../../utils/subjectGradients';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface CoursSection {
   title: string;
@@ -52,7 +54,6 @@ export default function CoursScreen() {
     text: isDarkMode ? '#ffffff' : '#000000',
     card: isDarkMode ? '#2d2d2d' : '#f5f5f5',
     border: isDarkMode ? '#333333' : '#e0e0e0',
-    accent: '#60a5fa',
   };
 
   const [coursContent, setCoursContent] = useState<CoursContent | null>(null);
@@ -280,11 +281,14 @@ export default function CoursScreen() {
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+    /*
     if (adLoaded && interstitialAd) {
       interstitialAd.show();
     } else {
       router.back();
     }
+    */
   };
 
   const generatePDF = async () => {
@@ -543,7 +547,7 @@ export default function CoursScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={themeColors.accent} />
+          <ActivityIndicator size="large" color={parseGradient(params.subjectGradient as string)[0]} />
           <Text style={[styles.loadingText, { color: themeColors.text }]}>
             Chargement du cours...
           </Text>
@@ -587,11 +591,11 @@ export default function CoursScreen() {
           />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.subjectLabel, { color: themeColors.accent }]}>
+          <Text style={[styles.subjectLabel, { color: parseGradient(params.subjectGradient as string)[0] }]}>
             {params.subjectLabel}
           </Text>
           <Text style={[styles.chapterLabel, { color: themeColors.text }]}>
-            {params.chapterLabel}
+            {params.themeLabel}
           </Text>
         </View>
         <TouchableOpacity 
@@ -609,13 +613,23 @@ export default function CoursScreen() {
       {/* Content */}
       <ScrollView style={styles.content}>
         <View style={[styles.courseCard, { backgroundColor: themeColors.card }]}>
-          <Text style={[styles.courseTitle, { color: themeColors.text }]}>
+          <Text style={[styles.courseTitle, { color: themeColors.text }]}
+            numberOfLines={5}
+            adjustsFontSizeToFit
+          >
             {coursContent.title}
           </Text>
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: themeColors.accent }]}>
-              Introduction
-            </Text>
+            <LinearGradient
+              colors={parseGradient(params.subjectGradient as string)}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.sectionTitleGradient}
+            >
+              <Text style={styles.sectionTitle}>
+                Introduction
+              </Text>
+            </LinearGradient>
             <View style={styles.mathContent}>
               <MathText
                 content={coursContent.introduction}
@@ -627,15 +641,22 @@ export default function CoursScreen() {
 
           {coursContent.sections.map((section: CoursSection, index: number) => (
             <View key={index} style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: themeColors.accent }]}>
-                {section.title}
-              </Text>
+              <LinearGradient
+                colors={parseGradient(params.subjectGradient as string)}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.sectionTitleGradient}
+              >
+                <Text style={styles.sectionTitle}>
+                  {section.title}
+                </Text>
+              </LinearGradient>
               <View style={styles.mathContent}>
-              <MathText
-                content={section.content}
-                type="cours"
-                isDarkMode={isDarkMode}
-              />
+                <MathText
+                  content={section.content}
+                  type="cours"
+                  isDarkMode={isDarkMode}
+                />
               </View>
               
               {section.examples && (
@@ -661,9 +682,9 @@ export default function CoursScreen() {
                       <MaterialCommunityIcons 
                         name="check-circle" 
                         size={20} 
-                        color={themeColors.accent} 
+                        color={parseGradient(params.subjectGradient as string)[0]} 
                       />
-                     <MathText
+                      <MathText
                         content={point}
                         type="cours"
                         isDarkMode={isDarkMode}
@@ -676,9 +697,16 @@ export default function CoursScreen() {
           ))}
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: themeColors.accent }]}>
-              Conclusion
-            </Text>
+            <LinearGradient
+              colors={parseGradient(params.subjectGradient as string)}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.sectionTitleGradient}
+            >
+              <Text style={styles.sectionTitle}>
+                Conclusion
+              </Text>
+            </LinearGradient>
             <MathText
               content={coursContent.conclusion}
               type="cours"
@@ -690,12 +718,19 @@ export default function CoursScreen() {
 
       {/* Footer with export button */}
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={[styles.footerButton, { backgroundColor: themeColors.accent }]}
-          onPress={handleExport}
+        <LinearGradient
+          colors={parseGradient(params.subjectGradient as string)}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.footerButton}
         >
-          <MaterialCommunityIcons name="share-variant" size={24} color="#fff" />
-        </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.footerButtonContent}
+            onPress={handleExport}
+          >
+            <MaterialCommunityIcons name="share-variant" size={24} color="#fff" />
+          </TouchableOpacity>
+        </LinearGradient>
       </View>
     </SafeAreaView>
   );
@@ -745,6 +780,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 20,
+    textAlign: 'center',
   },
   section: {
     marginBottom: 24,
@@ -752,7 +788,8 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 12,
+    color: '#fff',
+    textAlign: 'center',
   },
   text: {
     fontSize: 16,
@@ -822,17 +859,29 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
   },
+  footerButtonContent: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   favoriteButton: {
     padding: 8,
     marginLeft: 'auto',
+  },
+  sectionTitleGradient: {
+    borderRadius: 8,
+    marginBottom: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignSelf: 'center',
+    width: '100%',
   },
 });
 

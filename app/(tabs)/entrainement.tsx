@@ -170,9 +170,11 @@ const SubjectScene: React.FC<SubjectSceneProps> = ({ subject, themeColors }) => 
                   { 
                     backgroundColor: themeColors.background,
                     borderColor: themeColors.border,
+                    opacity: chapter.cours ? 1 : 0.5
                   }
                 ]}
-                onPress={() => handleChapterPress(theme, chapter)}
+                onPress={() => chapter.cours && handleChapterPress(theme, chapter)}
+                disabled={!chapter.cours}
               >
                 <View style={styles.chapterContent}>
                   <View style={styles.chapterHeader}>
@@ -191,7 +193,7 @@ const SubjectScene: React.FC<SubjectSceneProps> = ({ subject, themeColors }) => 
                     style={[styles.chapterDescription, { color: themeColors.text }]}
                     numberOfLines={2}
                   >
-                    {chapter.cours.content}
+                    {chapter.cours?.content}
                   </Text>
                 </View>
                 <MaterialCommunityIcons
@@ -214,6 +216,7 @@ export default function EntrainementScreen() {
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
 
   const themeColors = {
     background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -221,19 +224,6 @@ export default function EntrainementScreen() {
     card: isDarkMode ? '#2d2d2d' : '#f5f5f5',
     border: isDarkMode ? '#333333' : '#e0e0e0',
   };
-
-  const { subjects, loading: subjectsLoading } = useSchoolData(
-    userProfile?.country,
-    userProfile?.schoolType,
-    userProfile?.class
-  );
-
-  // Sélectionner automatiquement le premier sujet lorsque les sujets sont chargés
-  useEffect(() => {
-    if (subjects && subjects.length > 0 && !selectedSubject) {
-      setSelectedSubject(subjects[0]);
-    }
-  }, [subjects]);
 
   const loadUserProfile = async () => {
     setLoading(true);
@@ -247,6 +237,18 @@ export default function EntrainementScreen() {
       const userData = userDoc.data();
       if (userData.profile) {
         setUserProfile(userData.profile);
+        
+        // Récupérer les informations complètes des sujets sélectionnés
+        const subjectsRef = collection(db, 'subjects');
+        const subjectsSnapshot = await getDocs(subjectsRef);
+        const subjectsData = subjectsSnapshot.docs
+          .filter(doc => userData.profile.subjects.some((s: any) => s.id === doc.id))
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as Subject[];
+        
+        setSubjects(subjectsData);
       }
     } catch (error) {
       console.error('Erreur lors du chargement du profil:', error);
@@ -261,7 +263,14 @@ export default function EntrainementScreen() {
     }, [])
   );
 
-  if (loading || subjectsLoading) {
+  // Sélectionner automatiquement le premier sujet lorsque les sujets sont chargés
+  useEffect(() => {
+    if (subjects && subjects.length > 0 && !selectedSubject) {
+      setSelectedSubject(subjects[0]);
+    }
+  }, [subjects]);
+
+  if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.background }]}>
         <ActivityIndicator size="large" color="#60a5fa" />
