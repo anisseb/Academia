@@ -446,13 +446,11 @@ export default function HomeScreen() {
           if (!course.timestamp) {
             return false;
           }
-          
-          const courseDate = new Date(course.timestamp);
-          
+          // Convertir le timestamp Firestore en Date
+          const courseDate = new Date(course.timestamp.seconds * 1000);
           // Créer les dates de début de jour en heure française
           const courseDateStart = new Date(courseDate);
           courseDateStart.setHours(0, 0, 0, 0);
-          
           const todayStart = new Date(today);
           todayStart.setHours(0, 0, 0, 0);
           
