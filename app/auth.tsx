@@ -16,9 +16,7 @@ import {
   getAuth, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
-  sendPasswordResetEmail,
-  FacebookAuthProvider,
-  signInWithCredential,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -27,14 +25,6 @@ import { showErrorAlert, showSuccessAlert } from './utils/alerts';
 import { Image } from 'expo-image';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  AccessToken,
-  LoginButton,
-  Settings,
-  Profile,
-  LoginManager,
-} from "react-native-fbsdk-next";
-import * as TrackingTransparency from 'expo-tracking-transparency';
 import * as SecureStore from 'expo-secure-store';
 
 export default function AuthScreen() {
@@ -49,7 +39,6 @@ export default function AuthScreen() {
   const [hasSavedCredentials, setHasSavedCredentials] = useState(false);
   const [savedUserName, setSavedUserName] = useState('');
   const [showFullForm, setShowFullForm] = useState(false);
-  const [hasTrackingPermission, setHasTrackingPermission] = useState(Platform.OS !== 'ios');
   const router = useRouter();
   const auth = getAuth();
   const insets = useSafeAreaInsets();
@@ -58,27 +47,9 @@ export default function AuthScreen() {
     const initializeAuth = async () => {
       await checkBiometricSupport();
       await checkSavedCredentials();
-      if (Platform.OS === 'ios') {
-        await checkTrackingPermission();
-      }
     };
     initializeAuth();
   }, []);
-
-  const checkTrackingPermission = async () => {
-    try {
-      const { status } = await TrackingTransparency.requestTrackingPermissionsAsync();
-      if (status === 'granted') {
-        setHasTrackingPermission(true);
-        await Settings.setAdvertiserTrackingEnabled(true);
-      } else {
-        setHasTrackingPermission(false);
-      }
-    } catch (error) {
-      console.error('Erreur lors de la vérification des permissions de tracking:', error);
-      setHasTrackingPermission(false);
-    }
-  };
 
   const checkBiometricSupport = async () => {
     const compatible = await LocalAuthentication.hasHardwareAsync();
@@ -96,22 +67,15 @@ export default function AuthScreen() {
       if (hasCredentials) {
         const auth = getAuth();
         try {
-          if (savedAuthMethod === 'facebook') {
-            const userDoc = await getDoc(doc(db, 'users', savedEmail));
-            if (userDoc.exists()) {
-              setSavedUserName(userDoc.data().profile.name || 'Utilisateur');
-            }
-          } else {
+          if (savedAuthMethod === 'email') {
             const savedPassword = await SecureStore.getItemAsync('userPassword');
             if (savedPassword) {
               const userCredential = await signInWithEmailAndPassword(auth, savedEmail, savedPassword);
               const userId = userCredential.user.uid;
-              
               const userDoc = await getDoc(doc(db, 'users', userId));
               if (userDoc.exists()) {
                 setSavedUserName(userDoc.data().profile.name || 'Utilisateur');
               }
-              
               await auth.signOut();
             }
           }
@@ -141,22 +105,13 @@ export default function AuthScreen() {
         const savedEmail = await SecureStore.getItemAsync('userEmail');
         const savedAuthMethod = await SecureStore.getItemAsync('authMethod');
         
-        if (savedEmail && savedAuthMethod) {
+        if (savedEmail && savedAuthMethod === 'email') {
           setIsLoading(true);
           try {
-            if (savedAuthMethod === 'facebook') {
-              const tokenData = await AccessToken.getCurrentAccessToken();
-              if (tokenData?.accessToken) {
-                await loginWithFacebook(tokenData.accessToken);
-              } else {
-                showErrorAlert('Erreur', 'Impossible de se connecter avec Facebook');
-              }
-            } else {
-              const savedPassword = await SecureStore.getItemAsync('userPassword');
-              if (savedPassword) {
-                await signInWithEmailAndPassword(auth, savedEmail, savedPassword);
-                router.replace('/onboarding');
-              }
+            const savedPassword = await SecureStore.getItemAsync('userPassword');
+            if (savedPassword) {
+              await signInWithEmailAndPassword(auth, savedEmail, savedPassword);
+              router.replace('/onboarding');
             }
           } catch (error) {
             console.error('Erreur lors de la connexion:', error);
@@ -351,67 +306,6 @@ export default function AuthScreen() {
       await SecureStore.setItemAsync('authMethod', 'email');
     } catch (error) {
       console.error('Erreur lors de la sauvegarde des identifiants:', error);
-    }
-  };
-
-  const loginWithFacebook = async (accessToken: string) => {
-    try {
-      setIsLoading(true);
-
-      let facebookCredential;
-      if (Platform.OS === "ios") {
-        facebookCredential = FacebookAuthProvider.credential(accessToken);
-      } else {
-        facebookCredential = FacebookAuthProvider.credential(accessToken);
-      }
-
-      const userCredential = await signInWithCredential(auth, facebookCredential);
-      const user = userCredential.user;
-
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      
-      if (!userDoc.exists()) {
-        const currentProfile = await Profile.getCurrentProfile();
-        
-        await setDoc(doc(db, 'users', user.uid), {
-          profile: {
-            name: '',
-            username: '',
-            country: '',
-            schoolType: '',
-            class: '',
-            section: '',
-            onboardingCompleted: false,
-            subjects: [],
-            createdAt: new Date(),
-            facebookId: currentProfile?.userID
-          },
-          threads: {}
-        });
-      }
-
-      // Sauvegarder les identifiants Facebook dans le Keychain
-      await SecureStore.setItemAsync('userEmail', user.uid);
-      await SecureStore.setItemAsync('authMethod', 'facebook');
-
-      router.replace('/onboarding');
-    } catch (error: any) {
-      console.error('Erreur lors de la création du profil:', error);
-      await LoginManager.logOut();
-      
-      switch (error.code) {
-        case 'auth/account-exists-with-different-credential':
-          showErrorAlert('Erreur', 'Un compte existe déjà avec cette adresse email mais avec une méthode de connexion différente');
-          break;
-        case 'auth/invalid-credential':
-          showErrorAlert('Erreur', 'La connexion avec Facebook a échoué. Veuillez réessayer.');
-          break;
-        default:
-          showErrorAlert('Erreur', 'Une erreur est survenue lors de la création du profil. Veuillez réessayer.');
-          break;
-      }
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -622,73 +516,6 @@ export default function AuthScreen() {
               {isLogin ? '✨ Créer un compte' : '👋 Déjà un compte ? Se connecter'}
             </Text>
           </TouchableOpacity>
-
-          {isLogin && (
-            <View style={styles.socialButtonsContainer}>
-              {Platform.OS === 'ios' && !hasTrackingPermission ? (
-                <TouchableOpacity 
-                  style={[styles.socialButton, styles.facebookButton]} 
-                  onPress={checkTrackingPermission}
-                >
-                  <MaterialCommunityIcons name="facebook" size={24} color="#fff" style={styles.socialButtonIcon} />
-                  <Text style={styles.socialButtonText}>Autoriser Facebook pour continuer</Text>
-                </TouchableOpacity>
-              ) : (
-                <>
-                  <View style={styles.orContainer}>
-                    <View style={styles.orLine} />
-                    <Text style={styles.orText}>ou</Text>
-                    <View style={styles.orLine} />
-                  </View>
-                  <View style={styles.facebookButton}>
-                    <LoginButton
-                      onLoginFinished={async (error, result) => {
-                        if (error) {
-                          console.log("login has error: " + result);
-                        } else if (result.isCancelled) {
-                          console.log("login is cancelled.");
-                        } else {
-                          try {
-                            const tokenData = await AccessToken.getCurrentAccessToken();
-                            if (!tokenData?.accessToken) {
-                              throw new Error("Token d'accès manquant");
-                            }
-                            await loginWithFacebook(tokenData.accessToken);
-                          } catch (error) {
-                            console.error("Erreur lors de la récupération du token:", error);
-                            showErrorAlert('Erreur', 'Impossible de récupérer le token d\'authentification');
-                          }
-                        }
-                      }}
-                      onLogoutFinished={async () => {
-                        try {
-                          // Supprimer les identifiants de SecureStore
-                          await SecureStore.deleteItemAsync('userEmail');
-                          await SecureStore.deleteItemAsync('userPassword');
-                          await SecureStore.deleteItemAsync('authMethod');
-                          
-                          // Déconnecter de Firebase
-                          await auth.signOut();
-                          
-                          // Déconnecter de Facebook
-                          await LoginManager.logOut();
-                          
-                          // Réinitialiser l'état
-                          setHasSavedCredentials(false);
-                          setSavedUserName('');
-                          setShowFullForm(false);
-                          
-                        } catch (error) {
-                          console.error("Erreur lors de la déconnexion:", error);
-                          showErrorAlert('Erreur', 'Une erreur est survenue lors de la déconnexion');
-                        }
-                      }}
-                    />
-                </View>
-                </>
-              )}
-            </View>
-          )}
         </View>
       </ScrollView>
       )}
@@ -884,53 +711,5 @@ const styles = StyleSheet.create({
     color: '#60a5fa',
     marginLeft: 5,
     fontSize: 16,
-  },
-  socialButtonsContainer: {
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  socialButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 15,
-    borderRadius: 12,
-    width: '100%',
-    marginBottom: 15,
-  },
-  facebookButton: {
-    backgroundColor: '#1877f2',
-    padding: 15,
-    borderRadius: 12,
-    width: 200,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  socialButtonIcon: {
-    marginRight: 10,
-  },
-  socialButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  orContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-    width: '100%',
-  },
-  orLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#666',
-    marginHorizontal: 10,
-  },
-  orText: {
-    color: '#666',
-    fontSize: 14,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
   },
 }); 

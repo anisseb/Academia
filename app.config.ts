@@ -18,16 +18,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       ...config.ios?.infoPlist,
       ITSAppUsesNonExemptEncryption: false,
       NSFaceIDUsageDescription: "Academia utilise Face ID pour vous permettre de vous connecter rapidement et de manière sécurisée à votre compte.",
-      FacebookAppID: "653735364141256",
-      FacebookClientToken: "4a146c687260212ea9d812f5209cecc7",
-      FacebookDisplayName: "AcademIA",
-      LSApplicationQueriesSchemes: [
-        "fbapi",
-        "fb-messenger-share-api",
-        "fbapi",
-        "fb-messenger-share-api"
-      ],
-      NSUserTrackingUsageDescription: "Nous utilisons cette autorisation pour vous proposer une expérience personnalisée.",
       SKAdNetworkItems: [
         {
           SKAdNetworkIdentifier: "v9wttpbfk9.skadnetwork"
@@ -115,20 +105,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "iosAppId": "ca-app-pub-9849575862637315~3948002761"
       }
     ],
-    [
-      "react-native-fbsdk-next",
-      {
-        "appID": "653735364141256",
-        "clientToken": "4a146c687260212ea9d812f5209cecc7",
-        "displayName": "AcademIA",
-        "scheme": "fb653735364141256",
-        "advertiserIDCollectionEnabled": false,
-        "autoLogAppEventsEnabled": false,
-        "isAutoInitEnabled": true,
-        "iosUserTrackingPermission": "Nous utilisons cette autorisation pour vous proposer une expérience personnalisée."
-      }
-    ],
-    "expo-tracking-transparency",
     [
       "expo-secure-store",
       {

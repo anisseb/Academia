@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Linking } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Purchases from 'react-native-purchases';
 import { Platform } from 'react-native';
@@ -196,7 +196,7 @@ export default function Subscriptions() {
                   } else {
                     return (
                       offerings.availablePackages.find((p: any) => p.product.identifier === id)?.product.priceString ||
-                      '14,99€ / mois'
+                      '9,99€ / mois'
                     );
                   }
                 })()
@@ -271,9 +271,17 @@ export default function Subscriptions() {
             <Text style={styles.ctaText}>Choisir le Pack Famille</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.restoreButton} onPress={() => router.push('/(tabs)/settings/restore-purchase')}>
-          <Text style={styles.restoreText}>Restaurer un achat</Text>
-        </TouchableOpacity>
+        <View style={styles.footer}>
+          <TouchableOpacity style={styles.restoreButton} onPress={() => router.push('/(tabs)/settings/restore-purchase')}>
+            <Text style={styles.restoreText} numberOfLines={1} ellipsizeMode="tail">Restaurer un achat</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => Linking.openURL('https://academiaforkids.com/fr/cgu/')} style={styles.footerLink}>
+            <Text style={styles.footerLinkText} numberOfLines={1} ellipsizeMode="tail">CGU</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => Linking.openURL('https://academiaforkids.com/fr/politique-de-confidentialite-academia/')} style={styles.footerLink}>
+            <Text style={styles.footerLinkText} numberOfLines={1} ellipsizeMode="tail">Politique de confidentialité</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </>
   );
@@ -417,7 +425,6 @@ const styles = StyleSheet.create({
   },
   restoreButton: {
     marginTop: 0,
-    paddingBottom: 10,
     alignItems: 'center',
   },
   restoreText: {
@@ -425,5 +432,22 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     fontSize: 14,
     textDecorationLine: 'underline',
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: 8,
+  },
+  footerLink: {
+    flexShrink: 1,
+    maxWidth: 130,
+  },
+  footerLinkText: {
+    textDecorationLine: 'underline',
+    color: '#60a5fa',
+    fontSize: 14,
+    textAlign: 'center',
   },
 }); 

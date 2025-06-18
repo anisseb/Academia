@@ -137,7 +137,7 @@ export default function Onboarding() {
         }
         return <Step6b onNext={handleNext} onBack={handleBack} data={{ name: data.name, username: data.username, country: data.country, schoolType: data.schoolType, class: data.class, subjects: data.subjects, notificationsEnabled: data.notificationsEnabled }} />;
       case 8:
-        if (!data.schoolType || !data.class || !data.subjects || !data.notificationsEnabled) {
+        if (!data.schoolType || !data.class || !data.subjects) {
           setStep(8);
           return null;
         }

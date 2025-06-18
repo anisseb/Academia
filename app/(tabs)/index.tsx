@@ -171,11 +171,7 @@ export default function HomeScreen() {
     loadUserName();
     loadDailyExpression();
     // Vérifier la connexion avant de configurer les notifications
-    NetInfo.fetch().then(state => {
-      if (state.isConnected) {
-        configureNotifications();
-      }
-    });
+
     loadReminderTime();
   }, []);
 

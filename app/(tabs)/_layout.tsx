@@ -1,11 +1,11 @@
 import { Stack } from 'expo-router';
 import { useRef, useState, useEffect } from 'react';
-import { Animated, Alert, Keyboard, Platform, AlertButton, PanResponder, StatusBar } from 'react-native';
+import { Animated, Keyboard, Platform, PanResponder, StatusBar } from 'react-native';
 import { StyleSheet, Pressable, View, Text, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
-import { Feather, FontAwesome } from '@expo/vector-icons';
-import { onSnapshot, doc, updateDoc, getDoc, deleteField, collection, query, where, addDoc, deleteDoc, setDoc } from 'firebase/firestore';
+import { Feather } from '@expo/vector-icons';
+import { onSnapshot, doc, updateDoc, getDoc, deleteField, setDoc } from 'firebase/firestore';
 import React from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { showAlert, showConfirmAlert } from '../utils/alerts';
@@ -15,7 +15,6 @@ import * as Haptics from 'expo-haptics';
 import { ref, listAll, deleteObject } from 'firebase/storage';
 import { storage } from '../../firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LoginManager } from 'react-native-fbsdk-next';
 import NetInfo from '@react-native-community/netinfo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -351,16 +350,10 @@ export default function TabLayout() {
 
   const handleLogout = async () => {
     try {
-      // Vérifier si l'utilisateur est connecté avec Facebook
-      const authMethod = await AsyncStorage.getItem('authMethod');
-      if (authMethod === 'facebook') {
-        // Déconnecter de Facebook
-        await LoginManager.logOut();
-        // Supprimer les identifiants sauvegardés
-        await AsyncStorage.removeItem('userEmail');
-        await AsyncStorage.removeItem('userPassword');
-        await AsyncStorage.removeItem('authMethod');
-      }
+      // Supprimer les identifiants sauvegardés
+      await AsyncStorage.removeItem('userEmail');
+      await AsyncStorage.removeItem('userPassword');
+      await AsyncStorage.removeItem('authMethod');
       // Déconnecter de Firebase
       await auth.signOut();
       router.replace('/auth');
