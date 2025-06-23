@@ -187,7 +187,7 @@ export default function Subscriptions() {
                   }
                   if (mode === 'an') {
                     const annualPackage = offerings.availablePackages.find((p: any) => p.product.identifier === id);
-                    const prixMois = annualPackage?.product.priceString || '';
+                    const prixMois = annualPackage?.product.pricePerMonthString || '';
                     const prixAnnee = annualPackage?.product.pricePerYearString || '';
 
                     return prixMois && prixAnnee
@@ -235,7 +235,7 @@ export default function Subscriptions() {
                   }
                   if (mode === 'an') {
                     const annualPackage = offerings.availablePackages.find((p: any) => p.product.identifier === id);
-                    const prixMois = annualPackage?.product.priceString || '';
+                    const prixMois = annualPackage?.product.pricePerMonthString || '';
                     const prixAnnee = annualPackage?.product.pricePerYearString || '';
                     return prixMois && prixAnnee
                       ? `${prixMois} / mois (${prixAnnee} / an)`

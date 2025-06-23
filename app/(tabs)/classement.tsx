@@ -384,7 +384,8 @@ export default function ClassementScreen() {
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        if (data.profile) {
+        // Vérifier que l'utilisateur a terminé l'onboarding
+        if (data.profile && data.profile.onboardingCompleted === true) {
           const totalScore = calculateTotalScore(data.profile, selectedSubject || undefined);
           
           if (activeTab === 'friends' && !friends.includes(doc.id) && doc.id !== currentUserId) return;

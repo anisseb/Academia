@@ -49,7 +49,6 @@ const updateSessionToken = async (userId) => {
       }
     });
 
-    console.log('New session token generated:', sessionToken);
     return sessionToken;
   } catch (error) {
     console.error('Error updating session token:', error);
@@ -64,16 +63,11 @@ const validateSession = async (userId, currentToken) => {
     const sessionDoc = await getDoc(sessionRef);
     
     if (!sessionDoc.exists()) {
-      console.log('Session document does not exist');
       return false;
     }
 
     const sessionData = sessionDoc.data();
-    console.log('Current token:', currentToken);
-    console.log('Stored token:', sessionData.token);
-    
     const isValid = sessionData.token === currentToken;
-    console.log('Session is valid:', isValid);
     
     return isValid;
   } catch (error) {
@@ -90,11 +84,8 @@ const logoutOtherSessions = async (userId, currentToken) => {
     
     if (sessionDoc.exists()) {
       const sessionData = sessionDoc.data();
-      console.log('Current token:', currentToken);
-      console.log('Stored token:', sessionData.token);
       
       if (sessionData.token !== currentToken) {
-        console.log('Token mismatch, logging out');
         await auth.signOut();
         return true;
       }

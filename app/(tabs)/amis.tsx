@@ -250,17 +250,20 @@ export default function AmisScreen() {
           const friendDoc = await getDoc(doc(db, 'users', friendId));
           if (friendDoc.exists()) {
             const friendData = friendDoc.data();
-            return {
-              id: friendId,
-              username: friendData.profile.username,
-              name: friendData.profile.name,
-              status: 'accepted' as const,
-              key: `friend-${friendId}`,
-              schoolType: friendData.profile.schoolType,
-              class: friendData.profile.class,
-              completedAchievements: friendData.profile.completedAchievements,
-              displayedAchievements: friendData.profile.displayedAchievements
-            };
+            // Vérifier que l'ami a terminé l'onboarding
+            if (friendData.profile.onboardingCompleted === true) {
+              return {
+                id: friendId,
+                username: friendData.profile.username,
+                name: friendData.profile.name,
+                status: 'accepted' as const,
+                key: `friend-${friendId}`,
+                schoolType: friendData.profile.schoolType,
+                class: friendData.profile.class,
+                completedAchievements: friendData.profile.completedAchievements,
+                displayedAchievements: friendData.profile.displayedAchievements
+              };
+            }
           }
           return null;
         })
@@ -272,17 +275,20 @@ export default function AmisScreen() {
           const friendDoc = await getDoc(doc(db, 'users', friendId));
           if (friendDoc.exists()) {
             const friendData = friendDoc.data();
-            return {
-              id: friendId,
-              username: friendData.profile.username,
-              name: friendData.profile.name,
-              status: 'pending' as const,
-              key: `pending-${friendId}`,
-              schoolType: friendData.profile.schoolType,
-              class: friendData.profile.class,
-              completedAchievements: friendData.profile.completedAchievements,
-              displayedAchievements: friendData.profile.displayedAchievements
-            };
+            // Vérifier que l'utilisateur a terminé l'onboarding
+            if (friendData.profile.onboardingCompleted === true) {
+              return {
+                id: friendId,
+                username: friendData.profile.username,
+                name: friendData.profile.name,
+                status: 'pending' as const,
+                key: `pending-${friendId}`,
+                schoolType: friendData.profile.schoolType,
+                class: friendData.profile.class,
+                completedAchievements: friendData.profile.completedAchievements,
+                displayedAchievements: friendData.profile.displayedAchievements
+              };
+            }
           }
           return null;
         })
@@ -294,17 +300,20 @@ export default function AmisScreen() {
           const friendDoc = await getDoc(doc(db, 'users', friendId));
           if (friendDoc.exists()) {
             const friendData = friendDoc.data();
-            return {
-              id: friendId,
-              username: friendData.profile.username,
-              name: friendData.profile.name,
-              status: 'sent' as const,
-              key: `sent-${friendId}`,
-              schoolType: friendData.profile.schoolType,
-              class: friendData.profile.class,
-              completedAchievements: friendData.profile.completedAchievements,
-              displayedAchievements: friendData.profile.displayedAchievements
-            };
+            // Vérifier que l'utilisateur a terminé l'onboarding
+            if (friendData.profile.onboardingCompleted === true) {
+              return {
+                id: friendId,
+                username: friendData.profile.username,
+                name: friendData.profile.name,
+                status: 'sent' as const,
+                key: `sent-${friendId}`,
+                schoolType: friendData.profile.schoolType,
+                class: friendData.profile.class,
+                completedAchievements: friendData.profile.completedAchievements,
+                displayedAchievements: friendData.profile.displayedAchievements
+              };
+            }
           }
           return null;
         })
@@ -355,7 +364,11 @@ export default function AmisScreen() {
       const querySnapshot = await getDocs(q);
       
       const results = querySnapshot.docs
-        .filter(doc => doc.id !== auth.currentUser?.uid)
+        .filter(doc => {
+          const data = doc.data() as DocumentData;
+          // Vérifier que l'utilisateur a terminé l'onboarding et n'est pas l'utilisateur actuel
+          return doc.id !== auth.currentUser?.uid && data.profile.onboardingCompleted === true;
+        })
         .map(doc => {
           const data = doc.data() as DocumentData;
           return {

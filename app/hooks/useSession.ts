@@ -36,10 +36,8 @@ export const useSession = () => {
 
       // Récupérer le token stocké localement
       const localToken = await AsyncStorage.getItem(SESSION_TOKEN_KEY);
-      console.log('Local stored token:', localToken);
       
       if (!localToken) {
-        console.log('No local token found, creating new one');
         // Si pas de token stocké, en créer un nouveau
         const newToken = await updateSessionToken(user.uid);
         await AsyncStorage.setItem(SESSION_TOKEN_KEY, newToken);
@@ -48,13 +46,11 @@ export const useSession = () => {
         const storedToken = await validateSession(user.uid, localToken);
         
         if (!storedToken) {
-          console.log('Session is not valid, logging out');
           await handleSessionExpired();
         } else {
           // Vérifier si d'autres sessions ont été créées
           const wasLoggedOut = await logoutOtherSessions(user.uid, localToken);
           if (wasLoggedOut) {
-            console.log('Other session detected, logging out');
             await handleSessionExpired();
           }
         }
@@ -75,12 +71,10 @@ export const useSession = () => {
     // Écouter les changements d'état de l'authentification
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
-        console.log('User authenticated, updating session token');
         // À chaque connexion, mettre à jour le token
         const newToken = await updateSessionToken(user.uid);
         await AsyncStorage.setItem(SESSION_TOKEN_KEY, newToken);
       } else {
-        console.log('User logged out, clearing session token');
         // À la déconnexion, supprimer le token
         await AsyncStorage.removeItem(SESSION_TOKEN_KEY);
       }

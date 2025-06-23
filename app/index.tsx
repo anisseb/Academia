@@ -5,6 +5,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import * as SplashScreen from 'expo-splash-screen';
+import { updateSubscriptionStatus } from './utils/subscriptionUtils';
 
 // Empêche le splash de se cacher automatiquement
 SplashScreen.preventAutoHideAsync();
@@ -27,6 +28,12 @@ export default function Index() {
           await SplashScreen.hideAsync();
           router.replace('/onboarding');
         } else {
+          // Vérifier et mettre à jour le statut d'abonnement si nécessaire
+          if (userData.abonnement) {
+            await updateSubscriptionStatus(user.uid, userData.abonnement);
+          }
+          
+          console.log('test', userData.abonnement);
           await SplashScreen.hideAsync();
           router.replace('/(tabs)');
         }

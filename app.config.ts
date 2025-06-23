@@ -123,7 +123,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     eas: {
       projectId: "05388435-4c2f-49e4-83a2-1ed0d62649b4"
     },
-    EXPO_PUBLIC_REVENUECAT_API_KEY_IOS: "appl_YPDPIHytWWRxjTtvctxgrFmpmbB"
+    EXPO_PUBLIC_REVENUECAT_API_KEY_IOS: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS || "",
+    EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID || ""
   },
   owner: "anisse3000",
   runtimeVersion: "1.0.0",
