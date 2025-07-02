@@ -204,10 +204,12 @@ export default function AuthScreen() {
         await setDoc(doc(db, 'users', userId), {
           profile: {
             name: '',
-            is_admin: false,
             username: '',
             country: '',
             schoolType: '',
+            completedAchievements: [],
+            displayedAchievements: [],
+            completedExercises: {},
             class: '',
             section: '',
             onboardingCompleted: false,
@@ -215,7 +217,6 @@ export default function AuthScreen() {
             email: email,
             createdAt: new Date(),
           },
-          threads: {}
         });
       }
       router.replace('/onboarding');

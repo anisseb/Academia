@@ -391,6 +391,12 @@ export default function ProfileScreen() {
     return (
       <View style={[styles.section, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Matières</Text>
+        <Text style={[styles.sectionDescription, { color: themeColors.text }]}>
+          {isEditing 
+            ? "Choisissez les matières que vous souhaitez travailler"
+            : "Cliquez sur 'Modifier' pour choisir les matières que vous souhaitez travailler"
+          }
+        </Text>
         <View style={styles.subjectsGrid}>
           {subjects.map((subject) => {
             const isSelected = profileData.subjects.some(s => s.id === subject.id);
@@ -399,9 +405,14 @@ export default function ProfileScreen() {
                 key={subject.id}
                 style={[
                   styles.subjectButton,
-                  { borderColor: isSelected ? parseGradient(subject.gradient)[1] : themeColors.border }
+                  { 
+                    borderColor: isSelected ? parseGradient(subject.gradient)[1] : themeColors.border,
+                    opacity: isEditing ? 1 : 0.6
+                  }
                 ]}
-                onPress={() => toggleSubject(subject)}
+                onPress={() => isEditing && toggleSubject(subject)}
+                disabled={!isEditing}
+                activeOpacity={isEditing ? 0.7 : 1}
               >
                 {isSelected && (
                   <View style={styles.selectedBadge}>
@@ -477,7 +488,10 @@ export default function ProfileScreen() {
       <View style={[styles.section, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Succès affichés</Text>
         <Text style={[styles.sectionDescription, { color: themeColors.text }]}>
-          Choisissez les succès que vous souhaitez afficher dans votre profil
+          {isEditing 
+            ? "Choisissez les succès que vous souhaitez afficher dans votre profil"
+            : "Cliquez sur 'Modifier' pour choisir les succès à afficher"
+          }
         </Text>
         <View style={styles.achievementsGrid}>
           {completedAchievements.map((achievement) => {
@@ -487,9 +501,14 @@ export default function ProfileScreen() {
                 key={achievement.id}
                 style={[
                   styles.achievementCard,
-                  { borderColor: isSelected ? '#60a5fa' : themeColors.border }
+                  { 
+                    borderColor: isSelected ? '#60a5fa' : themeColors.border,
+                    opacity: isEditing ? 1 : 0.6
+                  }
                 ]}
-                onPress={() => toggleAchievement(achievement.id)}
+                onPress={() => isEditing && toggleAchievement(achievement.id)}
+                disabled={!isEditing}
+                activeOpacity={isEditing ? 0.7 : 1}
               >
                 {achievement.imagePath ? (
                   <Image
@@ -705,7 +724,7 @@ const styles = StyleSheet.create({
   gradientBackground: {
     padding: 12,
     alignItems: 'center',
-    minHeight: 90,
+    minHeight: 120,
     justifyContent: 'center',
     borderRadius: 8,
   },

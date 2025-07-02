@@ -55,8 +55,8 @@ export default function SuccessScreen() {
       const user = auth.currentUser;
 
       // Charger les succès depuis AsyncStorage immédiatement
-      const savedAchievements = await AsyncStorage.getItem(OFFLINE_ACHIEVEMENTS_KEY);
-      if (savedAchievements) {
+        const savedAchievements = await AsyncStorage.getItem(OFFLINE_ACHIEVEMENTS_KEY);
+        if (savedAchievements) {
         setAchievements(JSON.parse(savedAchievements));
       }
 
@@ -80,16 +80,16 @@ export default function SuccessScreen() {
       for (const category of categories) {
         setLoadingCategory(category.name);
         for (const achievement of category.achievements) {
-          const progress = await checkAchievementProgress(achievement.id);
-          const completed = progress === achievement.maxProgress;
+        const progress = await checkAchievementProgress(achievement.id);
+        const completed = progress === achievement.maxProgress;
           newAchievements.push({
-            ...achievement,
-            progress
-          });
-          if (completed) {
-            completedAchievements.push(achievement.id);
-          }
+          ...achievement,
+          progress
+        });
+        if (completed) {
+          completedAchievements.push(achievement.id);
         }
+      }
       }
 
       // Mettre à jour l'état avec les nouveaux succès
@@ -102,13 +102,13 @@ export default function SuccessScreen() {
           const currentData = userDoc.data();
           const currentProfile = currentData.profile || {};
           
-          await updateDoc(doc(db, 'users', user.uid), {
-            ...currentData,
-            profile: {
-              ...currentProfile,
-              completedAchievements
-            }
-          });
+            await updateDoc(doc(db, 'users', user.uid), {
+              ...currentData,
+              profile: {
+                ...currentProfile,
+                completedAchievements
+              }
+            });
 
           await AsyncStorage.setItem(OFFLINE_ACHIEVEMENTS_KEY, JSON.stringify(newAchievements));
           await AsyncStorage.setItem(OFFLINE_USER_KEY, JSON.stringify({

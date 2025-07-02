@@ -423,7 +423,7 @@ export default function ExercisePage() {
             {showResults ? renderResults() : (
               <>
                 <View style={[styles.questionCard, { backgroundColor: themeColors.card }]}>
-                  <View style={styles.questionContainer}>
+                  <View style={[styles.questionContainer, { backgroundColor: themeColors.card }]}>
                   <MathText
                     content={exercise.questions[currentQuestionIndex].question}
                     type="question"
@@ -618,8 +618,8 @@ const styles = StyleSheet.create({
   },
   questionContainer: {
     marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#60a5fa',
+    borderWidth: 2,
+    borderColor: '#60a5fa',
     padding: 16,
     display: 'flex',
     flexDirection: 'row',

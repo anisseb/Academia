@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Animated, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showErrorAlert } from '../utils/alerts';
@@ -44,19 +44,30 @@ export default function Step7({ onNext, onBack, data }: Step7Props) {
 
   useEffect(() => {
     const loadSubjects = async () => {
-      if (!data.country || !data.class) return;
-      // Charger les matières depuis Firestore
-      const userSubjects = await getSubjects(data.country, data.class);
-      setSubjects(userSubjects.map(subject => ({
-        id: subject.id,
-        label: subject.label,
-        icon: subject.icon,
-        gradient: subject.gradient,
-        key: subject.id,
-      })));
+      if (!data.subjects || data.subjects.length === 0) return;
+      
+      try {
+        // Récupérer les objets complets des matières sélectionnées
+        const subjectsRef = collection(db, 'subjects');
+        const subjectsQuery = query(subjectsRef, where('__name__', 'in', data.subjects.map(s => s.id)));
+        const subjectsSnapshot = await getDocs(subjectsQuery);
+        
+        const loadedSubjects = subjectsSnapshot.docs.map((doc: any) => ({
+          id: doc.id,
+          label: doc.data().label,
+          icon: doc.data().icon,
+          gradient: doc.data().gradient,
+          key: doc.id,
+        }));
+        
+        setSubjects(loadedSubjects);
+      } catch (error) {
+        console.error('Erreur lors du chargement des matières:', error);
+        setSubjects([]);
+      }
     };
     loadSubjects();
-  }, [data.country, data.class]);
+  }, [data.subjects]);
 
   const handleSaveAndContinue = async () => {
     try {

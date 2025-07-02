@@ -359,7 +359,7 @@ export default function ContentPage() {
               </View>
               <View style={styles.titleContainer}>
                 <Text
-                  style={styles.chapterMainTitle}
+                  style={[styles.chapterMainTitle, { color: themeColors.text }]}
                   numberOfLines={3}
                   adjustsFontSizeToFit
                 >

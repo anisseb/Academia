@@ -2,18 +2,104 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // This rule allows anyone with your Firestore database reference to view, edit,
-    // and delete all data in your Firestore database. It is useful for getting
-    // started, but it is configured to expire after 30 days because it
-    // leaves your app open to attackers. At that time, all client
-    // requests to your Firestore database will be denied.
-    //
-    // Make sure to write security rules for your app before that time, or else
-    // all client requests to your Firestore database will be denied until you Update
-    // your rules
+    
+    // Règles pour les utilisateurs
+    match /users/{userId} {
+      // L'utilisateur peut lire et écrire ses propres données
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Pour la fonctionnalité des amis, permettre la lecture des informations de base
+      // (nom, photo, statut en ligne, etc.) pour tous les utilisateurs authentifiés
+      allow read: if request.auth != null;
+    }
+    
+    // Règles pour les exercices
+    match /exercises/{exerciseId} {
+      // Lecture publique pour tous les utilisateurs authentifiés
+      allow read: if request.auth != null;
+      // Écriture réservée aux administrateurs (à implémenter plus tard)
+      allow write: if false;
+    }
+    
+    // Règles pour les sessions
+    match /sessions/{userId} {
+      // L'utilisateur peut lire et écrire ses propres sessions
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Règles pour les pays, types d'écoles, classes, matières
+    match /countries/{countryId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    
+    match /schoolTypes/{schoolTypeId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    
+    match /classes/{classId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    
+    match /subjects/{subjectId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    
+    // Règles pour les feedbacks (documents avec arrays)
+    match /feedback/{feedbackType} {
+      // Les utilisateurs authentifiés peuvent lire et mettre à jour les documents de feedback
+      allow read, update: if request.auth != null && 
+        (feedbackType == 'bugs' || feedbackType == 'satisfaction' || feedbackType == 'suggestions');
+      // Création réservée au système (les documents sont créés une seule fois)
+      allow create: if false;
+      // Suppression réservée aux administrateurs
+      allow delete: if false;
+    }
+      
+    // Règles pour les chapitres
+    match /chapters/{chapterId} {
+      // Lecture publique pour tous les utilisateurs authentifiés
+      allow read: if request.auth != null;
+      // Écriture réservée aux administrateurs
+      allow write: if false;
+    }
+    
+    // Règles pour la collection theme (singulier)
+    match /theme/{themeId} {
+      // Lecture publique pour tous les utilisateurs authentifiés
+      allow read: if request.auth != null;
+      // Écriture réservée aux administrateurs
+      allow write: if false;
+    }
+    
+    // Règles pour les expressions quotidiennes
+    match /dailyExpression/{expressionId} {
+      // Lecture publique pour tous les utilisateurs authentifiés
+      allow read: if request.auth != null;
+      // Écriture réservée aux administrateurs
+      allow write: if false;
+    }
+    
+    // Règles pour les motivations quotidiennes
+    match /dailyMotivation/{motivationId} {
+      // Lecture publique pour tous les utilisateurs authentifiés
+      allow read: if request.auth != null;
+      // Écriture réservée aux administrateurs
+      allow write: if false;
+    }
+    
+    // Règles pour les threads
+    match /threads/{userId} {
+      // L'utilisateur peut lire et écrire ses propres threads
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Règles par défaut - refuser tout accès non autorisé
     match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2026, 4, 8);
+      allow read, write: if false;
     }
   }
 }
