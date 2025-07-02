@@ -3,6 +3,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Fonction pour vérifier si l'utilisateur est admin
+    function isAdmin() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).profile.role == 'admin';
+    }
+    
     // Règles pour les utilisateurs
     match /users/{userId} {
       // L'utilisateur peut lire et écrire ses propres données
@@ -11,41 +18,46 @@ service cloud.firestore {
       // Pour la fonctionnalité des amis, permettre la lecture des informations de base
       // (nom, photo, statut en ligne, etc.) pour tous les utilisateurs authentifiés
       allow read: if request.auth != null;
+      
+      // Les admins peuvent tout faire sur tous les utilisateurs
+      allow read, write: if isAdmin();
     }
     
     // Règles pour les exercices
     match /exercises/{exerciseId} {
       // Lecture publique pour tous les utilisateurs authentifiés
       allow read: if request.auth != null;
-      // Écriture réservée aux administrateurs (à implémenter plus tard)
-      allow write: if false;
+      // Écriture réservée aux administrateurs
+      allow write: if isAdmin();
     }
     
     // Règles pour les sessions
     match /sessions/{userId} {
       // L'utilisateur peut lire et écrire ses propres sessions
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Les admins peuvent tout faire sur toutes les sessions
+      allow read, write: if isAdmin();
     }
     
     // Règles pour les pays, types d'écoles, classes, matières
     match /countries/{countryId} {
       allow read: if request.auth != null;
-      allow write: if false;
+      allow write: if isAdmin();
     }
     
     match /schoolTypes/{schoolTypeId} {
       allow read: if request.auth != null;
-      allow write: if false;
+      allow write: if isAdmin();
     }
     
     match /classes/{classId} {
       allow read: if request.auth != null;
-      allow write: if false;
+      allow write: if isAdmin();
     }
     
     match /subjects/{subjectId} {
       allow read: if request.auth != null;
-      allow write: if false;
+      allow write: if isAdmin();
     }
     
     // Règles pour les feedbacks (documents avec arrays)
@@ -56,7 +68,7 @@ service cloud.firestore {
       // Création réservée au système (les documents sont créés une seule fois)
       allow create: if false;
       // Suppression réservée aux administrateurs
-      allow delete: if false;
+      allow delete: if isAdmin();
     }
       
     // Règles pour les chapitres
@@ -64,7 +76,7 @@ service cloud.firestore {
       // Lecture publique pour tous les utilisateurs authentifiés
       allow read: if request.auth != null;
       // Écriture réservée aux administrateurs
-      allow write: if false;
+      allow write: if isAdmin();
     }
     
     // Règles pour la collection theme (singulier)
@@ -72,7 +84,7 @@ service cloud.firestore {
       // Lecture publique pour tous les utilisateurs authentifiés
       allow read: if request.auth != null;
       // Écriture réservée aux administrateurs
-      allow write: if false;
+      allow write: if isAdmin();
     }
     
     // Règles pour les expressions quotidiennes
@@ -80,7 +92,7 @@ service cloud.firestore {
       // Lecture publique pour tous les utilisateurs authentifiés
       allow read: if request.auth != null;
       // Écriture réservée aux administrateurs
-      allow write: if false;
+      allow write: if isAdmin();
     }
     
     // Règles pour les motivations quotidiennes
@@ -88,13 +100,15 @@ service cloud.firestore {
       // Lecture publique pour tous les utilisateurs authentifiés
       allow read: if request.auth != null;
       // Écriture réservée aux administrateurs
-      allow write: if false;
+      allow write: if isAdmin();
     }
     
     // Règles pour les threads
     match /threads/{userId} {
       // L'utilisateur peut lire et écrire ses propres threads
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Les admins peuvent tout faire sur tous les threads
+      allow read, write: if isAdmin();
     }
     
     // Règles par défaut - refuser tout accès non autorisé

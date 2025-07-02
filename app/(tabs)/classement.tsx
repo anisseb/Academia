@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -11,8 +12,9 @@ import {
   Image,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, query, where } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
+import * as SecureStore from 'expo-secure-store';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { 
@@ -49,6 +51,11 @@ interface Subject {
   label: string;
 }
 
+interface Class {
+  id: string;
+  label: string;
+}
+
 type TabType = 'global' | 'friends' | 'subject';
 
 export default function ClassementScreen() {
@@ -57,9 +64,12 @@ export default function ClassementScreen() {
   const [friends, setFriends] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('global');
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [selectedClass, setSelectedClass] = useState<string>('');
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('');
-  const [showPicker, setShowPicker] = useState(false);
+  const [showClassPicker, setShowClassPicker] = useState(false);
+  const [showSubjectPicker, setShowSubjectPicker] = useState(false);
   const ITEMS_PER_PAGE = 8;
   const [currentPage, setCurrentPage] = useState(1);
   const [userRank, setUserRank] = useState<number | null>(null);
@@ -336,24 +346,46 @@ export default function ClassementScreen() {
     },
   });
 
-  const calculateTotalScore = (profile: any, subjectId?: string): number => {
+  const calculateTotalScore = async (profile: any, subjectId?: string, classId?: string): Promise<number> => {
     let totalScore = 0;
     const completedExercises = profile.completedExercises || {};
     
-    // Si une matière est sélectionnée, on ne compte que les exercices de cette matière
-    if (subjectId) {
-      Object.values(completedExercises).forEach((exercise: any) => {
-        if (exercise.done && exercise.subjectId === subjectId) {
-          totalScore += exercise.score || 0;
-        }
+    // Récupérer tous les IDs d'exercices complétés
+    const exerciseIds = Object.keys(completedExercises).filter(id => completedExercises[id].done);
+    
+    if (exerciseIds.length === 0) return 0;
+    
+    try {
+      // Charger les détails des exercices depuis Firestore
+      const exercisesRef = collection(db, 'exercises');
+      const exercisesQuery = query(exercisesRef, where('__name__', 'in', exerciseIds));
+      const exercisesSnapshot = await getDocs(exercisesQuery);
+      
+      // Créer un map des exercices pour un accès rapide
+      const exercisesMap = new Map();
+      exercisesSnapshot.forEach((doc) => {
+        const data = doc.data() as any;
+        exercisesMap.set(doc.id, data);
       });
-    } else {
-      // Sinon, on compte tous les exercices
-      Object.values(completedExercises).forEach((exercise: any) => {
-        if (exercise.done) {
-          totalScore += exercise.score || 0;
-        }
+      
+      // Calculer le score en filtrant par classe et matière
+      Object.entries(completedExercises).forEach(([exerciseId, exerciseData]: [string, any]) => {
+        if (!exerciseData.done) return;
+
+        
+        const exerciseDetails = exercisesMap.get(exerciseId);
+        if (!exerciseDetails) return;
+        
+        // Filtrer par classe si une classe est sélectionnée
+        if (classId && exerciseDetails.classId !== classId) return;
+        
+        // Filtrer par matière si une matière est sélectionnée
+        if (subjectId && exerciseDetails.subjectId !== subjectId) return;
+        
+        totalScore += exerciseData.score || 0;
       });
+    } catch (error) {
+      console.error('Erreur lors du chargement des exercices:', error);
     }
 
     return totalScore;
@@ -382,15 +414,16 @@ export default function ClassementScreen() {
       const rankings: UserRanking[] = [];
       const currentUserId = auth.currentUser?.uid;
 
-      querySnapshot.forEach((doc) => {
+      // Traiter chaque utilisateur de manière asynchrone
+      const userPromises = querySnapshot.docs.map(async (doc) => {
         const data = doc.data();
         // Vérifier que l'utilisateur a terminé l'onboarding
         if (data.profile && data.profile.onboardingCompleted === true) {
-          const totalScore = calculateTotalScore(data.profile, selectedSubject || undefined);
+          const totalScore = await calculateTotalScore(data.profile, selectedSubject || undefined, selectedClass || undefined);
           
-          if (activeTab === 'friends' && !friends.includes(doc.id) && doc.id !== currentUserId) return;
+          if (activeTab === 'friends' && !friends.includes(doc.id) && doc.id !== currentUserId) return null;
           
-          rankings.push({
+          return {
             id: doc.id,
             username: data.profile.username,
             country: data.profile.country,
@@ -401,7 +434,18 @@ export default function ClassementScreen() {
             class: data.profile.class,
             completedAchievements: data.profile.completedAchievements || [],
             displayedAchievements: data.profile.displayedAchievements || [],
-          });
+          };
+        }
+        return null;
+      });
+
+      // Attendre que tous les scores soient calculés
+      const userResults = await Promise.all(userPromises);
+      
+      // Filtrer les résultats null et ajouter à rankings
+      userResults.forEach((user) => {
+        if (user) {
+          rankings.push(user);
         }
       });
 
@@ -454,7 +498,126 @@ export default function ClassementScreen() {
   useEffect(() => {
     setLoading(true);
     loadRankings();
-  }, [activeTab, selectedSubject]);
+  }, [activeTab, selectedSubject, selectedClass]);
+
+  const loadClasses = async () => {
+    try {
+      const classesRef = collection(db, 'classes');
+      const classesSnapshot = await getDocs(classesRef);
+      
+      const loadedClasses: Class[] = [];
+      classesSnapshot.forEach((doc) => {
+        const data = doc.data();
+        loadedClasses.push({
+          id: doc.id,
+          label: data.label,
+        });
+      });
+      
+      setClasses(loadedClasses);
+    } catch (error) {
+      console.error('Erreur lors du chargement des classes:', error);
+    }
+  };
+
+  const loadSubjectsForClass = async (classId: string) => {
+    try {
+      const subjectsRef = collection(db, 'subjects');
+      const subjectsQuery = query(subjectsRef, where('classeId', '==', classId));
+      const subjectsSnapshot = await getDocs(subjectsQuery);
+      
+      const loadedSubjects: Subject[] = [];
+      subjectsSnapshot.forEach((doc) => {
+        const data = doc.data() as any;
+        loadedSubjects.push({
+          id: doc.id,
+          label: data.label,
+        });
+      });
+      
+      setSubjects(loadedSubjects);
+    } catch (error) {
+      console.error('Erreur lors du chargement des matières:', error);
+    }
+  };
+
+  const savePreferences = async (classId: string, subjectId: string) => {
+    try {
+      
+      // Sauvegarder null au lieu de chaînes vides
+      const classToSave = classId === '' ? null : classId;
+      const subjectToSave = subjectId === '' ? null : subjectId;
+      
+      if (classToSave === null) {
+        await SecureStore.deleteItemAsync('classement_selected_class');
+      } else {
+        await SecureStore.setItemAsync('classement_selected_class', classToSave);
+      }
+      
+      if (subjectToSave === null) {
+        await SecureStore.deleteItemAsync('classement_selected_subject');
+      } else {
+        await SecureStore.setItemAsync('classement_selected_subject', subjectToSave);
+      }
+      
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde des préférences:', error);
+    }
+  };
+
+
+
+  const loadUserClassAndSubjects = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) return;
+
+      const userData = userDoc.data();
+      const userClass = userData.profile?.class;
+      
+      if (userClass) {
+        setSelectedClass(userClass);
+        await loadSubjectsForClass(userClass);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement de la classe utilisateur:', error);
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const initializeData = async () => {
+        await loadClasses();
+        
+        // Charger d'abord les préférences
+        const savedClass = await SecureStore.getItemAsync('classement_selected_class');
+        const savedSubject = await SecureStore.getItemAsync('classement_selected_subject');
+        
+        
+        if (savedClass !== null && savedClass !== undefined) {
+          setSelectedClass(savedClass);
+          
+          if (savedClass !== '') {
+            await loadSubjectsForClass(savedClass);
+          } else {
+            setSubjects([]); // Vider la liste des matières pour "Toutes les classes"
+          }
+          
+          if (savedSubject !== null && savedSubject !== undefined) {
+            setSelectedSubject(savedSubject);
+          }
+        } else {
+          // Si aucune préférence n'est sauvegardée, charger la classe de l'utilisateur
+          await loadUserClassAndSubjects();
+        }
+      };
+      
+      initializeData();
+    }, [])
+  );
 
   useEffect(() => {
     const loadNames = async () => {
@@ -628,7 +791,14 @@ export default function ClassementScreen() {
     );
   };
 
+  const getSelectedClassLabel = () => {
+    if (!selectedClass) return 'Toutes les classes';
+    const classItem = classes.find(c => c.id === selectedClass);
+    return classItem ? classItem.label : 'Sélectionner une classe';
+  };
+
   const getSelectedSubjectLabel = () => {
+    if (!selectedClass) return 'Sélectionnez d\'abord une classe';
     const subject = subjects.find(s => s.id === selectedSubject);
     return subject ? subject.label : 'Toutes les matières';
   };
@@ -651,15 +821,46 @@ export default function ClassementScreen() {
       <View style={styles.subjectsContainer}>
         <TouchableOpacity
           style={[styles.subjectButton, { borderColor: themeColors.border }]}
-          onPress={() => setShowPicker(true)}
+          onPress={() => setShowClassPicker(true)}
         >
           <Text style={[styles.subjectButtonText, { color: themeColors.text }]}>
-            {getSelectedSubjectLabel()}
+            {getSelectedClassLabel()}
           </Text>
           <MaterialCommunityIcons 
             name="chevron-down" 
             size={20} 
             color={themeColors.text} 
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.subjectButton, 
+            { 
+              borderColor: themeColors.border, 
+              marginTop: 8,
+              opacity: !selectedClass ? 0.5 : 1
+            }
+          ]}
+          onPress={() => {
+            if (selectedClass) {
+              setShowSubjectPicker(true);
+            }
+          }}
+          disabled={!selectedClass}
+        >
+          <Text style={[
+            styles.subjectButtonText, 
+            { 
+              color: !selectedClass ? themeColors.text + '80' : themeColors.text 
+            }
+          ]}>
+            {getSelectedSubjectLabel()}
+          </Text>
+          <MaterialCommunityIcons 
+            name="chevron-down" 
+            size={20} 
+            color={!selectedClass ? themeColors.text + '80' : themeColors.text} 
           />
         </TouchableOpacity>
 
@@ -674,25 +875,73 @@ export default function ClassementScreen() {
         )}
 
         <Modal
-          visible={showPicker}
+          visible={showClassPicker}
           transparent={true}
           animationType="slide"
-          onRequestClose={() => setShowPicker(false)}
+          onRequestClose={() => setShowClassPicker(false)}
         >
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: themeColors.card }]}>
               <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: themeColors.text }]}>Sélectionner une matière</Text>
-                <TouchableOpacity onPress={() => setShowPicker(false)}>
+                <Text style={[styles.modalTitle, { color: themeColors.text }]}>Sélectionner une classe</Text>
+                <TouchableOpacity onPress={() => setShowClassPicker(false)}>
                   <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
                 </TouchableOpacity>
               </View>
               <ScrollView style={styles.modalScrollView}>
                 <TouchableOpacity
                   style={[styles.modalItem, { borderBottomColor: themeColors.border }]}
-                  onPress={() => {
+                  onPress={async () => {
+                    setSelectedClass('');
+                    setSelectedSubject(''); // Réinitialiser la matière sélectionnée
+                    setSubjects([]); // Vider la liste des matières
+                    await savePreferences('', '');
+                    setShowClassPicker(false);
+                  }}
+                >
+                  <Text style={[styles.modalItemText, { color: themeColors.text }]}>Toutes les classes</Text>
+                </TouchableOpacity>
+                {classes.map(classItem => (
+                  <TouchableOpacity
+                    key={classItem.id}
+                    style={[styles.modalItem, { borderBottomColor: themeColors.border }]}
+                    onPress={async () => {
+                      setSelectedClass(classItem.id);
+                      setSelectedSubject(''); // Réinitialiser la matière sélectionnée
+                      await loadSubjectsForClass(classItem.id);
+                      await savePreferences(classItem.id, '');
+                      setShowClassPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.modalItemText, { color: themeColors.text }]}>{classItem.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={showSubjectPicker}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowSubjectPicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: themeColors.card }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: themeColors.text }]}>Sélectionner une matière</Text>
+                <TouchableOpacity onPress={() => setShowSubjectPicker(false)}>
+                  <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalScrollView}>
+                <TouchableOpacity
+                  style={[styles.modalItem, { borderBottomColor: themeColors.border }]}
+                  onPress={async () => {
                     setSelectedSubject('');
-                    setShowPicker(false);
+                    await savePreferences(selectedClass, '');
+                    setShowSubjectPicker(false);
                   }}
                 >
                   <Text style={[styles.modalItemText, { color: themeColors.text }]}>Toutes les matières</Text>
@@ -701,9 +950,10 @@ export default function ClassementScreen() {
                   <TouchableOpacity
                     key={subject.id}
                     style={[styles.modalItem, { borderBottomColor: themeColors.border }]}
-                    onPress={() => {
+                    onPress={async () => {
                       setSelectedSubject(subject.id);
-                      setShowPicker(false);
+                      await savePreferences(selectedClass, subject.id);
+                      setShowSubjectPicker(false);
                     }}
                   >
                     <Text style={[styles.modalItemText, { color: themeColors.text }]}>{subject.label}</Text>
