@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "academia",
   slug: "academia",
-  version: "1.0.0",
+  version: "1.0.1",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "myapp",
@@ -26,7 +26,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           SKAdNetworkIdentifier: "n38lu8286q.skadnetwork"
         }
       ],
-      googleServicesFile: process.env.GOOGLE_SERVICES_PLIST
+      googleServicesFile: process.env.GOOGLE_SERVICES_PLIST,
+      NSMicrophoneUsageDescription: 'Cette application utilise le microphone pour l\'audio description des cours.',
+      NSSpeechRecognitionUsageDescription: 'Cette application utilise la reconnaissance vocale pour l\'accessibilité.',
+      UIBackgroundModes: ['audio'],
     },
     entitlements: {
       "com.apple.developer.networking.wifi-info": true
@@ -46,8 +49,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "android.permission.USE_BIOMETRIC",
       "android.permission.USE_FINGERPRINT",
       "android.permission.INTERNET",
-      "com.google.android.gms.permission.AD_ID"
-    ]
+      "com.google.android.gms.permission.AD_ID",
+      "android.permission.MODIFY_AUDIO_SETTINGS",
+      "android.permission.ACCESSIBILITY_SERVICE"
+    ],
+    versionCode: 1
   },
   plugins: [
     "expo-router",
@@ -110,6 +116,19 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         "configureAndroidBackup": true,
         "faceIDPermission": "Autoriser $(PRODUCT_NAME) à utiliser Face ID."
+      }
+    ],
+    [
+      "expo-font",
+      {
+        fonts: ['./assets/fonts/Inter.ttf']
+      }
+    ],
+    [
+      "expo-speech",
+      {
+        microphonePermission: "Permettre à academIA d'utiliser le microphone pour l'audio description.",
+        speechRecognitionPermission: "Permettre à academIA d'utiliser la reconnaissance vocale pour l'accessibilité."
       }
     ]
   ],

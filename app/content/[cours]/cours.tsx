@@ -26,6 +26,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { parseGradient } from '../../utils/subjectGradients';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAccessibility } from '../../hooks/useAccessibility';
 
 interface CoursSection {
   title: string;
@@ -45,7 +46,7 @@ export default function CoursScreen() {
   const router = useRouter();
   const { isDarkMode } = useTheme();
   const params = useLocalSearchParams();
-  
+  const { settings: accessibilitySettings } = useAccessibility();
   // Obtenir la hauteur de la barre de statut
   const statusBarHeight = StatusBar.currentHeight || 0;
   
@@ -635,6 +636,7 @@ export default function CoursScreen() {
                 content={coursContent.introduction}
                 type="cours"
                 isDarkMode={isDarkMode}
+                fontSize={accessibilitySettings.fontSize}
               />
             </View>
           </View>
@@ -656,6 +658,7 @@ export default function CoursScreen() {
                   content={section.content}
                   type="cours"
                   isDarkMode={isDarkMode}
+                  fontSize={accessibilitySettings.fontSize}
                 />
               </View>
               
@@ -668,6 +671,7 @@ export default function CoursScreen() {
                           content={example}
                           type="cours"
                           isDarkMode={isDarkMode}
+                          fontSize={accessibilitySettings.fontSize}
                         />
                       </View>
                     </View>
@@ -688,6 +692,7 @@ export default function CoursScreen() {
                         content={point}
                         type="cours"
                         isDarkMode={isDarkMode}
+                        fontSize={accessibilitySettings.fontSize}
                       />
                     </View>
                   ))}
@@ -711,6 +716,7 @@ export default function CoursScreen() {
               content={coursContent.conclusion}
               type="cours"
               isDarkMode={isDarkMode}
+              fontSize={accessibilitySettings.fontSize}
             />
           </View>
         </View>

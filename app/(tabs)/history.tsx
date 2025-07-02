@@ -19,6 +19,7 @@ import { Image } from 'expo-image';
 import { getSchoolTypeName, getClassName } from '../services/firestoreService';
 import { format, addDays, differenceInMilliseconds, startOfDay } from 'date-fns';
 import * as Clipboard from 'expo-clipboard';
+import { useAccessibility, getFontSize, getTitleFontSize } from '../hooks/useAccessibility';
 
 type Message = {
   id: string;
@@ -30,6 +31,7 @@ type Message = {
 
 const Message = ({ message, isLast }: { message: Message, isLast: boolean }) => {
   const { isDarkMode } = useTheme();
+  const { settings: accessibilitySettings } = useAccessibility();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(message.isAI ? -50 : 50)).current;
   const [showCopyButton, setShowCopyButton] = useState(false);
@@ -106,7 +108,7 @@ const Message = ({ message, isLast }: { message: Message, isLast: boolean }) => 
         )}
         {message.isAI ? (
           <View style={styles.aiMessageContent}>
-            <FormattedMessage content={message.content} isDarkMode={isDarkMode} />
+            <FormattedMessage content={message.content} isDarkMode={isDarkMode} fontSize={accessibilitySettings.fontSize} />
             {showCopyButton && (
               <TouchableOpacity 
                 style={[styles.copyButton, { backgroundColor: themeColors.card }]}
@@ -117,7 +119,10 @@ const Message = ({ message, isLast }: { message: Message, isLast: boolean }) => 
             )}
           </View>
         ) : (
-          <Text style={[styles.messageText, { color: themeColors.text }]}>{message.content}</Text>
+          <Text style={[styles.messageText, { 
+            color: themeColors.text,
+            fontSize: getFontSize(accessibilitySettings.fontSize)
+          }]}>{message.content}</Text>
         )}
         {isLast && message.isAI && (
           <View style={[styles.aiIndicator, { backgroundColor: themeColors.aiMessageBackground }]}>
@@ -168,6 +173,7 @@ export default function HistoryScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const [threadTitle, setThreadTitle] = useState('');
   const { isDarkMode } = useTheme();
+  const { settings: accessibilitySettings } = useAccessibility();
   const [selectedAIProfile, setSelectedAIProfile] = useState<AIProfile>('professeur');
   const [showAIProfilePicker, setShowAIProfilePicker] = useState(false);
   const [showImageMenu, setShowImageMenu] = useState(false);
@@ -997,129 +1003,99 @@ export default function HistoryScreen() {
   );
 }
 
-const FormattedMessage = ({ content, isDarkMode }: { content: string, isDarkMode: boolean }) => {
+const FormattedMessage = ({ content, isDarkMode, fontSize }: { content: string, isDarkMode: boolean, fontSize: 'small' | 'medium' | 'large' | 'xl' }) => {
   // Essayer de parser le contenu comme JSON
   let parsedContent = null;
   try {
-    // Rechercher un objet JSON dans le contenu
-    const cleanedContent = content
-      .replace(/```json\n/, '')
-      .replace(/```$/, '')
-      .trim();
-    
-    // Rechercher un objet JSON valide dans le contenu
-    const jsonRegex = /\{[\s\S]*\}/;
-    const jsonMatch = cleanedContent.match(jsonRegex);
-    
-    if (jsonMatch) {
-      // Extraire uniquement la partie JSON
-      const jsonContent = jsonMatch[0];
-      
-      try {
-        parsedContent = JSON.parse(jsonContent.replace(/\\/g, '\\\\'));
-      } catch (parseError) {
-        console.error('Erreur lors du parsing du JSON extrait:', parseError);
-      }
-    }
-  } catch (error) {
-    console.error('Erreur lors du traitement du contenu:', error);
+    parsedContent = JSON.parse(content);
+  } catch (e) {
+    // Si ce n'est pas du JSON, on utilise le contenu tel quel
   }
 
-  // Si le contenu est un JSON valide, l'utiliser directement
-  if (parsedContent) {
-    // Vérifier si le message contient des étapes, des formules ou des suggestions
-    const hasStructuredContent = parsedContent.steps || parsedContent.formulesImportantes || parsedContent.suggestions;
-    
-    if (hasStructuredContent) {
+  if (parsedContent && typeof parsedContent === 'object') {
+    // Si c'est un objet avec des sections
+    if (parsedContent.sections && Array.isArray(parsedContent.sections)) {
       return (
         <View style={styles.formattedMessage}>
-          {/* Message principal */}
-          {parsedContent.message && (
-            <View style={styles.messageRegularText}>
-              <MathText
-                content={parsedContent.message}
-                isDarkMode={isDarkMode}
-                type="cours"
-              />
-            </View>
-          )}
-
-          {/* Étapes */}
-          {parsedContent.steps && parsedContent.steps.length > 0 && (
-            <View style={styles.stepsContainer}>
-              {parsedContent.steps.map((step: any, index: number) => (
-                <View key={`step-${index}`} style={styles.messageStepContainer}>
-                  <View style={styles.stepNumber}>
-                    <Text style={styles.stepNumberText}>{step.number}</Text>
-                  </View>
-                  <MathText
-                    content={step.content}
-                    isDarkMode={isDarkMode}
-                    type="cours"
-                  />
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Formules */}
-          {parsedContent.formulesImportantes && parsedContent.formulesImportantes.length > 0 && (
-            <View style={styles.formulesImportantesContainer}>
-              <Text style={[styles.formulesImportantesTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
-                Formules importantes:
+          {parsedContent.sections.map((section: any, index: number) => (
+            <View key={index} style={styles.section}>
+              <Text style={[styles.sectionTitle, { 
+                color: isDarkMode ? '#ffffff' : '#000000',
+                fontSize: getTitleFontSize(fontSize)
+              }]}>
+                {section.title}
               </Text>
-              {parsedContent.formulesImportantes.map((formula: any, index: number) => (
-                <View key={`formula-${index}`} style={styles.formulaItem}>
-                  <View style={styles.mathContainer}>
-                    <MathText
-                      content={formula.latex}
-                      isDarkMode={isDarkMode}
-                      type="cours"
-                    />
-                  </View>
-                  <Text style={[styles.formulaDescription, { color: isDarkMode ? '#fff' : '#000' }]}>
-                    <MathText
-                        content={formula.description}
-                        isDarkMode={isDarkMode}
-                        type="cours"
-                      />
-                  </Text>
+              <View style={styles.sectionContent}>
+                <MathText
+                  content={section.content}
+                  isDarkMode={isDarkMode}
+                  type="cours"
+                  fontSize={fontSize}
+                />
+              </View>
+              {section.examples && (
+                <View style={styles.examples}>
+                  {section.examples.map((example: string, i: number) => (
+                    <View key={i} style={styles.example}>
+                      <Text style={[styles.exampleLabel, { 
+                        color: isDarkMode ? '#ffffff' : '#000000',
+                        fontSize: getFontSize(fontSize)
+                      }]}>
+                        Exemple {i + 1}:
+                      </Text>
+                      <View style={styles.exampleContent}>
+                        <MathText
+                          content={example}
+                          isDarkMode={isDarkMode}
+                          type="cours"
+                          fontSize={fontSize}
+                        />
+                      </View>
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
-          )}
-
-          {/* Suggestions */}
-          {parsedContent.suggestions && parsedContent.suggestions.length > 0 && (
-            <View style={styles.suggestionsContainer}>
-              <Text style={[styles.suggestionsTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
-                Suggestions pour la suite:
-              </Text>
-              {parsedContent.suggestions.map((suggestion: string, index: number) => (
-                <View key={`suggestion-${index}`} style={styles.suggestionItem}>
-                  <Text style={[styles.suggestionText, { color: isDarkMode ? '#fff' : '#000' }]}>
-                    • {suggestion}
-                  </Text>
+              )}
+              {section.keyPoints && (
+                <View style={styles.keyPoints}>
+                  {section.keyPoints.map((point: string, i: number) => (
+                    <View key={i} style={styles.keyPoint}>
+                      <Text style={[styles.keyPointBullet, { 
+                        color: isDarkMode ? '#ffffff' : '#000000',
+                        fontSize: getFontSize(fontSize)
+                      }]}>
+                        •
+                      </Text>
+                      <View style={styles.keyPointContent}>
+                        <MathText
+                          content={point}
+                          isDarkMode={isDarkMode}
+                          type="cours"
+                          fontSize={fontSize}
+                        />
+                      </View>
+                    </View>
+                  ))}
                 </View>
-              ))}
+              )}
             </View>
-          )}
+          ))}
         </View>
       );
-    } else {
-      // Si le message ne contient que le champ "message", l'afficher simplement
+    }
+
+    // Si c'est un objet avec un message simple
+    if (parsedContent.message) {
       return (
         <View style={styles.formattedMessage}>
-          <MathText content={parsedContent.message || content} isDarkMode={isDarkMode} type="cours" />
+          <MathText content={parsedContent.message || content} isDarkMode={isDarkMode} type="cours" fontSize={fontSize} />
         </View>
       );
     }
   }
 
-  // Si le contenu n'est pas un JSON valide, afficher le texte brut
   return (
     <View style={styles.formattedMessage}>
-      <MathText content={content} isDarkMode={isDarkMode} type="cours" />
+      <MathText content={content} isDarkMode={isDarkMode} type="cours" fontSize={fontSize} />
     </View>
   );
 };
@@ -1182,9 +1158,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   messageText: {
-    color: '#fff',
     fontSize: 16,
-    lineHeight: 22,
+    lineHeight: 24,
   },
   messageImage: {
     width: 200,
@@ -1662,6 +1637,47 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  section: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  sectionContent: {
+    marginBottom: 8,
+  },
+  examples: {
+    marginBottom: 16,
+  },
+  example: {
+    marginBottom: 8,
+  },
+  exampleLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  exampleContent: {
+    marginBottom: 8,
+  },
+  keyPoints: {
+    marginBottom: 16,
+  },
+  keyPoint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  keyPointBullet: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginRight: 8,
+  },
+  keyPointContent: {
+    flex: 1,
   },
 });
 

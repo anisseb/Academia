@@ -14,6 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 export default function SettingsScreen() {
   const { isDarkMode, toggleTheme } = useTheme();
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [audioDescriptionEnabled, setAudioDescriptionEnabled] = useState(false);
+  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
 
   const loadUserSettings = useCallback(async () => {
     const user = auth.currentUser;
@@ -22,6 +24,8 @@ export default function SettingsScreen() {
       if (userDoc.exists()) {
         const userData = userDoc.data();
         setNotificationsEnabled(userData.notificationsEnabled || false);
+        setAudioDescriptionEnabled(userData.settings?.audioDescriptionEnabled || false);
+        setFontSize(userData.settings?.fontSize || 'medium');
         // Charger le thème depuis les paramètres
         if (userData.settings?.isDarkMode !== undefined) {
           if (userData.settings.isDarkMode !== isDarkMode) {
@@ -219,6 +223,34 @@ export default function SettingsScreen() {
             thumbColor={isDarkMode ? '#ffffff' : '#f4f3f4'}
           />
         </View>
+      </View>
+
+      <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
+        <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+          Accessibilité
+        </Text>
+        <TouchableOpacity
+          style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
+          onPress={() => router.push('/(tabs)/settings/accessibility')}
+        >
+          <View style={styles.viewContent}>
+            <View style={styles.notificationLeft}>
+              <Ionicons 
+                name="accessibility-outline" 
+                size={24} 
+                color={isDarkMode ? '#ffffff' : '#000000'} 
+              />
+              <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+                Paramètres d'accessibilité
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward" 
+              size={20} 
+              color={isDarkMode ? '#666666' : '#999999'} 
+            />
+          </View>
+        </TouchableOpacity>
       </View>
 
       <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
@@ -432,5 +464,20 @@ const styles = StyleSheet.create({
   abonnementLabel: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  settingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  fontSizeContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  fontSizeButton: {
+    padding: 8,
+    borderWidth: 2,
+    borderColor: '#cccccc',
+    borderRadius: 8,
   },
 });

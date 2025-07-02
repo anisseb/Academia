@@ -21,6 +21,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { renderMathText as MathText } from '../../utils/mathRenderer';
 import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
 import { adUnitIds } from '../../config/admob';
+import { useAccessibility, getFontSize, getTitleFontSize } from '../../hooks/useAccessibility';
+import { audioDescriptionService } from '../../services/audioDescriptionService';
+import AudioControlButton from '../../components/AudioControlButton';
 
 interface CompletedExercise {
   exerciseId: string;
@@ -58,6 +61,7 @@ export default function ExercisePage() {
   }>();
   const router = useRouter();
   const { isDarkMode } = useTheme();
+  const { settings: accessibilitySettings } = useAccessibility();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({});
   const [showResults, setShowResults] = useState(false);
@@ -77,6 +81,12 @@ export default function ExercisePage() {
     card: isDarkMode ? '#2d2d2d' : '#f5f5f5',
   };
 
+  // Mettre à jour le service d'audio description avec les paramètres
+  useEffect(() => {
+    audioDescriptionService.setEnabled(accessibilitySettings.audioDescriptionEnabled);
+    audioDescriptionService.setVoiceType(accessibilitySettings.voiceType);
+  }, [accessibilitySettings.audioDescriptionEnabled, accessibilitySettings.voiceType]);
+
   useEffect(() => {
     loadExercise();
   }, []);
@@ -93,16 +103,49 @@ export default function ExercisePage() {
       }
       
       const exerciseData = exerciseDoc.data();
-      setExercise({
+      const exerciseObj = {
         id: exerciseDoc.id,
         ...exerciseData,
         createdAt: exerciseData.createdAt?.toDate() || new Date()
-      } as Exercise);
+      } as Exercise;
+      
+      setExercise(exerciseObj);
+
+      // Lire la description audio de l'exercice si activée
+      if (accessibilitySettings.audioDescriptionEnabled) {
+        const firstQuestion = exerciseObj.questions[0];
+        if (firstQuestion) {
+          await audioDescriptionService.playCourseDescription(
+            `Exercice ${exerciseObj.title}`,
+            `Question 1 : ${firstQuestion.question}`,
+            subjectLabel as string
+          );
+        }
+      }
 
     } catch (error) {
       console.error('Erreur lors du chargement de l\'exercice:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleQuestionPress = async (question: Question) => {
+    if (accessibilitySettings.audioDescriptionEnabled) {
+      await audioDescriptionService.playSectionDescription(
+        `Question ${currentQuestionIndex + 1}`,
+        question.question,
+        subjectLabel as string
+      );
+    }
+  };
+
+  const handleAnswerPress = async (answer: string, index: number) => {
+    if (accessibilitySettings.audioDescriptionEnabled) {
+      await audioDescriptionService.playExampleDescription(
+        `Réponse ${index + 1} : ${answer}`,
+        subjectLabel as string
+      );
     }
   };
 
@@ -365,6 +408,12 @@ export default function ExercisePage() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
+      {/* Audio Control Button */}
+      <AudioControlButton 
+        isDarkMode={isDarkMode}
+        isAudioEnabled={accessibilitySettings.audioDescriptionEnabled}
+      />
+
       <View style={styles.mainContainer}>
         <View style={[styles.header, {
           paddingTop: Platform.OS === 'android' ? statusBarHeight + 12 : 16,
@@ -422,12 +471,17 @@ export default function ExercisePage() {
           <ScrollView style={styles.content}>
             {showResults ? renderResults() : (
               <>
-                <View style={[styles.questionCard, { backgroundColor: themeColors.card }]}>
+                <TouchableOpacity 
+                  style={[styles.questionCard, { backgroundColor: themeColors.card }]}
+                  onPress={() => handleQuestionPress(exercise.questions[currentQuestionIndex])}
+                  activeOpacity={accessibilitySettings.audioDescriptionEnabled ? 0.7 : 1}
+                >
                   <View style={styles.questionContainer}>
                   <MathText
                     content={exercise.questions[currentQuestionIndex].question}
                     type="question"
                     isDarkMode={isDarkMode}
+                    fontSize={accessibilitySettings.fontSize}
                   />
                   </View>
                   <View style={styles.optionsContainer}>
@@ -443,12 +497,18 @@ export default function ExercisePage() {
                           index !== exercise.questions[currentQuestionIndex].correctAnswer && 
                           styles.wrongOption,
                         ]}
-                        onPress={() => handleAnswerSelect(index)}
+                        onPress={() => {
+                          handleAnswerSelect(index);
+                          handleAnswerPress(option, index);
+                        }}
                         disabled={hasAnswered}
                       >
                         <View style={styles.optionContent}>
                           <View style={[styles.optionCircle, { backgroundColor: '#D1D5DB' }]}>
-                            <Text style={[styles.optionLetter, { color: '#FFFFFF' }]}>
+                            <Text style={[styles.optionLetter, { 
+                              color: '#FFFFFF',
+                              fontSize: getFontSize(accessibilitySettings.fontSize)
+                            }]}>
                               {String.fromCharCode(65 + index)}
                             </Text>
                           </View>
@@ -457,13 +517,14 @@ export default function ExercisePage() {
                               content={option}
                               type="option"
                               isDarkMode={false}
+                              fontSize={accessibilitySettings.fontSize}
                             />
                           </View>
                         </View>
                       </TouchableOpacity>
                     ))}
                   </View>
-                </View>
+                </TouchableOpacity>
               </>
             )}
           </ScrollView>
@@ -477,7 +538,9 @@ export default function ExercisePage() {
                 onPress={handleRetry}
               >
                 <Ionicons name="refresh" size={24} color="#000000" />
-                <Text style={styles.retryButtonText}>Réessayer</Text>
+                <Text style={[styles.retryButtonText, {
+                  fontSize: getFontSize(accessibilitySettings.fontSize)
+                }]}>Réessayer</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -485,14 +548,18 @@ export default function ExercisePage() {
                 onPress={() => router.push('/')}
               >
                 <Ionicons name="home" size={24} color="#FFFFFF" />
-                <Text style={styles.homeButtonText}>Accueil</Text>
+                <Text style={[styles.homeButtonText, {
+                  fontSize: getFontSize(accessibilitySettings.fontSize)
+                }]}>Accueil</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <>
               {showExplanation && (
                 <View >
-                  <Text style={[styles.explanationTitle]}>
+                  <Text style={[styles.explanationTitle, {
+                    fontSize: getTitleFontSize(accessibilitySettings.fontSize)
+                  }]}>
                     Explication
                   </Text>
                 <View style={styles.explanationContainer}>
@@ -500,6 +567,7 @@ export default function ExercisePage() {
                     content={exercise.questions[currentQuestionIndex].explanation}
                     type="explanation"
                     isDarkMode={isDarkMode}
+                    fontSize={accessibilitySettings.fontSize}
                   />
                 </View>
               </View>
@@ -513,7 +581,9 @@ export default function ExercisePage() {
               onPress={hasAnswered ? handleNextQuestion : handleValidateAnswer}
               disabled={!hasAnswered && selectedAnswers[currentQuestionIndex] === undefined}
             >
-              <Text style={styles.nextButtonText}>
+              <Text style={[styles.nextButtonText, {
+                fontSize: getFontSize(accessibilitySettings.fontSize)
+              }]}>
                 {hasAnswered 
                   ? (currentQuestionIndex === exercise!.questions.length - 1 
                     ? 'Voir les résultats' 

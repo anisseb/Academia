@@ -2,11 +2,13 @@ import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { MathJaxSvg } from 'react-native-mathjax-html-to-svg';
 import './formules.css';
+import { getFontSize } from '../hooks/useAccessibility';
 
 interface MathTextProps {
   content: string;
   type?: 'question' | 'option' | 'explanation' | 'cours';
   isDarkMode: boolean;
+  fontSize: 'small' | 'medium' | 'large' | 'xl';
 }
 
 const styles = StyleSheet.create({
@@ -58,7 +60,7 @@ const styles = StyleSheet.create({
   }
 });
 
-const MathText: React.FC<MathTextProps> = ({ content, type = 'cours', isDarkMode }) => {
+const MathText: React.FC<MathTextProps> = ({ content, type = 'cours', isDarkMode, fontSize }) => {
   if (!content) {
     return <Text>-</Text>;
   }
@@ -67,7 +69,7 @@ const MathText: React.FC<MathTextProps> = ({ content, type = 'cours', isDarkMode
   
   return (
     <MathJaxSvg
-      fontSize={16}
+      fontSize={getFontSize(fontSize)}
       color={textColor}
       fontCache={true}
       style={styles.mathPart}
