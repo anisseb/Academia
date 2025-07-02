@@ -407,7 +407,18 @@ export default function HistoryScreen() {
           "message": "ton message principal"
         }`;
   
-    return `${baseMessage} Dans le contexte de la matière "${subject}", je ne veux pas que tu donnes la solution aux problèmes.
+    return `${baseMessage} 
+            TRÈS IMPORTANT: Réponds TOUJOURS de manière contextuelle et pertinente au message de l'élève. Ne donne jamais de réponses génériques ou hors contexte.
+            
+            RÈGLES DE CONTEXTUALISATION:
+            - Si l'élève dit "bonjour", réponds poliment et demande comment tu peux l'aider avec la matière "${subject}"
+            - Si l'élève pose une question spécifique, réponds directement à cette question
+            - Si l'élève envoie une image, analyse-la et réponds en conséquence
+            - Si l'élève fait référence à un message précédent, prends en compte ce contexte
+            - Ne parle jamais de mathématiques si l'élève ne pose pas de question sur les mathématiques
+            - Adapte toujours ta réponse au contenu exact du message de l'élève
+            
+            Dans le contexte de la matière "${subject}", je ne veux pas que tu donnes la solution aux problèmes.
             ${resolutionInstruction} ${scientificInstruction}
             IMPORTANT: Ta réponse doit être au format JSON avec la structure suivante ${jsonStructure}
             TRÈS IMPORTANT: Ne mets pas de texte avant ou après le JSON. Ta réponse doit être UNIQUEMENT le JSON, sans aucun texte supplémentaire.`;
@@ -541,21 +552,44 @@ export default function HistoryScreen() {
         const messageHistory: any[] = [
           {
             role: "system",
-            content: [
-              {
-                type: "text",
-                text: getSystemMessage(selectedSubject, !!imageUrl)
-              }
-            ]
-          },
-          ...updatedMessages.map((msg: {isAI: boolean, content: string, imageUrl?: string}) => ({
-            role: msg.isAI ? "assistant" : "user",
-            content: msg.imageUrl ? [
-              { type: "text", text: msg.content },
-              { type: "image_url", imageUrl: msg.imageUrl }
-            ] : msg.content
-          }))
+            content: getSystemMessage(selectedSubject, !!imageUrl)
+          }
         ];
+
+        // Ajouter l'historique des messages précédents
+        const previousMessages = threadData.threads[threadId as string].messages || [];
+        previousMessages.forEach((msg: {isAI: boolean, content: string, imageUrl?: string}) => {
+          if (msg.imageUrl) {
+            messageHistory.push({
+              role: msg.isAI ? "assistant" : "user",
+              content: [
+                { type: "text", text: msg.content },
+                { type: "image_url", image_url: { url: msg.imageUrl } }
+              ]
+            });
+          } else {
+            messageHistory.push({
+              role: msg.isAI ? "assistant" : "user",
+              content: msg.content
+            });
+          }
+        });
+
+        // Ajouter le message actuel de l'utilisateur
+        if (imageUrl) {
+          messageHistory.push({
+            role: "user",
+            content: [
+              { type: "text", text: currentQuestion },
+              { type: "image_url", image_url: { url: imageUrl } }
+            ]
+          });
+        } else {
+          messageHistory.push({
+            role: "user",
+            content: currentQuestion
+          });
+        }
 
         const apiResponse = await client.chat.complete({
           model: "pixtral-12b",
