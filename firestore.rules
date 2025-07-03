@@ -19,16 +19,18 @@ service cloud.firestore {
       // (nom, photo, statut en ligne, etc.) pour tous les utilisateurs authentifiés
       allow read: if request.auth != null;
       
-      // Les admins peuvent tout faire sur tous les utilisateurs
-      allow read, write: if isAdmin();
+      // Les admins peuvent tout faire sur tous les utilisateurs (lecture, écriture, suppression)
+      allow read, write, delete: if isAdmin();
     }
     
     // Règles pour les exercices
     match /exercises/{exerciseId} {
       // Lecture publique pour tous les utilisateurs authentifiés
       allow read: if request.auth != null;
-      // Écriture réservée aux administrateurs
-      allow write: if isAdmin();
+      // Création autorisée pour tous les utilisateurs authentifiés
+      allow create: if request.auth != null;
+      // Modification et suppression réservées aux administrateurs
+      allow update, delete: if isAdmin();
     }
     
     // Règles pour les sessions
@@ -75,8 +77,20 @@ service cloud.firestore {
     match /chapters/{chapterId} {
       // Lecture publique pour tous les utilisateurs authentifiés
       allow read: if request.auth != null;
-      // Écriture réservée aux administrateurs
-      allow write: if isAdmin();
+      // Création autorisée pour tous les utilisateurs authentifiés
+      allow create: if request.auth != null;
+      // Modification et suppression réservées aux administrateurs
+      allow update, delete: if isAdmin();
+      
+      // Règles pour les cours dans les chapitres
+      match /cours {
+        // Lecture publique pour tous les utilisateurs authentifiés
+        allow read: if request.auth != null;
+        // Création autorisée pour tous les utilisateurs authentifiés
+        allow create: if request.auth != null;
+        // Modification et suppression réservées aux administrateurs
+        allow update, delete: if isAdmin();
+      }
     }
     
     // Règles pour la collection theme (singulier)
@@ -91,24 +105,38 @@ service cloud.firestore {
     match /dailyExpression/{expressionId} {
       // Lecture publique pour tous les utilisateurs authentifiés
       allow read: if request.auth != null;
-      // Écriture réservée aux administrateurs
-      allow write: if isAdmin();
+      // Création autorisée pour tous les utilisateurs authentifiés
+      allow create: if request.auth != null;
+      // Modification et suppression réservées aux administrateurs
+      allow update, delete: if isAdmin();
+    }
+
+    // Règles pour les formulaires de contact
+    match /contactUs/{userId} {
+      // Lecture publique pour tous les utilisateurs authentifiés
+      allow read: if request.auth != null;
+      // Création autorisée pour tous les utilisateurs authentifiés
+      allow create: if request.auth != null;
+      // Modification et suppression réservées aux administrateurs
+      allow update, delete: if isAdmin();
     }
     
     // Règles pour les motivations quotidiennes
     match /dailyMotivation/{motivationId} {
       // Lecture publique pour tous les utilisateurs authentifiés
       allow read: if request.auth != null;
-      // Écriture réservée aux administrateurs
-      allow write: if isAdmin();
+      // Création autorisée pour tous les utilisateurs authentifiés
+      allow create: if request.auth != null;
+      // Modification et suppression réservées aux administrateurs
+      allow update, delete: if isAdmin();
     }
     
     // Règles pour les threads
     match /threads/{userId} {
-      // L'utilisateur peut lire et écrire ses propres threads
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // L'utilisateur peut lire, écrire et supprimer ses propres threads
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
       // Les admins peuvent tout faire sur tous les threads
-      allow read, write: if isAdmin();
+      allow read, write, delete: if isAdmin();
     }
     
     // Règles par défaut - refuser tout accès non autorisé

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useState, useEffect } from 'react';
 import { auth, db } from '../../firebaseConfig';
@@ -9,6 +9,7 @@ import { parseGradient } from '../utils/subjectGradients';
 import React from 'react';
 import { setSuccessStats } from './_layout';
 import { router } from 'expo-router';
+import { LineChart, PieChart, BarChart } from 'react-native-chart-kit';
 
 interface SubjectStats {
   averageScore: number;
@@ -17,6 +18,14 @@ interface SubjectStats {
   correctAnswers: number;
   incorrectAnswers: number;
   precision: number;
+  progressionData?: {
+    labels: string[];
+    datasets: {
+      data: number[];
+      color?: (opacity: number) => string;
+      strokeWidth?: number;
+    }[];
+  };
 }
 
 export default function StatistiquesScreen() {
@@ -27,6 +36,9 @@ export default function StatistiquesScreen() {
     const [subjectInfos, setSubjectInfos] = useState<Record<string, any>>({});
     const [isLoadingSubjects, setIsLoadingSubjects] = useState(false);
     const [hasActiveSubscription, setHasActiveSubscription] = useState(true);
+    const [selectedSubject, setSelectedSubject] = useState<string>('all');
+    const [userSubjects, setUserSubjects] = useState<any[]>([]);
+    const [isLoadingUserSubjects, setIsLoadingUserSubjects] = useState(false);
   
     const themeColors = {
       background: isDarkMode ? '#1a1a1a' : '#ffffff',
@@ -39,11 +51,40 @@ export default function StatistiquesScreen() {
       loadUserStats();
       setSuccessStats();
     }, []);
-  
+
+    useEffect(() => {
+      loadUserSubjects();
+    }, [profileData]);
+
     useEffect(() => {
       loadSubjectInfos();
     }, [stats]);
+
+
   
+    const loadUserSubjects = async () => {
+      if (!profileData?.class) return;
+      
+      setIsLoadingUserSubjects(true);
+      try {
+        // Récupérer toutes les matières de la classe de l'utilisateur
+        const subjectsRef = collection(db, 'subjects');
+        const subjectsQuery = query(subjectsRef, where('classeId', '==', profileData.class));
+        const subjectsSnapshot = await getDocs(subjectsQuery);
+        
+        const subjects = subjectsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        setUserSubjects(subjects);
+      } catch (error) {
+        console.error('Erreur lors du chargement des matières:', error);
+      } finally {
+        setIsLoadingUserSubjects(false);
+      }
+    };
+
     const loadUserStats = async () => {
       try {
         const user = auth.currentUser;
@@ -134,6 +175,10 @@ export default function StatistiquesScreen() {
           const incorrectAnswers = validExercises.reduce((sum, ex) => {
             return sum + (10 - Math.round(((ex.score || 0) / 100) * 10));
           }, 0);
+
+          // Générer les données de progression par difficulté
+          const progressionData = generateProgressionData(subjectExercises);
+
           newStats[subjectId] = {
             averageScore: Math.round(averageScore),
             completedExercises: totalExercises,
@@ -142,7 +187,8 @@ export default function StatistiquesScreen() {
             incorrectAnswers,
             precision: correctAnswers + incorrectAnswers > 0 
               ? Math.round((correctAnswers / (correctAnswers + incorrectAnswers)) * 100) 
-              : 0
+              : 0,
+            progressionData
           };
         });
   
@@ -176,9 +222,196 @@ export default function StatistiquesScreen() {
       
       return consecutiveDays;
     };
+
+    const generateProgressionData = (exercises: any[]) => {
+      if (exercises.length === 0) return undefined;
+
+      // Trier les exercices par date de completion et filtrer les données valides
+      const sortedExercises = exercises
+        .filter(ex => ex.completedAt && ex.score !== undefined && ex.score !== null && !isNaN(ex.score))
+        .sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime());
+
+      if (sortedExercises.length === 0) return undefined;
+
+      // Utiliser tous les exercices pour la progression
+      const allExercises = sortedExercises;
+      
+      // Créer les labels (numéros d'exercices)
+      const labels = allExercises.map((_, index) => `Ex ${index + 1}`);
+
+      // Données pour les scores uniquement
+      const scoreData = allExercises.map(ex => {
+        const score = parseFloat(ex.score);
+        return isNaN(score) ? 0 : Math.max(0, Math.min(100, score));
+      });
+
+      // Vérifier que les données sont valides
+      const allDataValid = scoreData.every(score => !isNaN(score));
+
+      if (!allDataValid) {
+        console.warn('Données de progression invalides détectées:', { scoreData });
+        return undefined;
+      }
+
+      return {
+        labels,
+        datasets: [
+          {
+            data: scoreData,
+            color: (opacity = 1) => `rgba(96, 165, 250, ${opacity})`, // Bleu pour les scores
+            strokeWidth: 3,
+          },
+        ],
+      };
+    };
   
     const loadSubjectInfos = async () => {
       setIsLoadingSubjects(false);
+    };
+
+    const generateGlobalStats = () => {
+      if (Object.keys(stats).length === 0) return null;
+
+      // Statistiques globales
+      const totalExercises = Object.values(stats).reduce((sum, subject) => sum + subject.completedExercises, 0);
+      const averageScore = Object.values(stats).reduce((sum, subject) => sum + subject.averageScore, 0) / Object.keys(stats).length;
+      const totalCorrectAnswers = Object.values(stats).reduce((sum, subject) => sum + subject.correctAnswers, 0);
+      const totalIncorrectAnswers = Object.values(stats).reduce((sum, subject) => sum + subject.incorrectAnswers, 0);
+      const totalPrecision = totalCorrectAnswers + totalIncorrectAnswers > 0 
+        ? Math.round((totalCorrectAnswers / (totalCorrectAnswers + totalIncorrectAnswers)) * 100) 
+        : 0;
+
+      // Répartition par matière (pour le camembert)
+      const subjectDistribution = Object.entries(stats).map(([subjectId, subjectStats]) => {
+        const subjectInfo = subjectInfos[subjectId];
+        const gradientColors = parseGradient(subjectInfo?.gradient || 'rgba(128, 128, 128, 1)');
+        return {
+          name: subjectInfo?.label || 'Inconnue',
+          exercises: subjectStats.completedExercises,
+          color: gradientColors[0],
+          legendFontColor: isDarkMode ? '#FFFFFF' : '#000000',
+          legendFontSize: 12,
+        };
+      });
+
+      // Toutes les matières par score moyen
+      const topSubjects = Object.entries(stats)
+        .map(([subjectId, subjectStats]) => ({
+          subjectId,
+          name: subjectInfos[subjectId]?.label || 'Inconnue',
+          averageScore: subjectStats.averageScore,
+          color: parseGradient(subjectInfos[subjectId]?.gradient || 'rgba(128, 128, 128, 1)')[0]
+        }))
+        .sort((a, b) => b.averageScore - a.averageScore);
+
+      return {
+        totalExercises,
+        averageScore: Math.round(averageScore),
+        totalCorrectAnswers,
+        totalIncorrectAnswers,
+        totalPrecision,
+        subjectDistribution,
+        topSubjects
+      };
+    };
+
+    const getFilteredStats = () => {
+      if (selectedSubject === 'all') {
+        return stats;
+      }
+      return stats[selectedSubject] ? { [selectedSubject]: stats[selectedSubject] } : {};
+    };
+
+
+
+    const renderSubjectSelector = () => {
+      if (isLoadingUserSubjects || userSubjects.length === 0) {
+        return null;
+      }
+
+      return (
+        <View style={[styles.selectorContainer, {
+          backgroundColor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.9)',
+          borderWidth: 1,
+          borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+        }]}>
+          <Text style={[styles.selectorTitle, { color: themeColors.text }]}>
+            Filtrer par matière
+          </Text>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.selectorScrollContent}
+          >
+            <TouchableOpacity
+              style={[
+                styles.subjectOption,
+                selectedSubject === 'all' && styles.selectedSubjectOption,
+                { 
+                  backgroundColor: selectedSubject === 'all' 
+                    ? themeColors.primary 
+                    : isDarkMode ? 'rgba(15, 23, 42, 0.6)' : 'rgba(241, 245, 249, 0.8)',
+                  borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                }
+              ]}
+              onPress={() => setSelectedSubject('all')}
+            >
+              <MaterialCommunityIcons 
+                name="view-list" 
+                size={20} 
+                color={selectedSubject === 'all' ? '#ffffff' : themeColors.text} 
+              />
+              <Text style={[
+                styles.subjectOptionText,
+                { 
+                  color: selectedSubject === 'all' ? '#ffffff' : themeColors.text,
+                  fontWeight: selectedSubject === 'all' ? '600' : '400',
+                }
+              ]}>
+                Toutes les matières
+              </Text>
+            </TouchableOpacity>
+
+            {userSubjects.map((subject) => {
+              const gradientColors = parseGradient(subject.gradient);
+              const primaryColor = gradientColors[0];
+              const isSelected = selectedSubject === subject.id;
+              
+              return (
+                <TouchableOpacity
+                  key={subject.id}
+                  style={[
+                    styles.subjectOption,
+                    isSelected && styles.selectedSubjectOption,
+                    { 
+                      backgroundColor: isSelected 
+                        ? primaryColor 
+                        : isDarkMode ? 'rgba(15, 23, 42, 0.6)' : 'rgba(241, 245, 249, 0.8)',
+                      borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                    }
+                  ]}
+                  onPress={() => setSelectedSubject(subject.id)}
+                >
+                  <MaterialCommunityIcons 
+                    name={subject.icon || 'book-open-variant'} 
+                    size={20} 
+                    color={isSelected ? '#ffffff' : primaryColor} 
+                  />
+                  <Text style={[
+                    styles.subjectOptionText,
+                    { 
+                      color: isSelected ? '#ffffff' : themeColors.text,
+                      fontWeight: isSelected ? '600' : '400',
+                    }
+                  ]}>
+                    {subject.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      );
     };
   
     const renderSubjectStats = (subject: string, stats: SubjectStats) => {
@@ -334,9 +567,72 @@ export default function StatistiquesScreen() {
               }]}>{stats.precision}% de précision</Text>
             </View>
           </View>
+
+          {stats.progressionData && stats.progressionData.labels.length > 1 && (
+            <View style={[styles.chartContainer, {
+              backgroundColor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.9)',
+              borderWidth: 1,
+              borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+            }]}>
+              <Text style={[styles.chartTitle, { color: themeColors.text }]}>
+                Progression des scores
+              </Text>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chartScrollContent}
+              >
+                <LineChart
+                  data={stats.progressionData}
+                  width={Math.max(Dimensions.get('window').width - 120, stats.progressionData.labels.length * 60)}
+                  height={220}
+                chartConfig={{
+                  backgroundColor: 'transparent',
+                  backgroundGradientFrom: 'transparent',
+                  backgroundGradientTo: 'transparent',
+                  decimalPlaces: 0,
+                  color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                  labelColor: (opacity = 1) => isDarkMode ? `rgba(255, 255, 255, ${opacity})` : `rgba(0, 0, 0, ${opacity})`,
+                  style: {
+                    borderRadius: 16,
+                  },
+                  propsForDots: {
+                    r: '4',
+                    strokeWidth: '2',
+                  },
+                  propsForBackgroundLines: {
+                    strokeDasharray: '',
+                  },
+                }}
+                bezier
+                style={styles.chart}
+                withDots={true}
+                withShadow={false}
+                withInnerLines={true}
+                withOuterLines={true}
+                withVerticalLines={false}
+                withHorizontalLines={true}
+                withVerticalLabels={true}
+                withHorizontalLabels={true}
+                fromZero={true}
+                                  yAxisSuffix="%"
+                  yAxisInterval={1}
+                />
+              </ScrollView>
+              <View style={styles.chartLegend}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendColor, { backgroundColor: 'rgba(96, 165, 250, 1)' }]} />
+                  <Text style={[styles.legendText, { color: themeColors.text }]}>Score (%)</Text>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
       );
     };
+
+    const filteredStats = getFilteredStats();
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: themeColors.background }]}
@@ -384,6 +680,93 @@ export default function StatistiquesScreen() {
           <Text style={[styles.subtitle, { color: themeColors.text }]}>
             Suivez votre progression et améliorez vos compétences
           </Text>
+          
+          {renderSubjectSelector()}
+          
+          {selectedSubject === 'all' && (() => {
+            const globalStats = generateGlobalStats();
+            if (!globalStats) return null;
+            return (
+              <View style={[styles.statsCard, {
+                backgroundColor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.9)',
+                borderWidth: 1,
+                borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+              }]}>
+                <Text style={[styles.chartTitle, { color: isDarkMode ? 'white' : 'black' }]}>
+                  Vue d'ensemble globale
+                </Text>
+                {/* Statistiques numériques */}
+                <View style={styles.globalStatsGrid}>
+                  <View style={styles.globalStatItem}>
+                    <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                    <Text style={[styles.globalStatValue, { color: isDarkMode ? 'white' : 'black' }]}>{globalStats.totalExercises}</Text>
+                    <Text style={[styles.globalStatLabel, { color: isDarkMode ? 'white' : 'black' }]}>Total exercices</Text>
+                  </View>
+                  <View style={styles.globalStatItem}>
+                    <Ionicons name="trophy" size={24} color="#FFD700" />
+                    <Text style={[styles.globalStatValue, { color: isDarkMode ? 'white' : 'black' }]}>{globalStats.averageScore}%</Text>
+                    <Text style={[styles.globalStatLabel, { color: isDarkMode ? 'white' : 'black' }]}>Score moyen</Text>
+                  </View>
+                  <View style={styles.globalStatItem}>
+                    <Ionicons name="analytics" size={24} color="#3B82F6" />
+                    <Text style={[styles.globalStatValue, { color: isDarkMode ? 'white' : 'black' }]}>{globalStats.totalPrecision}%</Text>
+                    <Text style={[styles.globalStatLabel, { color: isDarkMode ? 'white' : 'black' }]}>Précision globale</Text>
+                  </View>
+                </View>
+                {/* Camembert */}
+                {globalStats.subjectDistribution.length > 0 && (
+                  <View style={styles.pieChartContainer}>
+                    <Text style={[styles.chartSubtitle, { color: isDarkMode ? 'white' : 'black' }]}>Répartition par matière</Text>
+                    <PieChart
+                      data={globalStats.subjectDistribution}
+                      width={Dimensions.get('window').width - 80}
+                      height={200}
+                      chartConfig={{ color: (opacity = 1) => `rgba(255,255,255,${opacity})` }}
+                      accessor="exercises"
+                      backgroundColor="transparent"
+                      paddingLeft="15"
+                      absolute
+                    />
+                  </View>
+                )}
+                {/* Scores par matière */}
+                {globalStats.topSubjects.length > 0 && (
+                  <View style={styles.topSubjectsContainer}>
+                    <Text style={[styles.chartSubtitle, { color: isDarkMode ? 'white' : 'black' }]}>Scores par matière</Text>
+                    <ScrollView 
+                      horizontal 
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ paddingHorizontal: 20 }}
+                    >
+                      <BarChart
+                        data={{
+                          labels: globalStats.topSubjects.map(s => s.name),
+                          datasets: [{ data: globalStats.topSubjects.map(s => s.averageScore) }]
+                        }}
+                        width={Math.max(Dimensions.get('window').width - 80, globalStats.topSubjects.length * 80)}
+                        height={180}
+                        yAxisLabel=""
+                        chartConfig={{
+                          backgroundColor: 'transparent',
+                          backgroundGradientFrom: 'transparent',
+                          backgroundGradientTo: 'transparent',
+                          decimalPlaces: 0,
+                          color: (opacity = 1) => `rgba(255,255,255,${opacity})`,
+                          labelColor: (opacity = 1) => `rgba(255,255,255,${opacity})`,
+                          style: { borderRadius: 16 },
+                          propsForLabels: { fontSize: 10 },
+                        }}
+                        style={styles.chart}
+                        fromZero
+                        yAxisSuffix="%"
+                      />
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+            );
+          })()}
+          
           {isLoadingSubjects ? (
             <View style={styles.loadingContainer}>
               <Text style={[styles.loadingText, { color: themeColors.text }]}>
@@ -392,8 +775,25 @@ export default function StatistiquesScreen() {
             </View>
           ) : (
             <>
-              {Object.entries(stats).map(([subject, subjectStats]) => 
-                renderSubjectStats(subject, subjectStats)
+                             {Object.keys(filteredStats).length === 0 ? (
+                 <View style={styles.emptyFilterContainer}>
+                   <MaterialCommunityIcons 
+                     name="filter-off" 
+                     size={48} 
+                     color={themeColors.text} 
+                     style={styles.emptyFilterIcon}
+                   />
+                   <Text style={[styles.emptyFilterText, { color: themeColors.text }]}>
+                     Aucune statistiques pour cette matiere
+                   </Text>
+                   <Text style={[styles.emptyFilterSubtext, { color: themeColors.text }]}>
+                     Commencez des exercices dans cette matière pour voir vos statistiques
+                   </Text>
+                 </View>
+               ) : (
+                Object.entries(filteredStats).map(([subject, subjectStats]) => 
+                  renderSubjectStats(subject, subjectStats)
+                )
               )}
             </>
           )}
@@ -419,6 +819,51 @@ const styles = StyleSheet.create({
       textAlign: 'center',
       opacity: 0.8,
       marginBottom: 16,
+    },
+    selectorContainer: {
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 24,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    selectorTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: 12,
+      textAlign: 'center',
+    },
+    selectorScrollContent: {
+      paddingHorizontal: 4,
+      gap: 12,
+    },
+    subjectOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      gap: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    selectedSubjectOption: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    subjectOptionText: {
+      fontSize: 14,
+      fontWeight: '500',
     },
     statsCard: {
       borderRadius: 24,
@@ -555,6 +1000,28 @@ const styles = StyleSheet.create({
       textAlign: 'center',
       opacity: 0.7,
     },
+    emptyFilterContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 40,
+      marginTop: 40,
+    },
+    emptyFilterIcon: {
+      marginBottom: 16,
+      opacity: 0.5,
+    },
+    emptyFilterText: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      marginBottom: 8,
+    },
+    emptyFilterSubtext: {
+      fontSize: 14,
+      textAlign: 'center',
+      opacity: 0.7,
+    },
     loadingContainer: {
       flex: 1,
       justifyContent: 'center',
@@ -606,5 +1073,120 @@ const styles = StyleSheet.create({
       color: '#1e293b',
       fontSize: 16,
       fontWeight: 'bold',
+    },
+    chartContainer: {
+      padding: 20,
+      borderRadius: 20,
+      marginTop: 24,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+    },
+    chartTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      textAlign: 'center',
+      marginBottom: 16,
+    },
+    chart: {
+      marginVertical: 8,
+      borderRadius: 16,
+    },
+    chartLegend: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      marginTop: 16,
+      flexWrap: 'wrap',
+      gap: 12,
+    },
+    legendItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    legendColor: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+    },
+    legendText: {
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    chartScrollContent: {
+      paddingHorizontal: 8,
+    },
+    subjectLegend: {
+      marginTop: 16,
+      paddingTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    legendTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      marginBottom: 12,
+      textAlign: 'center',
+    },
+    subjectLegendGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      gap: 12,
+    },
+    subjectLegendItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      minWidth: '45%',
+    },
+    subjectChartContainer: {
+      marginRight: 16,
+      alignItems: 'center',
+    },
+    subjectChartTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    globalStatsGrid: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 24,
+      gap: 12,
+    },
+    globalStatItem: {
+      flex: 1,
+      alignItems: 'center',
+      padding: 16,
+      borderRadius: 16,
+      borderWidth: 1,
+    },
+    globalStatValue: {
+      fontSize: 20,
+      fontWeight: '700',
+      textAlign: 'center',
+      marginTop: 8,
+    },
+    globalStatLabel: {
+      fontSize: 12,
+      opacity: 0.8,
+      textAlign: 'center',
+      marginTop: 4,
+    },
+    pieChartContainer: {
+      marginBottom: 24,
+      alignItems: 'center',
+    },
+    topSubjectsContainer: {
+      marginBottom: 16,
+    },
+    chartSubtitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: 12,
+      textAlign: 'center',
     },
   });
