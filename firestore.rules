@@ -131,6 +131,14 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
     
+    // Règles pour la première connexion
+    match /firstConnexion/{userId} {
+      // L'utilisateur peut lire et écrire ses propres données de première connexion
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Les admins peuvent tout faire sur toutes les données de première connexion
+      allow read, write, delete: if isAdmin();
+    }
+    
     // Règles pour les threads
     match /threads/{userId} {
       // L'utilisateur peut lire, écrire et supprimer ses propres threads

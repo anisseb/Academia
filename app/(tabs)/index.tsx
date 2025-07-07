@@ -13,6 +13,8 @@ import { DEFAULT_EXPRESSIONS } from '../constants/dailyExpression';
 import { collection, getDocs } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
 import { configureNotifications, scheduleMotivationalNotifications } from '../utils/notifications';
+import { useTutorial } from '../hooks/useTutorial';
+import TutorialModal from '../components/TutorialModal';
 
 // Configuration des notifications
 Notifications.setNotificationHandler({
@@ -104,6 +106,7 @@ const StatCard = ({ title, value, icon, color, colorText, trend }: StatCardProps
 
 export default function HomeScreen() {
   const { isDarkMode } = useTheme();
+  const { showTutorial, completeTutorial } = useTutorial();
   const [stats, setStats] = useState<Record<string, SubjectStats>>({});
   const [subjectInfos, setSubjectInfos] = useState<Record<string, any>>({});
   const [isLoadingSubjects, setIsLoadingSubjects] = useState(false);
@@ -788,6 +791,12 @@ export default function HomeScreen() {
           </View>
         </View>
       </Animated.ScrollView>
+      
+      {/* Modal du tutoriel */}
+      <TutorialModal 
+        visible={showTutorial} 
+        onClose={completeTutorial} 
+      />
     </View>
   );
 }

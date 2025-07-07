@@ -9,6 +9,7 @@ import {
   orderBy,
   addDoc,
   updateDoc,
+  setDoc,
   deleteDoc,
   Timestamp
 } from 'firebase/firestore';
@@ -196,4 +197,52 @@ export const getClassName = async (countryId: string, schoolTypeId: string, clas
     return docSnap.data().label || '';
   }
   return '';
+};
+
+// First Connexion Tutorial
+export interface FirstConnexionData {
+  date: Date;
+  tutoCompleted: boolean;
+}
+
+export const getFirstConnexionData = async (userId: string): Promise<FirstConnexionData | null> => {
+  try {
+    const firstConnexionRef = doc(db, 'firstConnexion', userId);
+    const docSnap = await getDoc(firstConnexionRef);
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return {
+        date: (data.date as Timestamp).toDate(),
+        tutoCompleted: data.tutoCompleted
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Erreur lors de la récupération des données de première connexion:', error);
+    return null;
+  }
+};
+
+export const createFirstConnexionData = async (userId: string): Promise<void> => {
+  try {
+    const firstConnexionRef = doc(db, 'firstConnexion', userId);
+    await setDoc(firstConnexionRef, {
+      date: Timestamp.now(),
+      tutoCompleted: false
+    });
+  } catch (error) {
+    console.error('Erreur lors de la création des données de première connexion:', error);
+  }
+};
+
+export const markTutorialCompleted = async (userId: string): Promise<void> => {
+  try {
+    const firstConnexionRef = doc(db, 'firstConnexion', userId);
+    await updateDoc(firstConnexionRef, {
+      tutoCompleted: true
+    });
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du statut du tutoriel:', error);
+  }
 };
