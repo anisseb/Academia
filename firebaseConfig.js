@@ -37,6 +37,12 @@ const generateSessionToken = () => {
 // Fonction pour mettre à jour le token de session
 const updateSessionToken = async (userId) => {
   try {
+    // Vérifier si l'utilisateur est authentifié avant d'accéder à Firestore
+    if (!auth.currentUser) {
+      console.log('Utilisateur non authentifié, impossible de mettre à jour le token de session');
+      return null;
+    }
+
     const sessionToken = generateSessionToken();
     const sessionRef = doc(db, 'sessions', userId);
     
@@ -52,13 +58,20 @@ const updateSessionToken = async (userId) => {
     return sessionToken;
   } catch (error) {
     console.error('Error updating session token:', error);
-    throw error;
+    // En cas d'erreur de permissions, on retourne null au lieu de throw
+    return null;
   }
 };
 
 // Fonction pour vérifier si la session est valide
 const validateSession = async (userId, currentToken) => {
   try {
+    // Vérifier si l'utilisateur est authentifié avant d'accéder à Firestore
+    if (!auth.currentUser) {
+      console.log('Utilisateur non authentifié, impossible de valider la session');
+      return false;
+    }
+
     const sessionRef = doc(db, 'sessions', userId);
     const sessionDoc = await getDoc(sessionRef);
     
@@ -72,6 +85,7 @@ const validateSession = async (userId, currentToken) => {
     return isValid;
   } catch (error) {
     console.error('Error validating session:', error);
+    // En cas d'erreur de permissions, on considère la session comme invalide
     return false;
   }
 };
@@ -79,6 +93,12 @@ const validateSession = async (userId, currentToken) => {
 // Fonction pour déconnecter toutes les autres sessions
 const logoutOtherSessions = async (userId, currentToken) => {
   try {
+    // Vérifier si l'utilisateur est authentifié avant d'accéder à Firestore
+    if (!auth.currentUser) {
+      console.log('Utilisateur non authentifié, impossible de vérifier les sessions');
+      return false;
+    }
+
     const sessionRef = doc(db, 'sessions', userId);
     const sessionDoc = await getDoc(sessionRef);
     
@@ -93,6 +113,7 @@ const logoutOtherSessions = async (userId, currentToken) => {
     return false;
   } catch (error) {
     console.error('Error in logoutOtherSessions:', error);
+    // En cas d'erreur de permissions, on ne fait rien et on retourne false
     return false;
   }
 };

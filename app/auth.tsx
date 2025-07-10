@@ -16,7 +16,10 @@ import {
   getAuth, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  signInWithCredential,
+  OAuthProvider,
+  GoogleAuthProvider
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -26,6 +29,8 @@ import { Image } from 'expo-image';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 export default function AuthScreen() {
   const [email, setEmail] = useState('');
@@ -39,6 +44,8 @@ export default function AuthScreen() {
   const [hasSavedCredentials, setHasSavedCredentials] = useState(false);
   const [savedUserName, setSavedUserName] = useState('');
   const [showFullForm, setShowFullForm] = useState(false);
+  const [isAppleAuthAvailable, setIsAppleAuthAvailable] = useState(false);
+  const [isGoogleAuthAvailable, setIsGoogleAuthAvailable] = useState(false);
   const router = useRouter();
   const auth = getAuth();
   const insets = useSafeAreaInsets();
@@ -47,6 +54,8 @@ export default function AuthScreen() {
     const initializeAuth = async () => {
       await checkBiometricSupport();
       await checkSavedCredentials();
+      await checkAppleAuthAvailability();
+      await configureGoogleSignIn();
     };
     initializeAuth();
   }, []);
@@ -78,17 +87,69 @@ export default function AuthScreen() {
               }
               await auth.signOut();
             }
+          } else if (savedAuthMethod === 'apple') {
+            // Pour Apple, on récupère le nom depuis le stockage local
+            const savedDisplayName = await SecureStore.getItemAsync('userDisplayName');
+            setSavedUserName(savedDisplayName || 'Utilisateur Apple');
+          } else if (savedAuthMethod === 'google') {
+            // Pour Google, on récupère le nom depuis le stockage local
+            const savedDisplayName = await SecureStore.getItemAsync('userDisplayName');
+            setSavedUserName(savedDisplayName || 'Utilisateur Google');
           }
         } catch (error) {
           console.error('Erreur lors de la récupération des informations utilisateur:', error);
+          // Nettoyer tous les identifiants en cas d'erreur
           await SecureStore.deleteItemAsync('userEmail');
           await SecureStore.deleteItemAsync('userPassword');
+          await SecureStore.deleteItemAsync('userId');
+          await SecureStore.deleteItemAsync('userDisplayName');
           await SecureStore.deleteItemAsync('authMethod');
           setHasSavedCredentials(false);
         }
       }
     } catch (error) {
       console.error('Erreur lors de la vérification des identifiants:', error);
+    }
+  };
+
+  const checkAppleAuthAvailability = async () => {
+    try {
+      const isAvailable = await AppleAuthentication.isAvailableAsync();
+      console.log('Apple Authentication disponible:', isAvailable);
+      
+      // Vérifications supplémentaires
+      if (isAvailable) {
+        // Test rapide pour voir si l'authentification fonctionne
+        try {
+          // Cette vérification peut échouer si l'utilisateur n'est pas connecté à iCloud
+          // mais ne devrait pas causer d'erreur fatale
+          console.log('Test de disponibilité Apple Authentication réussi');
+        } catch (testError) {
+          console.log('Test Apple Authentication échoué:', testError);
+          // Ne pas désactiver complètement, juste logger l'erreur
+        }
+      }
+      
+      setIsAppleAuthAvailable(isAvailable);
+    } catch (error) {
+      console.error('Erreur lors de la vérification d\'Apple Authentication:', error);
+      setIsAppleAuthAvailable(false);
+    }
+  };
+
+  const configureGoogleSignIn = async () => {
+    try {
+      GoogleSignin.configure({
+        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+        iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+        offlineAccess: true,
+      });
+      
+      console.log('Google Sign In configuré');
+      setIsGoogleAuthAvailable(true);
+    } catch (error) {
+      console.error('Erreur lors de la configuration Google Sign In:', error);
+      setIsGoogleAuthAvailable(false);
     }
   };
 
@@ -116,6 +177,28 @@ export default function AuthScreen() {
           } catch (error) {
             console.error('Erreur lors de la connexion:', error);
             showErrorAlert('Erreur', 'Échec de la connexion automatique');
+          } finally {
+            setIsLoading(false);
+          }
+        } else if (savedEmail && savedAuthMethod === 'apple') {
+          // Pour Apple, on lance directement l'authentification Apple
+          setIsLoading(true);
+          try {
+            await handleAppleAuth();
+          } catch (error) {
+            console.error('Erreur lors de la reconnexion Apple:', error);
+            showErrorAlert('Erreur', 'Échec de la reconnexion Apple');
+          } finally {
+            setIsLoading(false);
+          }
+        } else if (savedEmail && savedAuthMethod === 'google') {
+          // Pour Google, on utilise une méthode de reconnexion plus stable
+          setIsLoading(true);
+          try {
+            await handleGoogleQuickAuth();
+          } catch (error) {
+            console.error('Erreur lors de la reconnexion Google:', error);
+            showErrorAlert('Erreur', 'Échec de la reconnexion Google');
           } finally {
             setIsLoading(false);
           }
@@ -310,6 +393,443 @@ export default function AuthScreen() {
     }
   };
 
+  const saveAppleCredentials = async (userId: string, email: string, displayName: string) => {
+    try {
+      await SecureStore.setItemAsync('userEmail', email);
+      await SecureStore.setItemAsync('userId', userId);
+      await SecureStore.setItemAsync('userDisplayName', displayName);
+      await SecureStore.setItemAsync('authMethod', 'apple');
+      console.log('Identifiants Apple sauvegardés localement');
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde des identifiants Apple:', error);
+    }
+  };
+
+  const saveGoogleCredentials = async (userId: string, email: string, displayName: string) => {
+    try {
+      await SecureStore.setItemAsync('userEmail', email);
+      await SecureStore.setItemAsync('userId', userId);
+      await SecureStore.setItemAsync('userDisplayName', displayName);
+      await SecureStore.setItemAsync('authMethod', 'google');
+      console.log('Identifiants Google sauvegardés localement');
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde des identifiants Google:', error);
+    }
+  };
+
+  const handleAppleAuth = async () => {
+    try {
+      setIsLoading(true);
+      
+      console.log('Début de l\'authentification Apple...');
+      
+      // Vérifier d'abord si Apple Authentication est disponible
+      const isAvailable = await AppleAuthentication.isAvailableAsync();
+      console.log('Apple Authentication disponible:', isAvailable);
+      
+      if (!isAvailable) {
+        showErrorAlert('Erreur', 'Apple Authentication n\'est pas disponible sur cet appareil');
+        return;
+      }
+
+              const credential = await AppleAuthentication.signInAsync({
+          requestedScopes: [
+            AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+            AppleAuthentication.AppleAuthenticationScope.EMAIL,
+          ],
+        });
+
+        console.log('Credential Apple reçu:', {
+          hasIdentityToken: !!credential.identityToken,
+          hasEmail: !!credential.email,
+          hasFullName: !!credential.fullName
+        });
+
+        const { identityToken, email, fullName } = credential;
+        
+        if (!identityToken) {
+          showErrorAlert('Erreur', 'Token d\'identité Apple manquant');
+          return;
+        }
+
+        console.log('Tentative de connexion Firebase avec Apple...');
+        
+        const provider = new OAuthProvider('apple.com');
+        const firebaseCredential = provider.credential({
+          idToken: identityToken,
+        });
+
+        const userCredential = await signInWithCredential(auth, firebaseCredential);
+        const userId = userCredential.user.uid;
+        
+        console.log('Utilisateur Firebase connecté:', userId);
+        
+        // Vérifier si l'utilisateur existe déjà
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        
+        if (!userDoc.exists()) {
+          console.log('Création d\'un nouveau profil utilisateur...');
+          // Créer un nouveau profil utilisateur
+          const displayName = fullName ? `${fullName.givenName || ''} ${fullName.familyName || ''}`.trim() : '';
+          
+          // Gérer l'email masqué d'Apple
+          const userEmail = email || '';
+          const isPrivateEmail = userEmail.includes('privaterelay.appleid.com');
+          
+          console.log('Email utilisateur:', {
+            email: userEmail,
+            isPrivateEmail: isPrivateEmail
+          });
+          
+          await setDoc(doc(db, 'users', userId), {
+            profile: {
+              name: displayName,
+              username: '',
+              country: '',
+              schoolType: '',
+              completedAchievements: [],
+              displayedAchievements: [],
+              completedExercises: {},
+              class: '',
+              section: '',
+              onboardingCompleted: false,
+              subjects: [],
+              email: userEmail,
+              isPrivateEmail: isPrivateEmail, // Marquer si c'est un email privé
+              createdAt: new Date(),
+            },
+          });
+          console.log('Profil utilisateur créé avec succès');
+          
+          // Sauvegarder les identifiants pour la reconnexion rapide
+          await saveAppleCredentials(userId, userEmail, displayName);
+        } else {
+          console.log('Utilisateur existant trouvé');
+          
+          // Mettre à jour l'email si nécessaire (pour les utilisateurs existants)
+          const userData = userDoc.data();
+          const displayName = userData.profile.name || '';
+          const userEmail = email || userData.profile.email || '';
+          
+          if (!userData.profile.email && email) {
+            await setDoc(doc(db, 'users', userId), {
+              profile: {
+                ...userData.profile,
+                email: email,
+                isPrivateEmail: email.includes('privaterelay.appleid.com')
+              }
+            }, { merge: true });
+            console.log('Email mis à jour pour l\'utilisateur existant');
+          }
+          
+          // Sauvegarder les identifiants pour la reconnexion rapide
+          await saveAppleCredentials(userId, userEmail, displayName);
+        }
+        
+        router.replace('/onboarding');
+    } catch (error: any) {
+      console.error('Erreur détaillée lors de l\'authentification Apple:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
+      
+      if (error.code === 'ERR_CANCELED') {
+        // L'utilisateur a annulé l'authentification
+        console.log('Authentification Apple annulée par l\'utilisateur');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        showErrorAlert('Erreur', 'Apple Authentication n\'est pas activé dans Firebase. Veuillez contacter l\'administrateur.');
+      } else if (error.code === 'auth/invalid-credential') {
+        showErrorAlert('Erreur', 'Identifiants Apple invalides. Veuillez réessayer.');
+      } else {
+        showErrorAlert('Erreur', `Échec de la connexion avec Apple: ${error.message}`);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleQuickAuth = async () => {
+    try {
+      console.log('Début de la reconnexion rapide Google...');
+      
+      // Vérifier que Google Play Services est disponible (Android)
+      if (Platform.OS === 'android') {
+        const hasPlayServices = await GoogleSignin.hasPlayServices();
+        if (!hasPlayServices) {
+          showErrorAlert('Erreur', 'Google Play Services n\'est pas disponible');
+          return;
+        }
+      }
+
+      // Pour la reconnexion rapide, on ne fait pas de signOut préalable
+      // pour éviter les conflits de timing
+      let userInfo;
+      try {
+        userInfo = await GoogleSignin.signIn();
+        console.log('Informations utilisateur Google reçues (reconnexion rapide):', userInfo);
+      } catch (signInError) {
+        console.log('Erreur lors de l\'authentification Google - probablement annulée:', signInError);
+        return;
+      }
+
+      // Vérifier si l'utilisateur a annulé l'authentification
+      if (!userInfo) {
+        console.log('Authentification Google annulée par l\'utilisateur');
+        return;
+      }
+
+      // Utiliser l'API Firebase pour l'authentification Google
+      let idToken;
+      try {
+        const tokens = await GoogleSignin.getTokens();
+        idToken = tokens.idToken;
+      } catch (tokenError) {
+        console.log('Erreur lors de la récupération du token - authentification annulée:', tokenError);
+        return;
+      }
+      
+      if (!idToken) {
+        console.log('Token d\'identité Google manquant - authentification annulée');
+        return;
+      }
+
+      // Vérification supplémentaire : s'assurer que le token est valide
+      if (idToken.length < 10) {
+        console.log('Token Google invalide - authentification annulée');
+        return;
+      }
+
+      console.log('Tentative de connexion Firebase avec Google (reconnexion rapide)...');
+      
+      const credential = GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(auth, credential);
+      const userId = userCredential.user.uid;
+      
+      console.log('Utilisateur Firebase connecté (reconnexion rapide):', userId);
+      
+      // Vérifier si l'utilisateur existe déjà
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      
+      if (!userDoc.exists()) {
+        console.log('Création d\'un nouveau profil utilisateur (reconnexion rapide)...');
+        
+        // Récupérer les informations utilisateur depuis Firebase
+        const firebaseUser = userCredential.user;
+        
+        await setDoc(doc(db, 'users', userId), {
+          profile: {
+            name: firebaseUser.displayName || '',
+            username: '',
+            country: '',
+            schoolType: '',
+            completedAchievements: [],
+            displayedAchievements: [],
+            completedExercises: {},
+            class: '',
+            section: '',
+            onboardingCompleted: false,
+            subjects: [],
+            email: firebaseUser.email || '',
+            createdAt: new Date(),
+          },
+        });
+        console.log('Profil utilisateur créé avec succès (reconnexion rapide)');
+        
+        // Sauvegarder les identifiants pour la reconnexion rapide
+        await saveGoogleCredentials(userId, firebaseUser.email || '', firebaseUser.displayName || '');
+      } else {
+        console.log('Utilisateur existant trouvé (reconnexion rapide)');
+        
+        // Sauvegarder les identifiants pour la reconnexion rapide
+        const userData = userDoc.data();
+        const firebaseUser = userCredential.user;
+        const displayName = userData.profile.name || firebaseUser.displayName || '';
+        const userEmail = firebaseUser.email || userData.profile.email || '';
+        
+        await saveGoogleCredentials(userId, userEmail, displayName);
+      }
+      
+      router.replace('/onboarding');
+    } catch (error: any) {
+      console.error('Erreur détaillée lors de la reconnexion rapide Google:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
+      
+      // Vérifier les différents codes d'erreur d'annulation
+      if (error.code === 'SIGN_IN_CANCELLED' || 
+          error.code === 'SIGN_IN_REQUIRED' ||
+          error.code === 'SIGN_IN_FAILED' ||
+          error.message?.includes('cancelled') ||
+          error.message?.includes('canceled') ||
+          error.message?.includes('user cancelled') ||
+          error.message?.includes('user canceled')) {
+        console.log('Authentification Google annulée par l\'utilisateur');
+        // Ne pas afficher d'erreur pour une annulation
+        return;
+      } else if (error.code === 'auth/operation-not-allowed') {
+        showErrorAlert('Erreur', 'Google Authentication n\'est pas activé dans Firebase. Veuillez contacter l\'administrateur.');
+      } else if (error.code === 'auth/invalid-credential') {
+        showErrorAlert('Erreur', 'Identifiants Google invalides. Veuillez réessayer.');
+      } else if (error.code === 'auth/user-disabled') {
+        showErrorAlert('Erreur', 'Ce compte Google a été désactivé.');
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        showErrorAlert('Erreur', 'Un compte existe déjà avec cette adresse email mais avec une méthode de connexion différente.');
+      } else {
+        showErrorAlert('Erreur', `Échec de la reconnexion avec Google: ${error.message}`);
+      }
+    }
+  };
+
+  const handleGoogleAuth = async () => {
+    try {
+      setIsLoading(true);
+      
+      console.log('Début de l\'authentification Google...');
+      
+      // Vérifier que Google Play Services est disponible (Android)
+      if (Platform.OS === 'android') {
+        const hasPlayServices = await GoogleSignin.hasPlayServices();
+        if (!hasPlayServices) {
+          showErrorAlert('Erreur', 'Google Play Services n\'est pas disponible');
+          return;
+        }
+      }
+
+      // Lancer l'authentification Google
+      await GoogleSignin.hasPlayServices();
+      
+      // Se déconnecter d'abord pour forcer une nouvelle authentification
+      try {
+        await GoogleSignin.signOut();
+      } catch (signOutError) {
+        // Ignorer les erreurs de déconnexion
+        console.log('Déconnexion Google (normal si pas connecté):', signOutError);
+      }
+      
+      let userInfo;
+      try {
+        userInfo = await GoogleSignin.signIn();
+        console.log('Informations utilisateur Google reçues:', userInfo);
+      } catch (signInError) {
+        console.log('Erreur lors de l\'authentification Google - probablement annulée:', signInError);
+        return;
+      }
+
+      // Vérifier si l'utilisateur a annulé l'authentification
+      if (!userInfo) {
+        console.log('Authentification Google annulée par l\'utilisateur');
+        return;
+      }
+
+      // Utiliser l'API Firebase pour l'authentification Google
+      let idToken;
+      try {
+        const tokens = await GoogleSignin.getTokens();
+        idToken = tokens.idToken;
+      } catch (tokenError) {
+        console.log('Erreur lors de la récupération du token - authentification annulée:', tokenError);
+        return;
+      }
+      
+      if (!idToken) {
+        console.log('Token d\'identité Google manquant - authentification annulée');
+        return;
+      }
+
+      // Vérification supplémentaire : s'assurer que le token est valide
+      if (idToken.length < 10) {
+        console.log('Token Google invalide - authentification annulée');
+        return;
+      }
+
+      console.log('Tentative de connexion Firebase avec Google...');
+      
+      const credential = GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(auth, credential);
+      const userId = userCredential.user.uid;
+      
+      console.log('Utilisateur Firebase connecté:', userId);
+      
+      // Vérifier si l'utilisateur existe déjà
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      
+      if (!userDoc.exists()) {
+        console.log('Création d\'un nouveau profil utilisateur...');
+        
+        // Récupérer les informations utilisateur depuis Firebase
+        const firebaseUser = userCredential.user;
+        
+        await setDoc(doc(db, 'users', userId), {
+          profile: {
+            name: firebaseUser.displayName || '',
+            username: '',
+            country: '',
+            schoolType: '',
+            completedAchievements: [],
+            displayedAchievements: [],
+            completedExercises: {},
+            class: '',
+            section: '',
+            onboardingCompleted: false,
+            subjects: [],
+            email: firebaseUser.email || '',
+            createdAt: new Date(),
+          },
+        });
+        console.log('Profil utilisateur créé avec succès');
+        
+        // Sauvegarder les identifiants pour la reconnexion rapide
+        await saveGoogleCredentials(userId, firebaseUser.email || '', firebaseUser.displayName || '');
+      } else {
+        console.log('Utilisateur existant trouvé');
+        
+        // Sauvegarder les identifiants pour la reconnexion rapide
+        const userData = userDoc.data();
+        const firebaseUser = userCredential.user;
+        const displayName = userData.profile.name || firebaseUser.displayName || '';
+        const userEmail = firebaseUser.email || userData.profile.email || '';
+        
+        await saveGoogleCredentials(userId, userEmail, displayName);
+      }
+      
+      router.replace('/onboarding');
+    } catch (error: any) {
+      console.error('Erreur détaillée lors de l\'authentification Google:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
+      
+      // Vérifier les différents codes d'erreur d'annulation
+      if (error.code === 'SIGN_IN_CANCELLED' || 
+          error.code === 'SIGN_IN_REQUIRED' ||
+          error.code === 'SIGN_IN_FAILED' ||
+          error.message?.includes('cancelled') ||
+          error.message?.includes('canceled') ||
+          error.message?.includes('user cancelled') ||
+          error.message?.includes('user canceled')) {
+        console.log('Authentification Google annulée par l\'utilisateur');
+        // Ne pas afficher d'erreur pour une annulation
+        return;
+      } else if (error.code === 'auth/operation-not-allowed') {
+        showErrorAlert('Erreur', 'Google Authentication n\'est pas activé dans Firebase. Veuillez contacter l\'administrateur.');
+      } else if (error.code === 'auth/invalid-credential') {
+        showErrorAlert('Erreur', 'Identifiants Google invalides. Veuillez réessayer.');
+      } else if (error.code === 'auth/user-disabled') {
+        showErrorAlert('Erreur', 'Ce compte Google a été désactivé.');
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        showErrorAlert('Erreur', 'Un compte existe déjà avec cette adresse email mais avec une méthode de connexion différente.');
+      } else {
+        showErrorAlert('Erreur', `Échec de la connexion avec Google: ${error.message}`);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const renderSimplifiedAuth = () => (
     <View style={styles.simplifiedContainer}>
       <View style={styles.header}>
@@ -337,11 +857,63 @@ export default function AuthScreen() {
                 style={styles.buttonIcon}
               />
               <Text style={styles.buttonText}>
-                Se connecter avec Face ID
+                Se connecter rapidement
               </Text>
             </View>
+            
           )}
         </TouchableOpacity>
+        <Text style={styles.orText}>
+          Ou
+        </Text>
+
+        {isAppleAuthAvailable && (
+          <TouchableOpacity 
+            style={[styles.appleButton, isLoading && styles.buttonDisabled]} 
+            onPress={handleAppleAuth}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <View style={styles.buttonContent}>
+                <MaterialCommunityIcons 
+                  name="apple" 
+                  size={24} 
+                  color="#fff" 
+                  style={styles.buttonIcon}
+                />
+                <Text style={styles.buttonText}>
+                  Se connecter avec Apple
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {isGoogleAuthAvailable && (
+          <TouchableOpacity 
+            style={[styles.googleButton, isLoading && styles.buttonDisabled]} 
+            onPress={handleGoogleAuth}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <View style={styles.buttonContent}>
+                <MaterialCommunityIcons 
+                  name="google" 
+                  size={24} 
+                  color="#fff" 
+                  style={styles.buttonIcon}
+                />
+                <Text style={styles.buttonText}>
+                  Se connecter avec Google
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity 
           style={styles.switchButton} 
@@ -499,6 +1071,54 @@ export default function AuthScreen() {
                 </View>
             )}
           </TouchableOpacity>
+
+          {isLogin && isAppleAuthAvailable && (
+            <TouchableOpacity 
+              style={[styles.appleButton, isLoading && styles.buttonDisabled]} 
+              onPress={handleAppleAuth}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <View style={styles.buttonContent}>
+                  <MaterialCommunityIcons 
+                    name="apple" 
+                    size={24} 
+                    color="#fff" 
+                    style={styles.buttonIcon}
+                  />
+                  <Text style={styles.buttonText}>
+                    Se connecter avec Apple
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {isLogin && isGoogleAuthAvailable && (
+            <TouchableOpacity 
+              style={[styles.googleButton, isLoading && styles.buttonDisabled]} 
+              onPress={handleGoogleAuth}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <View style={styles.buttonContent}>
+                  <MaterialCommunityIcons 
+                    name="google" 
+                    size={24} 
+                    color="#fff" 
+                    style={styles.buttonIcon}
+                  />
+                  <Text style={styles.buttonText}>
+                    Se connecter avec Google
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
           
           <TouchableOpacity 
             style={styles.switchButton} 
@@ -638,6 +1258,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#4a5568',
     shadowOpacity: 0,
   },
+  appleButton: {
+    backgroundColor: '#000',
+    padding: 18,
+    borderRadius: 12,
+    marginTop: 15,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 56,
+  },
+  googleButton: {
+    backgroundColor: '#4285F4',
+    padding: 18,
+    borderRadius: 12,
+    marginTop: 15,
+    shadowColor: '#4285F4',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 56,
+  },
   buttonText: {
     color: '#fff',
     textAlign: 'center',
@@ -651,6 +1305,13 @@ const styles = StyleSheet.create({
     color: '#60a5fa',
     textAlign: 'center',
     fontSize: 14,
+  },
+  orText: {
+    color: '#60a5fa',
+    textAlign: 'center',
+    fontSize: 14,
+    marginTop: 20,
+    marginBottom: 10,
   },
   forgotPasswordButton: {
     alignSelf: 'flex-end',
