@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import ResetPassword from './components/ResetPassword';
 
 export default function AuthScreen() {
   const [email, setEmail] = useState('');
@@ -46,6 +47,7 @@ export default function AuthScreen() {
   const [showFullForm, setShowFullForm] = useState(false);
   const [isAppleAuthAvailable, setIsAppleAuthAvailable] = useState(false);
   const [isGoogleAuthAvailable, setIsGoogleAuthAvailable] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const router = useRouter();
   const auth = getAuth();
   const insets = useSafeAreaInsets();
@@ -349,38 +351,8 @@ export default function AuthScreen() {
     }
   };
 
-  const handleForgotPassword = async () => {
-    if (!email) {
-      showErrorAlert('Erreur', 'Veuillez entrer votre adresse email');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await sendPasswordResetEmail(auth, email);
-      showSuccessAlert(
-        'Email envoyé',
-        'Un email de réinitialisation a été envoyé à votre adresse email'
-      );
-    } catch (error: any) {      
-      let errorMessage = 'Une erreur est survenue lors de l\'envoi de l\'email';
-      let errorTitle = 'Erreur';
-      
-      switch (error.code) {
-        case 'auth/invalid-email':
-          errorTitle = 'Email invalide';
-          errorMessage = 'Adresse email invalide';
-          break;
-        case 'auth/user-not-found':
-          errorTitle = 'Compte non trouvé';
-          errorMessage = 'Aucun compte associé à cette adresse email';
-          break;
-      }
-      
-      showErrorAlert(errorTitle, errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleForgotPassword = () => {
+    setShowResetPassword(true);
   };
 
   const saveCredentials = async (email: string, password: string) => {
@@ -574,7 +546,7 @@ export default function AuthScreen() {
       }
 
       // Vérifier si l'utilisateur a annulé l'authentification
-      if (!userInfo) {
+      if (!userInfo || userInfo.type === 'cancelled' || !userInfo.data) {
         console.log('Authentification Google annulée par l\'utilisateur');
         return;
       }
@@ -830,131 +802,21 @@ export default function AuthScreen() {
     }
   };
 
-  const renderSimplifiedAuth = () => (
-    <View style={styles.simplifiedContainer}>
-      <View style={styles.header}>
-        <Image source={require('../assets/images/logo.png')} style={styles.logo} contentFit="cover" cachePolicy="memory-disk" />
-        <Text style={styles.appSubtitle}>Ton assistant personnel d'apprentissage</Text>
-      </View>
-
-      <View style={styles.simplifiedContent}>
-        <Text style={styles.welcomeText}>Bonjour {savedUserName} !</Text>
-        <Text style={styles.authPrompt}>Voulez-vous vous connecter avec ce compte ?</Text>
-        
-        <TouchableOpacity 
-          style={[styles.button, isLoading && styles.buttonDisabled]} 
-          onPress={handleBiometricAuth}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <View style={styles.buttonContent}>
-              <MaterialCommunityIcons 
-                name={Platform.OS === 'ios' ? 'face-recognition' : 'fingerprint'} 
-                size={24} 
-                color="#fff" 
-                style={styles.buttonIcon}
-              />
-              <Text style={styles.buttonText}>
-                Se connecter rapidement
-              </Text>
-            </View>
-            
-          )}
-        </TouchableOpacity>
-        <Text style={styles.orText}>
-          Ou
-        </Text>
-
-        {isAppleAuthAvailable && (
-          <TouchableOpacity 
-            style={[styles.appleButton, isLoading && styles.buttonDisabled]} 
-            onPress={handleAppleAuth}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <View style={styles.buttonContent}>
-                <MaterialCommunityIcons 
-                  name="apple" 
-                  size={24} 
-                  color="#fff" 
-                  style={styles.buttonIcon}
-                />
-                <Text style={styles.buttonText}>
-                  Se connecter avec Apple
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
-
-        {isGoogleAuthAvailable && (
-          <TouchableOpacity 
-            style={[styles.googleButton, isLoading && styles.buttonDisabled]} 
-            onPress={handleGoogleAuth}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <View style={styles.buttonContent}>
-                <MaterialCommunityIcons 
-                  name="google" 
-                  size={24} 
-                  color="#fff" 
-                  style={styles.buttonIcon}
-                />
-                <Text style={styles.buttonText}>
-                  Se connecter avec Google
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity 
-          style={styles.switchButton} 
-          onPress={() => setShowFullForm(true)}
-        >
-          <Text style={styles.switchText}>
-            Utiliser un autre compte
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      {hasSavedCredentials && !showFullForm ? (
-        renderSimplifiedAuth()
-      ) : (
+    <>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
+      >
       <ScrollView 
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
-            <Image source={require('../assets/images/logo.png')} style={styles.logo} contentFit="cover" cachePolicy="memory-disk" />
-          <Text style={styles.appSubtitle}>Ton assistant personnel d'apprentissage</Text>
+        <View style={[styles.header, { marginTop: insets.top }]}>
+            <Image source={require('../assets/images/splash_screen_android.png')} style={styles.logo} contentFit="cover" cachePolicy="memory-disk"/>
         </View>
 
         <View style={styles.formContainer}>
-            {hasSavedCredentials && (
-              <TouchableOpacity 
-                style={styles.backButton}
-                onPress={() => setShowFullForm(false)}
-              >
-                <MaterialCommunityIcons name="arrow-left" size={24} color="#60a5fa" />
-                <Text style={styles.backButtonText}>Retour</Text>
-              </TouchableOpacity>
-            )}
-
             <Text style={styles.title}>{isLogin ? '👤 Connexion' : '✍️ Inscription'}</Text>
           
           <View style={styles.inputContainer}>
@@ -1071,6 +933,11 @@ export default function AuthScreen() {
                 </View>
             )}
           </TouchableOpacity>
+          {isLogin && (
+            <Text style={styles.orText}>
+              Ou
+            </Text>
+          )}
 
           {isLogin && isAppleAuthAvailable && (
             <TouchableOpacity 
@@ -1137,12 +1004,17 @@ export default function AuthScreen() {
               {isLogin ? '✨ Créer un compte' : '👋 Déjà un compte ? Se connecter'}
             </Text>
           </TouchableOpacity>
-        </View>
-      </ScrollView>
-      )}
-    </KeyboardAvoidingView>
+                  </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+      
+      <ResetPassword 
+        visible={showResetPassword}
+        onClose={() => setShowResetPassword(false)}
+      />
+    </>
   );
-}
+  }
 
 const styles = StyleSheet.create({
   container: {
@@ -1153,10 +1025,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   header: {
-    flex: 0.3,
+    flex: 0.25,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 60,
+    backgroundColor: 'white',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
   },
   appTitle: {
     fontSize: 48,
@@ -1173,12 +1047,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   formContainer: {
-    flex: 0.7,
-    backgroundColor: '#2d2d2d',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    padding: 30,
-    paddingTop: 40,
+    flex: 0.75,
+    backgroundColor: '#1a1a1a',
+    padding: 25,
+    paddingTop: 15,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -1187,16 +1059,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     color: '#fff',
     textAlign: 'center',
-    marginBottom: 30,
+    marginTop: 10,
+    marginBottom: 15,
     fontWeight: 'bold',
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: 15,
   },
   inputLabel: {
     color: '#999',
@@ -1239,9 +1114,9 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: '#60a5fa',
-    padding: 18,
+    padding: 16,
     borderRadius: 12,
-    marginTop: 20,
+    marginTop: 15,
     shadowColor: '#60a5fa',
     shadowOffset: {
       width: 0,
@@ -1252,7 +1127,7 @@ const styles = StyleSheet.create({
     elevation: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 56,
+    height: 50,
   },
   buttonDisabled: {
     backgroundColor: '#4a5568',
@@ -1260,9 +1135,9 @@ const styles = StyleSheet.create({
   },
   appleButton: {
     backgroundColor: '#000',
-    padding: 18,
+    padding: 16,
     borderRadius: 12,
-    marginTop: 15,
+    marginTop: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -1273,13 +1148,13 @@ const styles = StyleSheet.create({
     elevation: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 56,
+    height: 50,
   },
   googleButton: {
     backgroundColor: '#4285F4',
-    padding: 18,
+    padding: 16,
     borderRadius: 12,
-    marginTop: 15,
+    marginTop: 12,
     shadowColor: '#4285F4',
     shadowOffset: {
       width: 0,
@@ -1290,7 +1165,7 @@ const styles = StyleSheet.create({
     elevation: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 56,
+    height: 50,
   },
   buttonText: {
     color: '#fff',
@@ -1299,7 +1174,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   switchButton: {
-    marginTop: 20,
+    marginTop: 15,
   },
   switchText: {
     color: '#60a5fa',
@@ -1310,8 +1185,8 @@ const styles = StyleSheet.create({
     color: '#60a5fa',
     textAlign: 'center',
     fontSize: 14,
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: 10,
+    marginBottom: 5,
   },
   forgotPasswordButton: {
     alignSelf: 'flex-end',
@@ -1324,13 +1199,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   logo: {
-    width: 320,
-    height: 120,
+    width: 220,
+    height: 160,
+    marginBottom: 5,
+    borderRadius: 20,
+    backgroundColor: 'white',
   },
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    height: 50,
   },
   buttonIcon: {
     marginRight: 8,

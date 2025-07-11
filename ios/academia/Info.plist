@@ -39,14 +39,6 @@
           <string>exp+academia</string>
         </array>
       </dict>
-      <dict>
-        <key>CFBundleURLName</key>
-        <string>Google Sign-In</string>
-        <key>CFBundleURLSchemes</key>
-        <array>
-          <string>com.googleusercontent.apps.981201332154-9ccltoet1r4c620k269332tiifu8huf0</string>
-        </array>
-      </dict>
     </array>
     <key>CFBundleVersion</key>
     <string>1</string>
