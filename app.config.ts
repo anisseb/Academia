@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "academia",
   slug: "academia",
-  version: "1.4.0",
+  version: "1.5.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "myapp",
@@ -13,6 +13,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     ...config.ios,
     supportsTablet: true,
+    usesAppleSignIn: true,
     bundleIdentifier: "com.anisse3000.academia",
     infoPlist: {
       ...config.ios?.infoPlist,
@@ -29,7 +30,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       googleServicesFile: process.env.GOOGLE_SERVICES_PLIST
     },
     entitlements: {
-      "com.apple.developer.networking.wifi-info": true
+      "com.apple.developer.networking.wifi-info": true,
+      "com.apple.developer.applesignin": ["Default"]
     }
   },
   android: {
@@ -51,6 +53,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     "expo-router",
+    "expo-apple-authentication",
+    "@react-native-google-signin/google-signin",
     [
       "expo-document-picker",
       {

@@ -25,10 +25,10 @@ service cloud.firestore {
     
     // Règles pour les exercices
     match /exercises/{exerciseId} {
-      // Lecture publique pour tous les utilisateurs authentifiés
-      allow read: if request.auth != null;
-      // Création autorisée pour tous les utilisateurs authentifiés
-      allow create: if request.auth != null;
+      // Lecture publique pour tous (même non connectés)
+      allow read: if true;
+      // Création autorisée pour tous (même non connectés)
+      allow create: if true;
       // Modification et suppression réservées aux administrateurs
       allow update, delete: if isAdmin();
     }
