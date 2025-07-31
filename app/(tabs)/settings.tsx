@@ -246,7 +246,7 @@ export default function SettingsScreen() {
         {/* Bouton Accessibilité DYS */}
         <TouchableOpacity
           style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
-          onPress={() => router.push('/(tabs)/settings/accessibilite-dys')}
+          onPress={() => router.push('/(tabs)/settings/accessibility')}
         >
           <View style={styles.viewContent}>
             <View style={styles.notificationLeft}>
@@ -260,9 +260,9 @@ export default function SettingsScreen() {
               </Text>
             </View>
             <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={isDarkMode ? '#666666' : '#999999'}
+              name="chevron-forward" 
+              size={20} 
+              color={isDarkMode ? '#666666' : '#999999'} 
             />
           </View>
         </TouchableOpacity>

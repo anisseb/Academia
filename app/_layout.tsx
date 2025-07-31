@@ -18,7 +18,10 @@ declare global {
 export default function RootLayout() {
   const { isValidating } = useSession();
   const [fontsLoaded] = useFonts({
-    // Ajoutez vos polices ici si nécessaire
+    'OpenDyslexic-Regular': require('../assets/fonts/OpenDyslexic-Regular.ttf'),
+    'OpenDyslexic-Bold': require('../assets/fonts/OpenDyslexic-Bold.ttf'),
+    'OpenDyslexic-Italic': require('../assets/fonts/OpenDyslexic-Italic.ttf'),
+    'OpenDyslexic-BoldItalic': require('../assets/fonts/OpenDyslexic-BoldItalic.ttf'),
   });
 
   useEffect(() => {
