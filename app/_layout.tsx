@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { ThemeProvider } from './context/ThemeContext';
+import { AccessibilityProvider } from './context/AccessibilityContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import { useSession } from './hooks/useSession';
@@ -39,8 +40,10 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <GestureHandlerRootView style={styles.container}>
         <ThemeProvider>
-          <Slot />
-          <StatusBar style="auto" />
+          <AccessibilityProvider>
+            <Slot />
+            <StatusBar style="auto" />
+          </AccessibilityProvider>
         </ThemeProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>

@@ -243,6 +243,29 @@ export default function SettingsScreen() {
             thumbColor={isDarkMode ? '#ffffff' : '#f4f3f4'}
           />
         </View>
+        {/* Bouton Accessibilité DYS */}
+        <TouchableOpacity
+          style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
+          onPress={() => router.push('/(tabs)/settings/accessibilite-dys')}
+        >
+          <View style={styles.viewContent}>
+            <View style={styles.notificationLeft}>
+              <Ionicons
+                name="accessibility-outline"
+                size={24}
+                color={isDarkMode ? '#ffffff' : '#000000'}
+              />
+              <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+                Modules Accessibilité DYS
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={isDarkMode ? '#666666' : '#999999'}
+            />
+          </View>
+        </TouchableOpacity>
       </View>
 
       <View style={[styles.section, { backgroundColor: isDarkMode ? '#2d2d2d' : '#f5f5f5' }]}>
