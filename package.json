@@ -60,6 +60,7 @@
     "expo-router": "^5.0.7",
     "expo-secure-store": "~14.2.3",
     "expo-sharing": "~13.1.5",
+    "expo-speech": "^13.1.7",
     "expo-splash-screen": "^0.30.9",
     "expo-status-bar": "^2.2.3",
     "expo-symbols": "^0.4.5",
