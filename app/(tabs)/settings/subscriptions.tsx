@@ -9,6 +9,7 @@ import { showErrorAlert, showSuccessAlert } from '../../utils/alerts';
 import { router, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
+import { ParrainageService } from '../../services/parrainageService';
 
 const ENTITLEMENT_ID = 'AcademIA Réussite'; // À adapter selon ton entitlement RevenueCat
 
@@ -16,6 +17,8 @@ export default function Subscriptions() {
   const [mode, setMode] = useState<'mois' | 'an'>('mois');
   const [offerings, setOfferings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [reduction, setReduction] = useState<number>(0);
+  const [availablePromotions, setAvailablePromotions] = useState<{[key: string]: any}>({});
   const insets = useSafeAreaInsets();
   const { isDarkMode } = useTheme();
 
@@ -34,6 +37,8 @@ export default function Subscriptions() {
       try {
         const res = await Purchases.getOfferings();
         setOfferings(res.current);
+        
+        // Les réductions et promotions seront calculées dans le useEffect qui dépend de mode et offerings
       } catch (e) {
         showErrorAlert('Erreur ❌', "Impossible de charger les offres d'abonnement. 😕");
       } finally {
@@ -42,6 +47,72 @@ export default function Subscriptions() {
     };
     fetchOfferings();
   }, []);
+
+  // Mettre à jour la réduction et les promotions quand le mode change
+  useEffect(() => {
+    const updateReductionAndPromotions = async () => {
+      const user = auth.currentUser;
+      if (user && offerings) {
+        const userReduction = await ParrainageService.applyBestReduction(user.uid, mode);
+        setReduction(userReduction);
+        
+        // Recalculer les promotions disponibles selon la réduction de l'utilisateur
+        const promotionsMap: {[key: string]: any} = {};
+        
+        if (offerings.availablePackages) {
+          for (const pkg of offerings.availablePackages) {
+            if (pkg.product.discounts && pkg.product.discounts.length > 0) {
+              // Trouver la promotion correspondant à la réduction de l'utilisateur
+              let bestPromotion = null;
+              let bestMatch = 0;
+              for (const discount of pkg.product.discounts) {
+                // Extraire le pourcentage de réduction du nom de la promotion
+                const promoMatch = discount.identifier.match(/promo(\d+)/);
+                if (promoMatch) {
+                  const promoPercentage = parseInt(promoMatch[1]);
+                  if (promoPercentage <= userReduction && promoPercentage > bestMatch) {
+                    bestMatch = promoPercentage;
+                    bestPromotion = discount;
+                  }
+                }
+              }
+              
+              if (bestPromotion) {
+                promotionsMap[pkg.product.identifier] = {
+                  originalPrice: pkg.product.priceString,
+                  originalPriceValue: pkg.product.price,
+                  promotionPrice: bestPromotion.priceString,
+                  promotionPriceValue: bestPromotion.price,
+                  promotionPercentage: bestMatch,
+                  promotion: bestPromotion,
+                  product: pkg.product
+                };
+              }
+            }
+          }
+        }
+        
+        setAvailablePromotions(promotionsMap);
+      }
+    };
+    updateReductionAndPromotions();
+  }, [mode, offerings]);
+
+  // Fonction pour calculer le prix avec réduction
+  const calculatePriceWithReduction = (originalPrice: string): string => {
+    if (reduction === 0) return originalPrice;
+    
+    // Extraire le prix numérique
+    const priceMatch = originalPrice.match(/(\d+[.,]\d+)/);
+    if (!priceMatch) return originalPrice;
+    
+    const price = parseFloat(priceMatch[1].replace(',', '.'));
+    const discountedPrice = price * (1 - reduction / 100);
+    
+    // Formater le prix avec réduction
+    const formattedPrice = discountedPrice.toFixed(2).replace('.', ',');
+    return originalPrice.replace(priceMatch[1], formattedPrice);
+  };
 
   const handlePurchase = async (type: 'premium' | 'famille') => {
     let packageId = '';
@@ -64,13 +135,47 @@ export default function Subscriptions() {
       }
     }
 
+    // Vérifier s'il y a une promotion disponible pour ce produit
+    const promotionInfo = availablePromotions[packageId];
+    
+    // Sélectionner le package (toujours le produit original)
     const selectedPackage = offerings.availablePackages.find((p: any) => p.product.identifier === packageId);
+    
     if (!selectedPackage) {
       showErrorAlert('Erreur ❌', 'Offre non trouvée. 😕');
       return;
     }
+    
     try {
-      const { customerInfo } = await Purchases.purchasePackage(selectedPackage);
+      let customerInfo;
+      
+      // Procéder à l'achat (une seule fois)
+      if (promotionInfo && promotionInfo.promotion) {
+        
+        // Récupérer la promotional offer
+        const promotionalOffer = await Purchases.getPromotionalOffer(selectedPackage.product, promotionInfo.promotion);
+        
+        if (promotionalOffer) {
+          // Achat avec promotion
+          const { customerInfo: customerInfoResult } = await Purchases.purchaseDiscountedPackage(selectedPackage, promotionalOffer);
+          customerInfo = customerInfoResult;
+          
+          // Consommer la réduction après achat réussi
+          const user = auth.currentUser;
+          if (user) {
+            await ParrainageService.consumeReduction(user.uid, reduction);
+            showSuccessAlert('Réduction appliquée ! 🎉', `Vous bénéficiez d'une réduction de ${promotionInfo.promotionPercentage}% sur votre abonnement !`);
+          }
+        } else {
+          // Pas de promotional offer disponible, achat normal
+          const { customerInfo: customerInfoResult } = await Purchases.purchasePackage(selectedPackage);
+          customerInfo = customerInfoResult;
+        }
+      } else {
+        // Achat normal sans promotion
+        const { customerInfo: customerInfoResult } = await Purchases.purchasePackage(selectedPackage);
+        customerInfo = customerInfoResult;
+      }
       const user = auth.currentUser;
       if (user) {
         const userRef = doc(db, 'users', user.uid);
@@ -97,17 +202,19 @@ export default function Subscriptions() {
         showErrorAlert('Erreur ❌', 'Utilisateur non authentifié. 🙅‍♂️');
       }
     } catch (e: any) {
-      // RevenueCat : PurchaseCancelledError ou userCancelled
+      // Gestion des erreurs d'achat
       if (
         e.code === 'PurchaseCancelledError' ||
         e.code === 'USER_CANCELED' ||
-        e.code === 'PurchaseCancelledError' ||
         e.userCancelled === true ||
         (typeof e.message === 'string' && e.message.toLowerCase().includes('cancel'))
       ) {
         // Achat annulé par l'utilisateur : on ne fait rien
         return;
       }
+      
+      // Autres erreurs
+      console.error('Erreur lors de l\'achat:', e);
       showErrorAlert('Erreur ❌', 'Achat impossible : ' + e.message + ' 😢');
     }
   };
@@ -136,6 +243,28 @@ export default function Subscriptions() {
         </View>
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Choisissez votre formule</Text>
+        
+        {/* Bouton pour accéder au parrainage */}
+        {reduction === 0 && (
+          <TouchableOpacity 
+            style={styles.parrainageButton} 
+            onPress={() => router.push('/(tabs)/settings/parrainage')}
+          >
+            <Text style={styles.parrainageButtonText}>
+              🎁 Parrainez des amis pour obtenir des réductions !
+            </Text>
+          </TouchableOpacity>
+        )}
+        
+        {/* Message informatif pour les promotions */}
+        {reduction > 0 && (
+          <View style={styles.promotionInfoContainer}>
+            <Text style={styles.promotionInfoText}>
+              🎉 Vous avez une réduction de {reduction}%
+            </Text>
+          </View>
+        )}
+        
         <View style={styles.toggleContainer}>
           <TouchableOpacity
             style={[styles.toggleButton, mode === 'mois' && styles.toggleActive]}
@@ -174,7 +303,7 @@ export default function Subscriptions() {
           <View style={styles.headerPremium}>
             <MaterialCommunityIcons name="star-circle" size={32} color="#FFD700" />
             <Text style={styles.cardTitle}>Academia Réussite</Text>
-            <Text style={styles.pricePremium}>
+            <View style={styles.pricePremium}>
               {offerings ? (
                 (() => {
                   let id = '';
@@ -185,23 +314,52 @@ export default function Subscriptions() {
                       ? 'academia_reussite:academia-reussite-monthly'
                       : 'academia_reussite:academia-reussite-years';
                   }
+                  
+                  // Vérifier s'il y a une promotion disponible
+                  const promotionInfo = availablePromotions[id];
+                  if (promotionInfo && mode === 'mois') {
+                    return (
+                      <View style={styles.promotionPriceContainer}>
+                        <Text style={styles.originalPriceStriked}>{promotionInfo.originalPrice}</Text>
+                        <Text style={styles.promotionPrice}>{promotionInfo.promotionPrice} / mois</Text>
+                      </View>
+                    );
+                  }
+                  
                   if (mode === 'an') {
                     const annualPackage = offerings.availablePackages.find((p: any) => p.product.identifier === id);
                     const prixMois = annualPackage?.product.pricePerMonthString || '';
                     const prixAnnee = annualPackage?.product.pricePerYearString || '';
 
-                    return prixMois && prixAnnee
-                      ? `${prixMois} / mois (${prixAnnee} / an)`
-                      : (prixAnnee || '163,99€ / an');
+                    // Vérifier s'il y a une promotion disponible pour l'abonnement annuel
+                    if (promotionInfo) {
+                      return (
+                        <View style={styles.promotionPriceContainer}>
+                          <Text style={styles.originalPriceStriked}>
+                            {prixMois && prixAnnee ? `${prixMois} / mois (${prixAnnee} / an)` : (prixAnnee || '163,99€ / an')}
+                          </Text>
+                          <Text style={styles.promotionPrice}>
+                            {(promotionInfo.promotionPriceValue / 12).toFixed(2).replace('.', ',')}€ / mois ({promotionInfo.promotionPriceValue}€ / an)
+                          </Text>
+                        </View>
+                      );
+                    } else {
+                      const originalPrice = prixMois && prixAnnee
+                        ? `${prixMois} / mois (${prixAnnee} / an)`
+                        : (prixAnnee || '163,99€ / an');
+                      
+                      return <Text style={styles.priceText}>{calculatePriceWithReduction(originalPrice)}</Text>;
+                    }
                   } else {
-                    return (
-                      offerings.availablePackages.find((p: any) => p.product.identifier === id)?.product.priceString ||
-                      '9,99€ / mois'
-                    );
+                    const originalPrice = offerings.availablePackages.find((p: any) => p.product.identifier === id)?.product.priceString || '9,99€ / mois';
+                    return <Text style={styles.priceText}>{calculatePriceWithReduction(originalPrice)}</Text>;
                   }
                 })()
-              ) : (mode === 'mois' ? '14,99€ / mois' : '13,67€ / mois (163,99€ / an)')}
-            </Text>
+              ) : <Text style={styles.priceText}>(mode === 'mois' ? '14,99€ / mois' : '13,67€ / mois (163,99€ / an)')</Text>}
+            </View>
+            {reduction > 0 && (
+              <Text style={styles.reductionText}>🎉 Réduction de {reduction}% appliquée !</Text>
+            )}
             {mode === 'an' && (
               <Text style={styles.offerText}>🎁 2 mois offerts avec l'abonnement annuel</Text>
             )}
@@ -213,7 +371,9 @@ export default function Subscriptions() {
             <Text style={styles.feature}>✅ Statistiques détaillées par matière</Text>
           </View>
           <TouchableOpacity style={styles.ctaButton} onPress={() => handlePurchase('premium')} disabled={loading}>
-            <Text style={styles.ctaText}>Passer à Academia Réussite</Text>
+            <Text style={styles.ctaText}>
+              Passer à Academia Réussite
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -222,7 +382,7 @@ export default function Subscriptions() {
           <View style={styles.headerFamily}>
             <MaterialCommunityIcons name="account-group" size={32} color="#FF6B6B" />
             <Text style={styles.cardTitle}>Pack Famille</Text>
-            <Text style={styles.priceFamily}>
+            <View style={styles.priceFamily}>
               {offerings ? (
                 (() => {
                   let id = '';
@@ -233,22 +393,51 @@ export default function Subscriptions() {
                       ? 'academia_pack_famille:academia-pack-famille-monthly'
                       : 'academia_pack_famille:academia-pack-famille-years';
                   }
+                  
+                  // Vérifier s'il y a une promotion disponible
+                  const promotionInfo = availablePromotions[id];
+                  if (promotionInfo && mode === 'mois') {
+                    return (
+                      <View style={styles.promotionPriceContainer}>
+                        <Text style={styles.originalPriceStriked}>{promotionInfo.originalPrice}</Text>
+                        <Text style={styles.promotionPrice}>{promotionInfo.promotionPrice} / mois</Text>
+                      </View>
+                    );
+                  }
+                  
                   if (mode === 'an') {
                     const annualPackage = offerings.availablePackages.find((p: any) => p.product.identifier === id);
                     const prixMois = annualPackage?.product.pricePerMonthString || '';
                     const prixAnnee = annualPackage?.product.pricePerYearString || '';
-                    return prixMois && prixAnnee
-                      ? `${prixMois} / mois (${prixAnnee} / an)`
-                      : (prixAnnee || '329,99€ / an');
+
+                    // Vérifier s'il y a une promotion disponible pour l'abonnement annuel
+                    if (promotionInfo) {
+                      return (
+                        <View style={styles.promotionPriceContainer}>
+                          <Text style={styles.originalPriceStriked}>
+                            {prixMois && prixAnnee ? `${prixMois} / mois (${prixAnnee} / an)` : (prixAnnee || '329,99€ / an')}
+                          </Text>
+                          <Text style={styles.promotionPrice}>
+                            {(promotionInfo.promotionPriceValue / 12).toFixed(2).replace('.', ',')}€ / mois ({promotionInfo.promotionPriceValue}€ / an)
+                          </Text>
+                        </View>
+                      );
+                    } else {
+                      const originalPrice = prixMois && prixAnnee
+                        ? `${prixMois} / mois (${prixAnnee} / an)`
+                        : (prixAnnee || '329,99€ / an');
+                      return <Text style={styles.priceText}>{calculatePriceWithReduction(originalPrice)}</Text>;
+                    }
                   } else {
-                    return (
-                      offerings.availablePackages.find((p: any) => p.product.identifier === id)?.product.priceString ||
-                      '29,99€ / mois'
-                    );
+                    const originalPrice = offerings.availablePackages.find((p: any) => p.product.identifier === id)?.product.priceString || '29,99€ / mois';
+                    return <Text style={styles.priceText}>{calculatePriceWithReduction(originalPrice)}</Text>;
                   }
                 })()
-              ) : (mode === 'mois' ? '29,99€ / mois' : '27,50€ / mois (329,99€ / an)')}
-            </Text>
+              ) : <Text style={styles.priceText}>(mode === 'mois' ? '29,99€ / mois' : '27,50€ / mois (329,99€ / an)')</Text>}
+            </View>
+            {reduction > 0 && (
+              <Text style={styles.reductionText}>🎉 Réduction de {reduction}% appliquée !</Text>
+            )}
             {mode === 'an' && (
               <Text style={styles.offerText}>🎁 2 mois offerts avec l'abonnement annuel</Text>
             )}
@@ -268,7 +457,9 @@ export default function Subscriptions() {
             )}
           </View>
           <TouchableOpacity style={[styles.ctaButton, styles.familyButton]} onPress={() => handlePurchase('famille')} disabled={loading}>
-            <Text style={styles.ctaText}>Choisir le Pack Famille</Text>
+            <Text style={styles.ctaText}>
+              Choisir le Pack Famille
+            </Text>
           </TouchableOpacity>
         </View>
         <View style={styles.footer}>
@@ -409,6 +600,28 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     textAlign: 'center',
   },
+  reductionText: {
+    color: '#10b981',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 2,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  parrainageButton: {
+    backgroundColor: '#10b981',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  parrainageButtonText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 14,
+    textAlign: 'center',
+  },
   backButton: {
     position: 'absolute',
     top: 0,
@@ -449,5 +662,44 @@ const styles = StyleSheet.create({
     color: '#60a5fa',
     fontSize: 14,
     textAlign: 'center',
+  },
+  promotionInfoContainer: {
+    backgroundColor: '#10b981',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 20,
+    width: '100%',
+    maxWidth: 400,
+  },
+  promotionInfoText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  promotionPriceContainer: {
+    alignItems: 'center',
+  },
+  originalPriceStriked: {
+    fontSize: 16,
+    color: '#94a3b8',
+    textDecorationLine: 'line-through',
+    marginBottom: 4,
+  },
+  promotionPrice: {
+    fontSize: 18,
+    color: '#FFD700',
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  promotionPercentage: {
+    fontSize: 14,
+    color: '#10b981',
+    fontWeight: 'bold',
+  },
+  priceText: {
+    fontSize: 18,
+    color: '#FFD700',
+    fontWeight: 'bold',
   },
 }); 

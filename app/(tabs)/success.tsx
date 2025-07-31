@@ -3,6 +3,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useState, useEffect } from 'react';
 import { 
   Achievement, 
+  AFFILIATION_ACHIEVEMENTS, 
   COURSE_PROGRESSION_ACHIEVEMENTS, 
   EXERCISE_ACHIEVEMENTS, 
   IA_ACHIEVEMENTS,
@@ -28,6 +29,11 @@ import { checkSharer } from '../success/badges/sharer';
 import { checkSuggester } from '../success/badges/suggester';
 import { checkSatisfaction } from '../success/badges/satisfaction';
 import { checkDailyQuestMaster } from '../success/badges/dailyQuestMaster';
+import { checkFirstAffiliation } from '../success/affiliation/firstAffiliation';
+import { checkAffiliationNetworker } from '../success/affiliation/affiliationNetworker';
+import { checkAffiliationExpert } from '../success/affiliation/affiliationExpert';
+import { checkAffiliationMaster } from '../success/affiliation/affiliationMaster';
+
 import { auth, db } from '../../firebaseConfig';
 import { getDoc, doc, updateDoc } from 'firebase/firestore';
 import { Image } from 'expo-image';
@@ -71,7 +77,8 @@ export default function SuccessScreen() {
         { name: 'Progression des cours', achievements: COURSE_PROGRESSION_ACHIEVEMENTS },
         { name: 'Exercices', achievements: EXERCISE_ACHIEVEMENTS },
         { name: 'IA', achievements: IA_ACHIEVEMENTS },
-        { name: 'Badges spéciaux', achievements: SPECIAL_BADGES_ACHIEVEMENTS }
+        { name: 'Badges spéciaux', achievements: SPECIAL_BADGES_ACHIEVEMENTS },
+        { name: 'Affiliation', achievements: AFFILIATION_ACHIEVEMENTS }
       ];
 
       const newAchievements: Achievement[] = [];
@@ -170,6 +177,14 @@ export default function SuccessScreen() {
         return await checkSatisfaction();
       case 'daily_quest_master':
         return await checkDailyQuestMaster();
+      case 'first_affiliation':
+        return await checkFirstAffiliation();
+      case 'affiliation_networker':
+        return await checkAffiliationNetworker();
+      case 'affiliation_expert':
+        return await checkAffiliationExpert();
+      case 'affiliation_master':
+        return await checkAffiliationMaster();
       default:
         return 0;
     }

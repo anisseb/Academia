@@ -181,6 +181,30 @@ export default function SettingsScreen() {
         <TouchableOpacity
           style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
           onPress={() => {
+            router.push('/(tabs)/settings/parrainage');
+          }}
+        >
+          <View style={styles.viewContent}>
+            <View style={styles.notificationLeft}>
+              <Ionicons 
+                name="people-outline" 
+                size={24} 
+                color={isDarkMode ? '#ffffff' : '#000000'} 
+              />
+              <Text style={[styles.feedbackText, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+                Parrainage
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward" 
+              size={20} 
+              color={isDarkMode ? '#666666' : '#999999'} 
+            />
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.feedbackItem, { borderBottomColor: isDarkMode ? '#333333' : '#e0e0e0' }]}
+          onPress={() => {
             router.push('/(tabs)/settings/restore-purchase');
           }}
         >

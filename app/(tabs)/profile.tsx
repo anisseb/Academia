@@ -18,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { showErrorAlert, showSuccessAlert } from '../utils/alerts';
 import { parseGradient } from '../utils/subjectGradients';
 import { validateUsername } from '../utils/usernameValidation';
-import { COURSE_PROGRESSION_ACHIEVEMENTS, EXERCISE_ACHIEVEMENTS, IA_ACHIEVEMENTS, SPECIAL_BADGES_ACHIEVEMENTS } from '../constants/achievements';
+import { AFFILIATION_ACHIEVEMENTS, COURSE_PROGRESSION_ACHIEVEMENTS, EXERCISE_ACHIEVEMENTS, IA_ACHIEVEMENTS, SPECIAL_BADGES_ACHIEVEMENTS } from '../constants/achievements';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { useSchoolData } from '../hooks/useSchoolData';
@@ -456,6 +456,7 @@ export default function ProfileScreen() {
       ...EXERCISE_ACHIEVEMENTS,
       ...IA_ACHIEVEMENTS,
       ...SPECIAL_BADGES_ACHIEVEMENTS,
+      ...AFFILIATION_ACHIEVEMENTS,
     ];
 
     // Filtrer les succès qui sont dans completedAchievements

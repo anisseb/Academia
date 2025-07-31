@@ -135,6 +135,45 @@ export const IA_ACHIEVEMENTS: Achievement[] = [
   }
 ];
 
+export const AFFILIATION_ACHIEVEMENTS: Achievement[] = [
+  {
+    id: 'first_affiliation',
+    title: 'Première affiliation',
+    description: 'Obtenir sa première affiliation',
+    icon: '🤝',
+    category: 'Affiliation',
+    maxProgress: 1,
+    imagePath: require('../../assets/images/success/affiliation/parrain.webp')
+  },
+  {
+    id: 'affiliation_networker',
+    title: 'Réseauteur',
+    description: 'Obtenir 5 affiliations',
+    icon: '🌐',
+    category: 'Affiliation',
+    maxProgress: 5,
+    imagePath: require('../../assets/images/success/affiliation/super_parrain.webp')
+  },
+  {
+    id: 'affiliation_expert',
+    title: 'Expert en affiliation',
+    description: 'Obtenir 10 affiliations',
+    icon: '⭐',
+    category: 'Affiliation',
+    maxProgress: 10,
+    imagePath: require('../../assets/images/success/affiliation/parrain_pro.webp')
+  },
+  {
+    id: 'affiliation_master',
+    title: 'Maître de l\'affiliation',
+    description: 'Obtenir 20 affiliations',
+    icon: '👑',
+    category: 'Affiliation',
+    maxProgress: 20,
+    imagePath: require('../../assets/images/success/affiliation/parain_final.webp')
+  }
+];
+
 export const SPECIAL_BADGES_ACHIEVEMENTS: Achievement[] = [
   {
     id: 'daily_quest_master',

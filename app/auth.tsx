@@ -144,10 +144,12 @@ export default function AuthScreen() {
       GoogleSignin.configure({
         webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
         iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-        offlineAccess: true,
+        offlineAccess: true
       });
       
       console.log('Google Sign In configuré');
+      console.log('Web Client ID:', process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID);
+      console.log('iOS Client ID:', process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID);
       setIsGoogleAuthAvailable(true);
     } catch (error) {
       console.error('Erreur lors de la configuration Google Sign In:', error);

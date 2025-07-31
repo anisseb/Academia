@@ -32,7 +32,8 @@ import {
   COURSE_PROGRESSION_ACHIEVEMENTS, 
   EXERCISE_ACHIEVEMENTS, 
   IA_ACHIEVEMENTS, 
-  SPECIAL_BADGES_ACHIEVEMENTS 
+  SPECIAL_BADGES_ACHIEVEMENTS,
+  AFFILIATION_ACHIEVEMENTS
 } from '../constants/achievements';
 import { getSchoolTypeName, getClassName } from '../services/firestoreService';
 import { Image } from 'expo-image';
@@ -666,7 +667,7 @@ export default function AmisScreen() {
                   {selectedUser.completedAchievements
                     ?.filter(achievementId => selectedUser.displayedAchievements?.includes(achievementId))
                     .map((achievementId) => {
-                    const achievement = [...COURSE_PROGRESSION_ACHIEVEMENTS, ...EXERCISE_ACHIEVEMENTS, ...IA_ACHIEVEMENTS, ...SPECIAL_BADGES_ACHIEVEMENTS]
+                    const achievement = [...COURSE_PROGRESSION_ACHIEVEMENTS, ...EXERCISE_ACHIEVEMENTS, ...IA_ACHIEVEMENTS, ...SPECIAL_BADGES_ACHIEVEMENTS, ...AFFILIATION_ACHIEVEMENTS]
                       .find(a => a.id === achievementId);
                     
                     if (!achievement) return null;

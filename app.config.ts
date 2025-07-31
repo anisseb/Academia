@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "academia",
   slug: "academia",
-  version: "1.5.0",
+  version: "1.6.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "myapp",
@@ -27,7 +27,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           SKAdNetworkIdentifier: "n38lu8286q.skadnetwork"
         }
       ],
-      googleServicesFile: process.env.GOOGLE_SERVICES_PLIST
+      googleServicesFile: process.env.EXPO_PUBLIC_GOOGLE_SERVICES_PLIST
     },
     entitlements: {
       "com.apple.developer.networking.wifi-info": true,
@@ -36,7 +36,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     ...config.android,
-    googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
+    googleServicesFile: process.env.EXPO_PUBLIC_GOOGLE_SERVICES_JSON,
     adaptiveIcon: {
       foregroundImage: "./assets/images/splash_screen_android.png",
       backgroundColor: "#ffffff"
@@ -54,7 +54,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     "expo-router",
     "expo-apple-authentication",
-    "@react-native-google-signin/google-signin",
+    [
+      "@react-native-google-signin/google-signin",
+      {
+        "iosUrlScheme": 'com.googleusercontent.apps.981201332154-c6clrha1nkvi3h8mglpa8geve2ectii0',
+        "iosClientId": process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+        "webClientId": process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
+      }
+    ],
     [
       "expo-document-picker",
       {

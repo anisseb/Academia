@@ -15,11 +15,27 @@
       },
       "oauth_client": [
         {
-          "client_id": "981201332154-3ccsb27uqhm47qugm2s20gt1lfo2ofgd.apps.googleusercontent.com",
+          "client_id": "981201332154-ofmepof5cv393bb1orpjk2onl300mch8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.anisse3000.academia",
+            "certificate_hash": "c49f0dda980bff4ac8af9f6e92c7310403d83e88"
+          }
+        },
+        {
+          "client_id": "981201332154-plrnsd3qovf3ifannorh19v8m1nfrlf5.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.anisse3000.academia",
             "certificate_hash": "30cc8405abcf1b3717f21121474cc53467e36104"
+          }
+        },
+        {
+          "client_id": "981201332154-romikgghrnah7r393js0f69s3nthphfj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.anisse3000.academia",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
           }
         },
         {
@@ -38,6 +54,14 @@
             {
               "client_id": "981201332154-383j9nmilpvg020cnu3j3id10pbbhehc.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "981201332154-9ccltoet1r4c620k269332tiifu8huf0.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.anisse3000.academia",
+                "app_store_id": "6745426215"
+              }
             }
           ]
         }

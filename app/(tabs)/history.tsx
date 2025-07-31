@@ -594,7 +594,7 @@ export default function HistoryScreen() {
         const apiResponse = await client.chat.complete({
           model: "pixtral-12b",
           messages: messageHistory,
-          maxTokens: 8000,
+          maxTokens: 10000,
           responseFormat: {
             type: "json_object"
           },
