@@ -521,6 +521,13 @@ export default function TabLayout() {
             title: '',
           }}
         />
+
+        <Stack.Screen
+          name="avatar"
+          options={{
+            title: 'Avatar 3D',
+          }}
+        />
       </Stack>
       </Animated.View>
 
@@ -659,6 +666,17 @@ export default function TabLayout() {
           >
             <Feather name="star" size={20} color={themeColors.icon} />
             <Text style={[styles.navigationText, { color: themeColors.text }]}>Favoris</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.navigationItem}
+            onPress={() => {
+              router.push('/(tabs)/avatar');
+              toggleSidebar();
+            }}
+          >
+            <Feather name="user-check" size={20} color={themeColors.icon} />
+            <Text style={[styles.navigationText, { color: themeColors.text }]}>Avatar 3D</Text>
           </TouchableOpacity>
 
           {isOnline && (
