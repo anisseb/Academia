@@ -117,15 +117,13 @@ export default function AuthScreen() {
   const checkAppleAuthAvailability = async () => {
     try {
       const isAvailable = await AppleAuthentication.isAvailableAsync();
-      console.log('Apple Authentication disponible:', isAvailable);
       
       // Vérifications supplémentaires
       if (isAvailable) {
         // Test rapide pour voir si l'authentification fonctionne
         try {
           // Cette vérification peut échouer si l'utilisateur n'est pas connecté à iCloud
-          // mais ne devrait pas causer d'erreur fatale
-          console.log('Test de disponibilité Apple Authentication réussi');
+          // mais ne devrait pas causer d'erreur fatal
         } catch (testError) {
           console.log('Test Apple Authentication échoué:', testError);
           // Ne pas désactiver complètement, juste logger l'erreur

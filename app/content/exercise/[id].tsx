@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { renderMathText as MathText } from '../../utils/mathRenderer';
 import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
 import { adUnitIds } from '../../config/admob';
+import { safeGoBack } from '../../utils/navigationUtils';
 
 interface CompletedExercise {
   exerciseId: string;
@@ -161,7 +162,8 @@ export default function ExercisePage() {
 
 
   const handleBack = async () => {
-    router.back();
+    // Navigation sécurisée vers l'écran précédent ou l'accueil
+    safeGoBack(router);
   };
 
   const handleAnswerSelect = (answerIndex: number) => {

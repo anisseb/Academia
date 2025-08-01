@@ -12,9 +12,9 @@ export const initializeAdMob = async () => {
 
 // Utiliser les IDs de test pour éviter les erreurs
 export const adUnitIds = {
-  interstitial: __DEV__ ? TestIds.INTERSTITIAL : Platform.select({
-    ios: 'ca-app-pub-9849575862637315/1234567890', // Remplacez par votre vrai ID iOS
-    android: 'ca-app-pub-9849575862637315/0987654321', // Remplacez par votre vrai ID Android
+  interstitial: Platform.select({
+    ios: 'ca-app-pub-9849575862637315/9869347623', // Remplacez par votre vrai ID iOS
+    android: 'ca-app-pub-9849575862637315/8041260634', // Remplacez par votre vrai ID Android
     default: TestIds.INTERSTITIAL,
   }),
   banner: __DEV__ ? TestIds.BANNER : Platform.select({
@@ -23,7 +23,7 @@ export const adUnitIds = {
     default: TestIds.BANNER,
   }),
   rewarded: __DEV__ ? TestIds.REWARDED : Platform.select({
-    ios: 'ca-app-pub-9849575862637315/3333333333', // Remplacez par votre vrai ID iOS
+    ios: 'ca-app-pub-9849575862637315~3948002761', // Remplacez par votre vrai ID iOS
     android: 'ca-app-pub-9849575862637315/4444444444', // Remplacez par votre vrai ID Android
     default: TestIds.REWARDED,
   }),
@@ -33,6 +33,6 @@ export const adUnitIds = {
 export const adSettings = {
   requestNonPersonalizedAdsOnly: true,
   keywords: ['education', 'school', 'learning', 'math', 'science'],
-  contentUrl: 'https://your-app.com',
+  contentUrl: 'https://academiaforkids.com',
   publisherProvidedID: 'your-publisher-id'
 }; 

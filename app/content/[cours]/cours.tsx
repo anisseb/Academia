@@ -26,6 +26,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { parseGradient } from '../../utils/subjectGradients';
 import { LinearGradient } from 'expo-linear-gradient';
+import { adUnitIds } from '@/app/config/admob';
+import { safeGoBack } from '../../utils/navigationUtils';
 
 interface CoursSection {
   title: string;
@@ -108,7 +110,7 @@ export default function CoursScreen() {
     checkIfFavorite();
     setDetails();
     // Initialiser l'annonce
-    const ad = InterstitialAd.createForAdRequest(TestIds.INTERSTITIAL, {
+    const ad = InterstitialAd.createForAdRequest(adUnitIds.interstitial, {
       requestNonPersonalizedAdsOnly: true,
       keywords: ['education', 'school']
     });
@@ -126,7 +128,7 @@ export default function CoursScreen() {
       // Recharger une nouvelle annonce
       ad.load();
       // Revenir en arrière après la fermeture de l'annonce
-      router.back();
+      safeGoBack(router);
     });
 
     // Charger l'annonce
@@ -281,14 +283,18 @@ export default function CoursScreen() {
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.back();
-    /*
+    
+    // Navigation sécurisée vers l'écran précédent ou l'accueil
+    safeGoBack(router);
+    
+    // Afficher l'annonce si elle est chargée
     if (adLoaded && interstitialAd) {
-      interstitialAd.show();
-    } else {
-      router.back();
+      try {
+        interstitialAd.show();
+      } catch (error) {
+        console.error('Erreur lors de l\'affichage de l\'annonce:', error);
+      }
     }
-    */
   };
 
   const generatePDF = async () => {
