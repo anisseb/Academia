@@ -30,7 +30,7 @@ export default function ContentPage() {
   const [userCountry, setUserCountry] = useState<string>('');
   const [userClass, setUserClass] = useState<string>('');
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
-  const [remainingExercises, setRemainingExercises] = useState(2);
+  const [remainingExercises, setRemainingExercises] = useState(5);
   const [completedExercises, setCompletedExercises] = useState<string[]>([]);
   const statusBarHeight = StatusBar.currentHeight || 0;
 
@@ -77,11 +77,11 @@ export default function ContentPage() {
           
           if (lastReset < today) {
             // Si c'est un nouveau jour, on réinitialise le compteur
-            setRemainingExercises(2);
+            setRemainingExercises(5);
           } else {
             // Sinon on vérifie le nombre d'exercices restants
             const completedCount = dailyExercises.count || 0;
-            setRemainingExercises(Math.max(0, 2 - completedCount));
+            setRemainingExercises(Math.max(0, 5 - completedCount));
           }
         }
       }

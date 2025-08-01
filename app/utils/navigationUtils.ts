@@ -4,7 +4,7 @@ import { Router } from 'expo-router';
  * Navigation de retour sécurisée
  * Retourne à l'écran précédent ou à l'accueil s'il n'y en a pas
  */
-export const safeGoBack = (router: Router, fallbackRoute: any = '/') => {
+export const safeGoBack = (router: Router, fallbackRoute: any = '/(tabs)') => {
   if (router.canGoBack()) {
     router.back();
   } else {
@@ -19,7 +19,7 @@ export const safeGoBack = (router: Router, fallbackRoute: any = '/') => {
 export const safeGoBackWithCallback = (
   router: Router, 
   callback?: () => void, 
-  fallbackRoute: any = '/'
+  fallbackRoute: any = '/(tabs)'
 ) => {
   if (callback) {
     callback();

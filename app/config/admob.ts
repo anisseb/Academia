@@ -33,6 +33,5 @@ export const adUnitIds = {
 export const adSettings = {
   requestNonPersonalizedAdsOnly: true,
   keywords: ['education', 'school', 'learning', 'math', 'science'],
-  contentUrl: 'https://academiaforkids.com',
-  publisherProvidedID: 'your-publisher-id'
+  contentUrl: 'https://academiaforkids.com'
 }; 

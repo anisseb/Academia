@@ -69,6 +69,7 @@ export default function ExercisePage() {
   const [interstitialAd, setInterstitialAd] = useState<InterstitialAd | null>(null);
   const [adLoaded, setAdLoaded] = useState(false);
   const [currentScore, setCurrentScore] = useState<number | null>(null);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
 
   const statusBarHeight = StatusBar.currentHeight || 0;
 
@@ -107,11 +108,28 @@ export default function ExercisePage() {
     }
   };
 
+  const loadUserData = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    if (!userDoc.exists()) return;
+    const userData = userDoc.data();
+    if(userData.profile) {
+      console.log('userData.abonnement.active', userData.abonnement.active);
+      setHasActiveSubscription(userData.abonnement.active);
+    }
+  };
+
 
   useEffect(() => {
+    loadUserData();
     // Initialiser l'annonce seulement si l'ID est valide
     if (!adUnitIds.interstitial || adUnitIds.interstitial === '') {
       console.warn('⚠️  ID d\'unité publicitaire manquant');
+      return;
+    }
+
+    if (hasActiveSubscription === true) {
       return;
     }
 
@@ -144,7 +162,6 @@ export default function ExercisePage() {
           }
         }, 1000);
       });
-
       // Charger l'annonce
       ad.load();
       setInterstitialAd(ad);
@@ -199,7 +216,8 @@ export default function ExercisePage() {
       
       // Puis on montre l'annonce si elle est prête
       console.log('📊 État annonce - Chargée:', adLoaded, '- Disponible:', !!interstitialAd);
-      if (interstitialAd && adLoaded) {
+      console.log('hasActiveSubscription', hasActiveSubscription);
+      if (interstitialAd && adLoaded && hasActiveSubscription === false) {
         try {
           console.log('📺 Affichage de l\'annonce...');
           await interstitialAd.show();

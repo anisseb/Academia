@@ -290,11 +290,11 @@ export default function Subscriptions() {
             <Text style={styles.price}>Gratuit</Text>
           </View>
           <View style={styles.features}>
-            <Text style={styles.feature}>✅ Accès aux cours de toutes les matières (connexion requise)</Text>
-            <Text style={styles.feature}>✅ 3 QCM par chapitre</Text>
+            <Text style={styles.feature}>✅ Accès aux cours de toutes les matières</Text>
+            <Text style={styles.feature}>✅ 5 QCM par jours disponibles</Text>
             <Text style={styles.feature}>✅ 1 interaction IA par jour pour de l'aide au devoir personnalisée</Text>
+            <Text style={styles.feature}>✅ Publicités</Text>
             <Text style={styles.feature}>❌ Pas de statistiques détaillées</Text>
-            <Text style={styles.feature}>❌ Pas d'accès hors ligne</Text>
           </View>
         </View>
 
@@ -369,6 +369,7 @@ export default function Subscriptions() {
             <Text style={styles.feature}>✅ QCM illimités</Text>
             <Text style={styles.feature}>✅ Aide personnalisée avec une IA pour les devoirs</Text>
             <Text style={styles.feature}>✅ Statistiques détaillées par matière</Text>
+            <Text style={styles.feature}>❌ Publicités</Text>
           </View>
           <TouchableOpacity style={styles.ctaButton} onPress={() => handlePurchase('premium')} disabled={loading}>
             <Text style={styles.ctaText}>
@@ -445,6 +446,7 @@ export default function Subscriptions() {
           <View style={styles.features}>
             <Text style={styles.feature}>👤👤👤 Pour toute la famille</Text>
             <Text style={styles.feature}>✅ Toutes les fonctionnalités Academia Réussite</Text>
+            <Text style={styles.feature}>❌ Publicités</Text>
             {Platform.OS === 'android' && (
               <Text style={[styles.feature, styles.familyNote]}>
                 ℹ️ Sur Android, vous pouvez partager cet abonnement avec jusqu'à 5 membres de votre famille via Google Play Family Library

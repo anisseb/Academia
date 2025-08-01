@@ -65,6 +65,7 @@ export default function CoursScreen() {
   const [interstitialAd, setInterstitialAd] = useState<InterstitialAd | null>(null);
   const [adLoaded, setAdLoaded] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
 
   const setDetails = async () => {
     const user = auth.currentUser;
@@ -161,6 +162,7 @@ export default function CoursScreen() {
         if (userData.profile) {
           setUserLevel(userData.profile.class || '');
           setUserSchoolType(userData.profile.schoolType || '');
+          setHasActiveSubscription(userData.abonnement.active);
           await loadCourse();
         }
       }
@@ -288,7 +290,7 @@ export default function CoursScreen() {
     safeGoBack(router);
     
     // Afficher l'annonce si elle est chargée
-    if (adLoaded && interstitialAd) {
+    if (adLoaded && interstitialAd && hasActiveSubscription === false) {
       try {
         interstitialAd.show();
       } catch (error) {
