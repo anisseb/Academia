@@ -143,13 +143,6 @@ export default function CameraScreen() {
         return;
       }
 
-      console.log('Dimensions de recadrage:', {
-        cropX, cropY, cropWidth, cropHeight,
-        originalWidth, originalHeight,
-        displayWidth, displayHeight,
-        marginX, marginY
-      });
-
       // Appliquer le recadrage
       manipulator.crop({
         originX: cropX,

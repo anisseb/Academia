@@ -147,9 +147,6 @@ export default function AuthScreen() {
         offlineAccess: true
       });
       
-      console.log('Google Sign In configuré');
-      console.log('Web Client ID:', process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID);
-      console.log('iOS Client ID:', process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID);
       setIsGoogleAuthAvailable(true);
     } catch (error) {
       console.error('Erreur lors de la configuration Google Sign In:', error);
@@ -373,7 +370,6 @@ export default function AuthScreen() {
       await SecureStore.setItemAsync('userId', userId);
       await SecureStore.setItemAsync('userDisplayName', displayName);
       await SecureStore.setItemAsync('authMethod', 'apple');
-      console.log('Identifiants Apple sauvegardés localement');
     } catch (error) {
       console.error('Erreur lors de la sauvegarde des identifiants Apple:', error);
     }
@@ -385,7 +381,6 @@ export default function AuthScreen() {
       await SecureStore.setItemAsync('userId', userId);
       await SecureStore.setItemAsync('userDisplayName', displayName);
       await SecureStore.setItemAsync('authMethod', 'google');
-      console.log('Identifiants Google sauvegardés localement');
     } catch (error) {
       console.error('Erreur lors de la sauvegarde des identifiants Google:', error);
     }
@@ -395,11 +390,8 @@ export default function AuthScreen() {
     try {
       setIsLoading(true);
       
-      console.log('Début de l\'authentification Apple...');
-      
       // Vérifier d'abord si Apple Authentication est disponible
       const isAvailable = await AppleAuthentication.isAvailableAsync();
-      console.log('Apple Authentication disponible:', isAvailable);
       
       if (!isAvailable) {
         showErrorAlert('Erreur', 'Apple Authentication n\'est pas disponible sur cet appareil');
@@ -413,12 +405,6 @@ export default function AuthScreen() {
           ],
         });
 
-        console.log('Credential Apple reçu:', {
-          hasIdentityToken: !!credential.identityToken,
-          hasEmail: !!credential.email,
-          hasFullName: !!credential.fullName
-        });
-
         const { identityToken, email, fullName } = credential;
         
         if (!identityToken) {
@@ -426,7 +412,6 @@ export default function AuthScreen() {
           return;
         }
 
-        console.log('Tentative de connexion Firebase avec Apple...');
         
         const provider = new OAuthProvider('apple.com');
         const firebaseCredential = provider.credential({
@@ -436,25 +421,17 @@ export default function AuthScreen() {
         const userCredential = await signInWithCredential(auth, firebaseCredential);
         const userId = userCredential.user.uid;
         
-        console.log('Utilisateur Firebase connecté:', userId);
-        
         // Vérifier si l'utilisateur existe déjà
         const userDoc = await getDoc(doc(db, 'users', userId));
         
         if (!userDoc.exists()) {
-          console.log('Création d\'un nouveau profil utilisateur...');
           // Créer un nouveau profil utilisateur
           const displayName = fullName ? `${fullName.givenName || ''} ${fullName.familyName || ''}`.trim() : '';
           
           // Gérer l'email masqué d'Apple
           const userEmail = email || '';
           const isPrivateEmail = userEmail.includes('privaterelay.appleid.com');
-          
-          console.log('Email utilisateur:', {
-            email: userEmail,
-            isPrivateEmail: isPrivateEmail
-          });
-          
+            
           await setDoc(doc(db, 'users', userId), {
             profile: {
               name: displayName,
@@ -473,12 +450,10 @@ export default function AuthScreen() {
               createdAt: new Date(),
             },
           });
-          console.log('Profil utilisateur créé avec succès');
           
           // Sauvegarder les identifiants pour la reconnexion rapide
           await saveAppleCredentials(userId, userEmail, displayName);
         } else {
-          console.log('Utilisateur existant trouvé');
           
           // Mettre à jour l'email si nécessaire (pour les utilisateurs existants)
           const userData = userDoc.data();
@@ -493,7 +468,6 @@ export default function AuthScreen() {
                 isPrivateEmail: email.includes('privaterelay.appleid.com')
               }
             }, { merge: true });
-            console.log('Email mis à jour pour l\'utilisateur existant');
           }
           
           // Sauvegarder les identifiants pour la reconnexion rapide
@@ -510,7 +484,6 @@ export default function AuthScreen() {
       
       if (error.code === 'ERR_CANCELED') {
         // L'utilisateur a annulé l'authentification
-        console.log('Authentification Apple annulée par l\'utilisateur');
       } else if (error.code === 'auth/operation-not-allowed') {
         showErrorAlert('Erreur', 'Apple Authentication n\'est pas activé dans Firebase. Veuillez contacter l\'administrateur.');
       } else if (error.code === 'auth/invalid-credential') {
@@ -525,8 +498,6 @@ export default function AuthScreen() {
 
   const handleGoogleQuickAuth = async () => {
     try {
-      console.log('Début de la reconnexion rapide Google...');
-      
       // Vérifier que Google Play Services est disponible (Android)
       if (Platform.OS === 'android') {
         const hasPlayServices = await GoogleSignin.hasPlayServices();
@@ -541,15 +512,12 @@ export default function AuthScreen() {
       let userInfo;
       try {
         userInfo = await GoogleSignin.signIn();
-        console.log('Informations utilisateur Google reçues (reconnexion rapide):', userInfo);
       } catch (signInError) {
-        console.log('Erreur lors de l\'authentification Google - probablement annulée:', signInError);
         return;
       }
 
       // Vérifier si l'utilisateur a annulé l'authentification
       if (!userInfo || userInfo.type === 'cancelled' || !userInfo.data) {
-        console.log('Authentification Google annulée par l\'utilisateur');
         return;
       }
 
@@ -559,35 +527,27 @@ export default function AuthScreen() {
         const tokens = await GoogleSignin.getTokens();
         idToken = tokens.idToken;
       } catch (tokenError) {
-        console.log('Erreur lors de la récupération du token - authentification annulée:', tokenError);
         return;
       }
       
       if (!idToken) {
-        console.log('Token d\'identité Google manquant - authentification annulée');
         return;
       }
 
       // Vérification supplémentaire : s'assurer que le token est valide
       if (idToken.length < 10) {
-        console.log('Token Google invalide - authentification annulée');
         return;
       }
 
-      console.log('Tentative de connexion Firebase avec Google (reconnexion rapide)...');
       
       const credential = GoogleAuthProvider.credential(idToken);
       const userCredential = await signInWithCredential(auth, credential);
       const userId = userCredential.user.uid;
       
-      console.log('Utilisateur Firebase connecté (reconnexion rapide):', userId);
-      
       // Vérifier si l'utilisateur existe déjà
       const userDoc = await getDoc(doc(db, 'users', userId));
       
       if (!userDoc.exists()) {
-        console.log('Création d\'un nouveau profil utilisateur (reconnexion rapide)...');
-        
         // Récupérer les informations utilisateur depuis Firebase
         const firebaseUser = userCredential.user;
         
@@ -608,12 +568,10 @@ export default function AuthScreen() {
             createdAt: new Date(),
           },
         });
-        console.log('Profil utilisateur créé avec succès (reconnexion rapide)');
         
         // Sauvegarder les identifiants pour la reconnexion rapide
         await saveGoogleCredentials(userId, firebaseUser.email || '', firebaseUser.displayName || '');
       } else {
-        console.log('Utilisateur existant trouvé (reconnexion rapide)');
         
         // Sauvegarder les identifiants pour la reconnexion rapide
         const userData = userDoc.data();
@@ -640,7 +598,6 @@ export default function AuthScreen() {
           error.message?.includes('canceled') ||
           error.message?.includes('user cancelled') ||
           error.message?.includes('user canceled')) {
-        console.log('Authentification Google annulée par l\'utilisateur');
         // Ne pas afficher d'erreur pour une annulation
         return;
       } else if (error.code === 'auth/operation-not-allowed') {
@@ -661,8 +618,6 @@ export default function AuthScreen() {
     try {
       setIsLoading(true);
       
-      console.log('Début de l\'authentification Google...');
-      
       // Vérifier que Google Play Services est disponible (Android)
       if (Platform.OS === 'android') {
         const hasPlayServices = await GoogleSignin.hasPlayServices();
@@ -680,21 +635,17 @@ export default function AuthScreen() {
         await GoogleSignin.signOut();
       } catch (signOutError) {
         // Ignorer les erreurs de déconnexion
-        console.log('Déconnexion Google (normal si pas connecté):', signOutError);
       }
       
       let userInfo;
       try {
         userInfo = await GoogleSignin.signIn();
-        console.log('Informations utilisateur Google reçues:', userInfo);
       } catch (signInError) {
-        console.log('Erreur lors de l\'authentification Google - probablement annulée:', signInError);
         return;
       }
 
       // Vérifier si l'utilisateur a annulé l'authentification
       if (!userInfo) {
-        console.log('Authentification Google annulée par l\'utilisateur');
         return;
       }
 
@@ -704,34 +655,28 @@ export default function AuthScreen() {
         const tokens = await GoogleSignin.getTokens();
         idToken = tokens.idToken;
       } catch (tokenError) {
-        console.log('Erreur lors de la récupération du token - authentification annulée:', tokenError);
         return;
       }
       
       if (!idToken) {
-        console.log('Token d\'identité Google manquant - authentification annulée');
         return;
       }
 
       // Vérification supplémentaire : s'assurer que le token est valide
       if (idToken.length < 10) {
-        console.log('Token Google invalide - authentification annulée');
         return;
       }
 
-      console.log('Tentative de connexion Firebase avec Google...');
       
       const credential = GoogleAuthProvider.credential(idToken);
       const userCredential = await signInWithCredential(auth, credential);
       const userId = userCredential.user.uid;
       
-      console.log('Utilisateur Firebase connecté:', userId);
       
       // Vérifier si l'utilisateur existe déjà
       const userDoc = await getDoc(doc(db, 'users', userId));
       
       if (!userDoc.exists()) {
-        console.log('Création d\'un nouveau profil utilisateur...');
         
         // Récupérer les informations utilisateur depuis Firebase
         const firebaseUser = userCredential.user;
@@ -753,12 +698,10 @@ export default function AuthScreen() {
             createdAt: new Date(),
           },
         });
-        console.log('Profil utilisateur créé avec succès');
         
         // Sauvegarder les identifiants pour la reconnexion rapide
         await saveGoogleCredentials(userId, firebaseUser.email || '', firebaseUser.displayName || '');
       } else {
-        console.log('Utilisateur existant trouvé');
         
         // Sauvegarder les identifiants pour la reconnexion rapide
         const userData = userDoc.data();
@@ -785,7 +728,6 @@ export default function AuthScreen() {
           error.message?.includes('canceled') ||
           error.message?.includes('user cancelled') ||
           error.message?.includes('user canceled')) {
-        console.log('Authentification Google annulée par l\'utilisateur');
         // Ne pas afficher d'erreur pour une annulation
         return;
       } else if (error.code === 'auth/operation-not-allowed') {

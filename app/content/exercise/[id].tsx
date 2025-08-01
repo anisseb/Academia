@@ -106,44 +106,59 @@ export default function ExercisePage() {
     }
   };
 
-/*
+
   useEffect(() => {
-    // Initialiser l'annonce
-    const ad = InterstitialAd.createForAdRequest(TestIds.INTERSTITIAL, {
-      requestNonPersonalizedAdsOnly: true,
-      keywords: ['education', 'school']
-    });
-
-    const unsubscribeLoaded = ad.addAdEventListener(AdEventType.LOADED, () => {
-      setAdLoaded(true);
-    });
-
-    const unsubscribeError = ad.addAdEventListener(AdEventType.ERROR, (error: any) => {
-      setAdLoaded(false);
-    });
-
-    const unsubscribeClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
-      setAdLoaded(false);
-      // Recharger une nouvelle annonce
-      ad.load();
-    });
-
-    // Charger l'annonce
-    try {
-      ad.load();
-    } catch (error) {
-      console.error('Erreur lors du chargement de l\'annonce:', error);
+    // Initialiser l'annonce seulement si l'ID est valide
+    if (!adUnitIds.interstitial || adUnitIds.interstitial === '') {
+      console.warn('⚠️  ID d\'unité publicitaire manquant');
+      return;
     }
 
-    setInterstitialAd(ad);
+    try {
+      const ad = InterstitialAd.createForAdRequest(adUnitIds.interstitial, {
+        requestNonPersonalizedAdsOnly: true,
+        keywords: ['education', 'school', 'learning']
+      });
 
-    return () => {
-      unsubscribeLoaded();
-      unsubscribeError();
-      unsubscribeClosed();
-    };
+      const unsubscribeLoaded = ad.addAdEventListener(AdEventType.LOADED, () => {
+        console.log('✅ Annonce interstitielle chargée');
+        setAdLoaded(true);
+      });
+
+      const unsubscribeError = ad.addAdEventListener(AdEventType.ERROR, (error: any) => {
+        console.log('❌ Erreur annonce:', error.message || error);
+        setAdLoaded(false);
+        // Ne pas essayer de recharger immédiatement en cas d'erreur
+      });
+
+      const unsubscribeClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
+        console.log('📱 Annonce fermée');
+        setAdLoaded(false);
+        // Recharger une nouvelle annonce pour la prochaine fois
+        setTimeout(() => {
+          try {
+            ad.load();
+          } catch (reloadError) {
+            console.error('Erreur lors du rechargement de l\'annonce:', reloadError);
+          }
+        }, 1000);
+      });
+
+      // Charger l'annonce
+      ad.load();
+      setInterstitialAd(ad);
+
+      return () => {
+        unsubscribeLoaded();
+        unsubscribeError();
+        unsubscribeClosed();
+      };
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'initialisation de l\'annonce:', error);
+      setAdLoaded(false);
+    }
   }, []);
-*/
+
 
   const handleBack = async () => {
     router.back();
@@ -180,16 +195,19 @@ export default function ExercisePage() {
       setShowResults(true);
       await handleExerciseComplete(score);
       
-      // Puis on montre l'annonce
-      /*
+      // Puis on montre l'annonce si elle est prête
+      console.log('📊 État annonce - Chargée:', adLoaded, '- Disponible:', !!interstitialAd);
       if (interstitialAd && adLoaded) {
         try {
-          interstitialAd.show();
+          console.log('📺 Affichage de l\'annonce...');
+          await interstitialAd.show();
         } catch (error) {
-          console.error('Erreur lors de l\'affichage de l\'annonce:', error);
+          console.error('❌ Erreur lors de l\'affichage de l\'annonce:', error);
         }
+      } else {
+        console.log('⚠️  Annonce non disponible - continuer sans pub');
       }
-      */
+
     }
   };
 

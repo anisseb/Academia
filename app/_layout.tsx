@@ -7,6 +7,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import { useSession } from './hooks/useSession';
+import { initializeAdMob } from './config/admob';
 
 declare global {
   interface Window {
@@ -21,6 +22,8 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    // Initialiser AdMob au démarrage
+    initializeAdMob();
   }, []);
 
   if (isValidating) {

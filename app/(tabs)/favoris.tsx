@@ -144,7 +144,6 @@ export default function FavorisScreen() {
         if (!chapterData.title || !subjectData.label || !subjectData.icon) {
           continue;
         }
-        console.log(subjectData.gradient);
         // Sécurisation du gradient
         const safeGradient = typeof subjectData.gradient === 'string' && subjectData.gradient.includes('linear-gradient')
           ? subjectData.gradient

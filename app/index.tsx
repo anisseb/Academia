@@ -33,7 +33,6 @@ export default function Index() {
             await updateSubscriptionStatus(user.uid, userData.abonnement);
           }
           
-          console.log('test', userData.abonnement);
           await SplashScreen.hideAsync();
           router.replace('/(tabs)');
         }
