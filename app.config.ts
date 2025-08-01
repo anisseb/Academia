@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "academia",
   slug: "academia",
-  version: "1.7.0",
+  version: "1.8.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "myapp",
