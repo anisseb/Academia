@@ -162,7 +162,9 @@ export default function CoursScreen() {
         if (userData.profile) {
           setUserLevel(userData.profile.class || '');
           setUserSchoolType(userData.profile.schoolType || '');
-          setHasActiveSubscription(userData.abonnement.active);
+          if (userData.abonnement && userData.abonnement.active === true) {
+            setHasActiveSubscription(userData.abonnement.active);
+          }
           await loadCourse();
         }
       }
