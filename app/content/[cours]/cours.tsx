@@ -17,7 +17,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth, db } from '../../../firebaseConfig';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { renderMathText as MathText } from '../../utils/mathRenderer';
-import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
+
 import * as Print from 'expo-print';
 import { shareAsync } from 'expo-sharing';
 import katex from 'katex';
@@ -26,8 +26,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { parseGradient } from '../../utils/subjectGradients';
 import { LinearGradient } from 'expo-linear-gradient';
-import { adUnitIds } from '@/app/config/admob';
+import { logAdConfiguration } from '@/app/config/admob';
 import { safeGoBack } from '../../utils/navigationUtils';
+import { useInterstitialAd } from '../../hooks/useInterstitialAd';
 
 interface CoursSection {
   title: string;
@@ -62,10 +63,14 @@ export default function CoursScreen() {
   const [loading, setLoading] = useState(true);
   const [userLevel, setUserLevel] = useState<string>('');
   const [userSchoolType, setUserSchoolType] = useState<string>('');
-  const [interstitialAd, setInterstitialAd] = useState<InterstitialAd | null>(null);
-  const [adLoaded, setAdLoaded] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+
+  // Utiliser le hook pour gérer les annonces
+  const { adLoaded, isLoading, isShowing, showAd, showAdWithRetry } = useInterstitialAd({
+    hasActiveSubscription,
+    onAdClosed: () => safeGoBack(router)
+  });
 
   const setDetails = async () => {
     const user = auth.currentUser;
@@ -110,42 +115,9 @@ export default function CoursScreen() {
     loadUserData();
     checkIfFavorite();
     setDetails();
-    // Initialiser l'annonce
-    const ad = InterstitialAd.createForAdRequest(adUnitIds.interstitial, {
-      requestNonPersonalizedAdsOnly: true,
-      keywords: ['education', 'school']
-    });
-
-    const unsubscribeLoaded = ad.addAdEventListener(AdEventType.LOADED, () => {
-      setAdLoaded(true);
-    });
-
-    const unsubscribeError = ad.addAdEventListener(AdEventType.ERROR, (error: any) => {
-      setAdLoaded(false);
-    });
-
-    const unsubscribeClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
-      setAdLoaded(false);
-      // Recharger une nouvelle annonce
-      ad.load();
-      // Revenir en arrière après la fermeture de l'annonce
-      safeGoBack(router);
-    });
-
-    // Charger l'annonce
-    try {
-      ad.load();
-    } catch (error) {
-      console.error('Erreur lors du chargement de l\'annonce:', error);
-    }
-
-    setInterstitialAd(ad);
-
-    return () => {
-      unsubscribeLoaded();
-      unsubscribeError();
-      unsubscribeClosed();
-    };
+    
+    // Logger la configuration des annonces
+    logAdConfiguration();
   }, []);
 
   const loadUserData = async () => {
@@ -285,19 +257,28 @@ export default function CoursScreen() {
     }
   };
 
-  const handleBack = () => {
+  const handleBack = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
-    // Navigation sécurisée vers l'écran précédent ou l'accueil
-    safeGoBack(router);
+    console.log('🔍 État de l\'annonce:', {
+      adLoaded,
+      isLoading,
+      isShowing,
+      hasActiveSubscription
+    });
     
-    // Afficher l'annonce si elle est chargée
-    if (adLoaded && interstitialAd && hasActiveSubscription === false) {
-      try {
-        interstitialAd.show();
-      } catch (error) {
-        console.error('Erreur lors de l\'affichage de l\'annonce:', error);
-      }
+    // Si l'utilisateur a un abonnement actif, naviguer directement
+    if (hasActiveSubscription) {
+      console.log('🚶 Navigation directe - Abonnement actif');
+      safeGoBack(router);
+      return;
+    }
+    
+    // Essayer d'afficher l'annonce avec retry, sinon naviguer directement
+    const adShown = await showAdWithRetry(2, 1000);
+    if (!adShown) {
+      console.log('🚶 Navigation directe - pas d\'annonce à afficher');
+      safeGoBack(router);
     }
   };
 

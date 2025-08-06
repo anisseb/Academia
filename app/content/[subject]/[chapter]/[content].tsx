@@ -9,6 +9,7 @@ import { db, auth } from '../../../../firebaseConfig';
 import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import { parseGradient } from '../../../utils/subjectGradients';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ContentPage() {
   const { 
@@ -32,6 +33,9 @@ export default function ContentPage() {
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [remainingExercises, setRemainingExercises] = useState(5);
   const [completedExercises, setCompletedExercises] = useState<string[]>([]);
+  const [exerciseScores, setExerciseScores] = useState<{[key: string]: number}>({});
+  const [filterType, setFilterType] = useState<'all' | 'completed' | 'notCompleted'>('all');
+  const [userData, setUserData] = useState<any>(null);
   const statusBarHeight = StatusBar.currentHeight || 0;
 
   const themeColors = {
@@ -41,6 +45,7 @@ export default function ContentPage() {
   };
 
   useEffect(() => {
+    loadFilterPreference();
     loadUserData();
   }, []);
 
@@ -51,6 +56,26 @@ export default function ContentPage() {
     }
   }, [userCountry, userClass]);
 
+  const loadFilterPreference = async () => {
+    try {
+      const savedFilter = await AsyncStorage.getItem('exerciseFilter');
+      if (savedFilter) {
+        setFilterType(savedFilter as 'all' | 'completed' | 'notCompleted');
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement du filtre:', error);
+    }
+  };
+
+  const saveFilterPreference = async (filter: 'all' | 'completed' | 'notCompleted') => {
+    try {
+      await AsyncStorage.setItem('exerciseFilter', filter);
+      setFilterType(filter);
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde du filtre:', error);
+    }
+  };
+
   const loadUserData = async () => {
     try {
       const user = auth.currentUser;
@@ -59,13 +84,32 @@ export default function ContentPage() {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) { 
         const userData = userDoc.data();
+        setUserData(userData);
         setUserCountry(userData.profile?.country || '');
         setUserClass(userData.profile?.class || '');
         setHasActiveSubscription(userData.abonnement?.active === true);
         
-        // S'assurer que completedExercises est toujours un tableau
+        // Traiter completedExercises comme un objet
         const userCompletedExercises = userData.profile?.completedExercises;
-        setCompletedExercises(Array.isArray(userCompletedExercises) ? userCompletedExercises : []);
+        
+        if (userCompletedExercises && typeof userCompletedExercises === 'object' && !Array.isArray(userCompletedExercises)) {
+          // Extraire les IDs des exercices complétés et les scores
+          const completedIds = Object.keys(userCompletedExercises);
+          const scores: {[key: string]: number} = {};
+          
+          completedIds.forEach((exerciseId: string) => {
+            const exerciseData = userCompletedExercises[exerciseId];
+            if (exerciseData && exerciseData.score !== undefined) {
+              scores[exerciseId] = exerciseData.score;
+            }
+          });
+          
+          setCompletedExercises(completedIds);
+          setExerciseScores(scores);
+        } else {
+          setCompletedExercises([]);
+          setExerciseScores({});
+        }
 
         if (!userData.abonnement?.active) {
           // Vérifier le nombre d'exercices déjà effectués aujourd'hui
@@ -241,13 +285,115 @@ export default function ContentPage() {
       }
     };
 
+  const getFilteredExercises = () => {
+    switch (filterType) {
+      case 'completed':
+        return exercises.filter(exercise => completedExercises.includes(exercise.id));
+      case 'notCompleted':
+        return exercises.filter(exercise => !completedExercises.includes(exercise.id));
+      default:
+        return exercises;
+    }
+  };
+
+  const renderFilterButtons = () => (
+    <View style={styles.filterContainer}>
+      <TouchableOpacity
+        style={[
+          styles.filterButton,
+          filterType === 'all' && styles.filterButtonActive,
+          { backgroundColor: filterType === 'all' ? '#60a5fa' : themeColors.card }
+        ]}
+        onPress={() => saveFilterPreference('all')}
+      >
+        <Text style={[
+          styles.filterButtonText,
+          { color: filterType === 'all' ? '#ffffff' : themeColors.text }
+        ]}>
+          Tous ({exercises.length})
+        </Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity
+        style={[
+          styles.filterButton,
+          filterType === 'completed' && styles.filterButtonActive,
+          { backgroundColor: filterType === 'completed' ? '#60a5fa' : themeColors.card }
+        ]}
+        onPress={() => saveFilterPreference('completed')}
+      >
+        <Text style={[
+          styles.filterButtonText,
+          { color: filterType === 'completed' ? '#ffffff' : themeColors.text }
+        ]}>
+          Complétés ({exercises.filter(ex => completedExercises.includes(ex.id)).length})
+        </Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity
+        style={[
+          styles.filterButton,
+          filterType === 'notCompleted' && styles.filterButtonActive,
+          { backgroundColor: filterType === 'notCompleted' ? '#60a5fa' : themeColors.card }
+        ]}
+        onPress={() => saveFilterPreference('notCompleted')}
+      >
+        <Text style={[
+          styles.filterButtonText,
+          { color: filterType === 'notCompleted' ? '#ffffff' : themeColors.text }
+        ]}>
+          À faire ({exercises.filter(ex => !completedExercises.includes(ex.id)).length})
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const getScoreColor = (score: number) => {
+    if (score >= 0 && score <= 3) return '#F44336'; // Rouge
+    if (score >= 4 && score <= 6) return '#FF9800'; // Orange
+    if (score >= 7 && score <= 10) return '#4CAF50'; // Vert
+    return '#4CAF50'; // Vert par défaut
+  };
+
+  const formatCompletionDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 1) {
+      return "Hier";
+    } else if (diffDays === 0) {
+      return "Aujourd'hui";
+    } else if (diffDays < 7) {
+      return `Il y a ${diffDays} jours`;
+    } else {
+      return date.toLocaleDateString('fr-FR', { 
+        day: 'numeric', 
+        month: 'short' 
+      });
+    }
+  };
+
   const renderExerciseCard = (exercise: Exercise) => {
     const isCompleted = Array.isArray(completedExercises) && completedExercises.includes(exercise.id);
+    const score = exerciseScores[exercise.id];
+    const scoreDisplay = score ? Math.round(score / 10) : null;
+    const scoreColor = scoreDisplay !== null ? getScoreColor(scoreDisplay) : '#4CAF50';
+    
+    // Récupérer la date de completion depuis les données utilisateur chargées
+    const userCompletedExercisesData = userData?.profile?.completedExercises;
+    const completionDate = userCompletedExercisesData && userCompletedExercisesData[exercise.id]?.completedAt;
     
     return (
       <TouchableOpacity
         key={exercise.id}
-        style={[styles.exerciseCard, { backgroundColor: themeColors.card }]}
+        style={[
+          styles.exerciseCard, 
+          { backgroundColor: themeColors.card },
+          isCompleted && styles.completedExerciseCard,
+          isCompleted && { borderColor: scoreColor, borderWidth: 4 }
+        ]}
         onPress={() => handleExercisePress(exercise)}
       >
         <View style={styles.exerciseHeader}>
@@ -255,13 +401,30 @@ export default function ContentPage() {
             {exercise.title}
           </Text>
           {isCompleted && (
-            <MaterialCommunityIcons name="check-circle" size={24} color="#4CAF50" />
+            <View style={styles.completedContainer}>
+              <MaterialCommunityIcons name="check-circle" size={24} color={scoreColor} />
+              {scoreDisplay !== null && (
+                <View style={[styles.scoreContainer, { backgroundColor: scoreColor }]}>
+                  <Text style={styles.scoreText}>{scoreDisplay}/10</Text>
+                </View>
+              )}
+            </View>
           )}
         </View>
-        <View style={[styles.difficultyBadge, styles[`difficulty${exercise.difficulty}`]]}>
-          <Text style={styles.difficultyText}>
-            {translateDifficulty(exercise.difficulty)}
-          </Text>
+        <View style={styles.exerciseFooter}>
+          <View style={[styles.difficultyBadge, styles[`difficulty${exercise.difficulty}`]]}>
+            <Text style={styles.difficultyText}>
+              {translateDifficulty(exercise.difficulty)}
+            </Text>
+          </View>
+          {isCompleted && completionDate && (
+            <View style={styles.completionDateContainer}>
+              <MaterialCommunityIcons name="calendar-check" size={14} color={themeColors.text + '80'} />
+              <Text style={[styles.completionDateText, { color: themeColors.text + '80' }]}>
+                {formatCompletionDate(completionDate)}
+              </Text>
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -416,7 +579,9 @@ export default function ContentPage() {
                 Exercices
               </Text>
               
-              {exercises.map(renderExerciseCard)}
+              {renderFilterButtons()}
+              
+              {getFilteredExercises().map(renderExerciseCard)}
             </>
           )}
 
@@ -674,5 +839,61 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    gap: 8,
+  },
+  filterButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterButtonActive: {
+    backgroundColor: '#60a5fa',
+  },
+  filterButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  completedContainer: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 8,
+  },
+  scoreContainer: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  scoreText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  completedExerciseCard: {
+    borderWidth: 4,
+    borderColor: '#4CAF50',
+    backgroundColor: 'rgba(22, 27, 22, 0.05)',
+  },
+  exerciseFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  completionDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  completionDateText: {
+    fontSize: 12,
+    opacity: 0.8,
   },
 }); 

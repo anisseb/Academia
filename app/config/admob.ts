@@ -10,28 +10,35 @@ export const initializeAdMob = async () => {
   }
 };
 
-// Utiliser les IDs de test pour éviter les erreurs
+// Configuration des IDs d'annonces
+const isDevelopment = __DEV__;
+
 export const adUnitIds = {
   interstitial: Platform.select({
-    ios: 'ca-app-pub-9849575862637315/9869347623', // Remplacez par votre vrai ID iOS
-    android: 'ca-app-pub-9849575862637315/8041260634', // Remplacez par votre vrai ID Android
+    ios: 'ca-app-pub-9849575862637315/9869347623',
+    android: 'ca-app-pub-9849575862637315/8041260634',
     default: TestIds.INTERSTITIAL,
   }),
-  banner: __DEV__ ? TestIds.BANNER : Platform.select({
-    ios: 'ca-app-pub-9849575862637315/1111111111', // Remplacez par votre vrai ID iOS
-    android: 'ca-app-pub-9849575862637315/2222222222', // Remplacez par votre vrai ID Android
-    default: TestIds.BANNER,
-  }),
-  rewarded: __DEV__ ? TestIds.REWARDED : Platform.select({
-    ios: 'ca-app-pub-9849575862637315~3948002761', // Remplacez par votre vrai ID iOS
-    android: 'ca-app-pub-9849575862637315/4444444444', // Remplacez par votre vrai ID Android
+  rewarded: Platform.select({
+    ios: 'ca-app-pub-9849575862637315/2052110317',
+    android: 'ca-app-pub-9849575862637315/7984346856',
     default: TestIds.REWARDED,
-  }),
+  })
 };
 
-// Configuration pour les tests
+// Configuration pour les annonces
 export const adSettings = {
   requestNonPersonalizedAdsOnly: true,
-  keywords: ['education', 'school', 'learning', 'math', 'science'],
+  keywords: ['kids', 'education', 'school', 'learning', 'games'],
   contentUrl: 'https://academiaforkids.com'
+};
+
+// Fonction utilitaire pour vérifier la configuration des annonces
+export const logAdConfiguration = () => {
+  console.log('📊 Configuration des annonces:', {
+    isDevelopment,
+    platform: Platform.OS,
+    interstitialId: adUnitIds.interstitial,
+    rewardedId: adUnitIds.rewarded
+  });
 }; 
